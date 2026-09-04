@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@theme {
+  --color-redox-red: #E31C2B;
+  --color-redox-red-hover: #c91422;
+  --color-redox-red-light: #fde8e9;
+  --color-redox-dark: #292A34;
+  --color-redox-dark-light: #373946;
+  --color-redox-bg: #F0F0F0;
+  --color-redox-card: #FFFFFF;
+}
+
+@layer base {
+  body {
+    background-color: #F0F0F0;
+    color: #292A34;
+    font-family: 'Cairo', sans-serif;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Print optimizations for receipts & reports */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 10px;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .print-ticket {
+    max-width: 80mm;
+    margin: 0 auto;
+    font-size: 12px;
+    color: #000 !important;
+  }
+}

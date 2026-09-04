@@ -1,0 +1,6 @@
+{
+  "name": "Fotop Studio ERP",
+  "description": "نظام إدارة رقمي متكامل لاستوديو التصوير والمخزون من تطوير Redox Cloud Solutions: نقطة بيع سريعة، خصم آلي للمخزون (BOM)، تتبع التالف، إدارة الورديات، ومحاسبة الأرباح الصافية.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
