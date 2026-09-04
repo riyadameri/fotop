@@ -27,6 +27,7 @@ import {
 import { Order, OrderStatus, Staff, Material, Expense, WasteRecord } from '../../types';
 import { formatCurrency, formatDate, formatTime, exportToCSV, getItemUnitCost } from '../../utils/formatters';
 import { StaffActivityJournal } from './StaffActivityJournal';
+import { OrdersReportPDFModal } from './OrdersReportPDFModal';
 
 interface OrdersViewProps {
   orders: Order[];
@@ -70,6 +71,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
 
   // Selected Order Modal
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
+  const [showPDFReportModal, setShowPDFReportModal] = useState<boolean>(false);
 
   // Status Filter Options
   const statusOptions: { id: string; label: string }[] = [
@@ -453,15 +455,22 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
             </select>
           </div>
 
-          {/* Export CSV Button */}
-          <div className="lg:col-span-1 flex justify-end">
+          {/* Export Buttons (PDF & CSV) */}
+          <div className="lg:col-span-1 flex items-center gap-1 justify-end">
+            <button
+              onClick={() => setShowPDFReportModal(true)}
+              title="تصدير كشف المعاملات والطلبات كـ PDF للطباعة أو الأرشفة"
+              className="flex-1 py-2 px-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-sm shadow-rose-600/20"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>PDF</span>
+            </button>
             <button
               onClick={handleExportCSV}
               title="تصدير جدول المعاملات إلى Excel / CSV"
-              className="w-full py-2 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-sm shadow-emerald-600/20"
+              className="py-2 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-sm shadow-emerald-600/20"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">تصدير</span>
             </button>
           </div>
 
@@ -680,8 +689,18 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                   جدول المعاملات المنفذة ({filteredOrders.length} معاملة)
                 </span>
               </div>
-              <div className="text-xs text-slate-500 font-medium">
-                مرتبة من الأحدث إلى الأقدم
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowPDFReportModal(true)}
+                  className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs shadow-rose-600/20"
+                  title="تصدير كشف المعاملات كـ PDF للطباعة أو الأرشفة"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>تصدير كـ PDF</span>
+                </button>
+                <div className="text-xs text-slate-500 font-medium hidden sm:inline">
+                  مرتبة من الأحدث إلى الأقدم
+                </div>
               </div>
             </div>
 
@@ -1135,6 +1154,20 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* PDF Report Export Modal */}
+      <OrdersReportPDFModal
+        isOpen={showPDFReportModal}
+        onClose={() => setShowPDFReportModal(false)}
+        orders={orders}
+        materials={materials}
+        allStaff={allStaff}
+        currentStaff={currentStaff}
+        initialStartDate={startDate}
+        initialEndDate={endDate}
+        initialStaffId={staffFilter}
+        initialStatus={statusFilter}
+      />
 
     </div>
   );

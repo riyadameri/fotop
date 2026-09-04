@@ -5,8 +5,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Zap, ReceiptText, Layers, Clock, Menu, LayoutDashboard } from 'lucide-react';
 import { Header } from './components/Header';
 import { Navigation, TabType } from './components/Navigation';
+import { DashboardView } from './components/Dashboard/DashboardView';
 import { PosView } from './components/POS/PosView';
 import { ReceiptModal } from './components/POS/ReceiptModal';
 import { InventoryView } from './components/Inventory/InventoryView';
@@ -18,6 +21,7 @@ import { OrdersView } from './components/Orders/OrdersView';
 import { SpecsView } from './components/Specs/SpecsView';
 import { SettingsView } from './components/Settings/SettingsView';
 import { LoginScreen } from './components/Auth/LoginScreen';
+import { FotopLogo } from './components/common/FotopLogo';
 
 import { 
   INITIAL_MATERIALS, 
@@ -53,7 +57,29 @@ export function App() {
   const [materials, setMaterials] = useState<Material[]>(INITIAL_MATERIALS);
   const [services, setServices] = useState<ServiceItem[]>(INITIAL_SERVICES);
   const [staffList, setStaffList] = useState<Staff[]>(INITIAL_STAFF);
-  const [currentStaff, setCurrentStaff] = useState<Staff>(INITIAL_STAFF[0]);
+  
+  // Auth state & persistence
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      return Boolean(sessionStorage.getItem('fotop_auth_staff_id'));
+    } catch {
+      return false;
+    }
+  });
+
+  const [currentStaff, setCurrentStaff] = useState<Staff>(() => {
+    try {
+      const savedStaffId = sessionStorage.getItem('fotop_auth_staff_id');
+      if (savedStaffId) {
+        const found = INITIAL_STAFF.find(s => s.id === savedStaffId);
+        if (found) return found;
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_STAFF[0];
+  });
+
   const [shifts, setShifts] = useState<Shift[]>(INITIAL_SHIFTS);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [wasteRecords, setWasteRecords] = useState<WasteRecord[]>(INITIAL_WASTE_RECORDS);
@@ -61,30 +87,83 @@ export function App() {
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceRecord[]>(INITIAL_ATTENDANCE);
   const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
+  // Routing & Navigation
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isLoginPage = location.pathname.toLowerCase() === '/login';
+
+  // Helper to map pathname to TabType
+  const getTabFromPath = (pathname: string): TabType => {
+    const cleanSegment = pathname.replace(/^\//, '').split('/')[0].toLowerCase();
+    switch (cleanSegment) {
+      case 'dashboard':
+        return 'dashboard';
+      case 'pos':
+        return 'pos';
+      case 'orders':
+        return 'orders';
+      case 'inventory':
+        return 'inventory';
+      case 'waste':
+        return 'waste';
+      case 'shifts':
+        return 'shifts';
+      case 'accounting':
+        return 'accounting';
+      case 'hr':
+        return 'hr';
+      case 'specs':
+        return 'specs';
+      case 'settings':
+        return 'settings';
+      default:
+        return 'pos';
+    }
+  };
+
+  const activeTab: TabType = getTabFromPath(location.pathname);
+
+  // Synchronize route guards and redirects
+  useEffect(() => {
+    const rawSegment = location.pathname.replace(/^\//, '').split('/')[0].toLowerCase();
+
+    // 1. If NOT authenticated, force redirect to /login unless already on /login
+    if (!isAuthenticated) {
+      if (rawSegment !== 'login') {
+        navigate('/login', { replace: true, state: { from: location.pathname } });
+      }
+      return;
+    }
+
+    // 2. If authenticated and accessing root /, redirect to /dashboard (managers) or /pos
+    if (!rawSegment) {
+      const defaultDest = currentStaff.role === 'manager' ? '/dashboard' : '/pos';
+      navigate(defaultDest, { replace: true });
+    }
+  }, [isAuthenticated, location.pathname, navigate, currentStaff.role]);
+
+  const handleTabChange = (tab: TabType) => {
+    navigate(`/${tab}`);
+    setIsMobileNavOpen(false);
+  };
 
   // UI state
-  const [activeTab, setActiveTab] = useState<TabType>('pos');
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
-  const [isHeaderCompact, setIsHeaderCompact] = useState<boolean>(() => {
+  const [isHeaderCompact, setIsHeaderCompact] = useState<boolean>(false);
+
+  useEffect(() => {
     try {
-      return localStorage.getItem('fotop_header_compact') === 'true';
+      localStorage.removeItem('fotop_header_compact');
     } catch {
-      return false;
+      // ignore
     }
-  });
+  }, []);
 
   const toggleHeaderCompact = () => {
-    setIsHeaderCompact(prev => {
-      const next = !prev;
-      try {
-        localStorage.setItem('fotop_header_compact', String(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+    setIsHeaderCompact(prev => !prev);
   };
   const [printedOrder, setPrintedOrder] = useState<Order | null>(null);
   const [showQuickExpenseModal, setShowQuickExpenseModal] = useState<boolean>(false);
@@ -137,6 +216,7 @@ export function App() {
   const activeShift = (shifts || []).find(s => s.status === 'open');
   const lowStockCount = (materials || []).filter(m => m.currentStock <= m.minThreshold).length;
   const openOrdersCount = (orders || []).filter(o => o.status !== 'delivered').length;
+  const activeAttendance = (attendanceLogs || []).find(l => l.staffId === currentStaff.id && !l.clockOut);
 
   // Clock-In for worker
   const handleClockIn = async (staffId: string) => {
@@ -674,80 +754,106 @@ export function App() {
   const handleLogin = (staff: Staff, autoClockIn: boolean) => {
     setCurrentStaff(staff);
     setIsAuthenticated(true);
+    try {
+      sessionStorage.setItem('fotop_auth_staff_id', staff.id);
+    } catch {
+      // ignore
+    }
     if (autoClockIn) {
       handleClockIn(staff.id);
     }
+    
+    // Redirect to requested protected destination or default role page
+    const requestedFrom = (location.state as any)?.from;
+    const destination = (requestedFrom && requestedFrom.toLowerCase() !== '/login')
+      ? requestedFrom
+      : (staff.role === 'manager' ? '/dashboard' : '/pos');
+    navigate(destination, { replace: true });
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    try {
+      sessionStorage.removeItem('fotop_auth_staff_id');
+    } catch {
+      // ignore
+    }
+    navigate('/login', { replace: true });
   };
 
-  // If not authenticated, show the Login Screen first
-  if (!isAuthenticated) {
+  // If not authenticated OR explicitly visiting /login, show dedicated Login Screen
+  if (!isAuthenticated || isLoginPage) {
     return (
       <LoginScreen
         staffList={staffList}
         onLogin={handleLogin}
+        isAuthenticated={isAuthenticated}
+        currentStaff={currentStaff}
+        onReturnToApp={() => {
+          navigate(currentStaff.role === 'manager' ? '/dashboard' : '/pos');
+        }}
       />
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F0F0F0] text-[#292A34] flex flex-col font-['Cairo',sans-serif]">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#F0F0F0] text-[#292A34] flex flex-col lg:flex-row font-['Cairo',sans-serif]">
       
-      {/* Top Global Header (Slim & Professional) */}
-      <Header
+      {/* Navigation Component (Full-Height Sidebar on Desktop, Drawer on Mobile) */}
+      <Navigation
         currentStaff={currentStaff}
-        allStaff={staffList}
-        onSwitchStaff={setCurrentStaff}
+        activeTab={activeTab}
+        onChangeTab={handleTabChange}
+        lowStockCount={lowStockCount}
+        openOrdersCount={openOrdersCount}
+        isMobileOpen={isMobileNavOpen}
+        onCloseMobile={() => setIsMobileNavOpen(false)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        onOpenSpecs={() => handleTabChange('specs')}
+        onOpenExpense={() => setShowQuickExpenseModal(true)}
+        onOpenWaste={() => setShowQuickWasteModal(true)}
         onLogout={handleLogout}
-        activeShift={activeShift}
-        attendanceLogs={attendanceLogs}
-        onClockIn={handleClockIn}
-        onClockOut={handleClockOut}
-        onOpenLogWaste={() => setShowQuickWasteModal(true)}
-        onOpenExpenseModal={() => setShowQuickExpenseModal(true)}
-        onOpenSpecsModal={() => setActiveTab('specs')}
-        onResetData={handleResetData}
-        materials={materials}
-        services={services}
-        onNavigateToInventory={() => setActiveTab('inventory')}
-        onToggleMobileMenu={() => setIsMobileNavOpen(!isMobileNavOpen)}
-        isMobileMenuOpen={isMobileNavOpen}
-        isCompact={isHeaderCompact}
-        onToggleCompact={toggleHeaderCompact}
-        onNavigateToHome={() => {
-          setActiveTab('pos');
-          setIsMobileNavOpen(false);
-        }}
-        onNavigateToSettings={() => {
-          setActiveTab('settings');
-          setIsMobileNavOpen(false);
-        }}
+        activeAttendance={activeAttendance}
       />
 
-      {/* Main Responsive Body Layout (Right Sidebar on Desktop in RTL + Main View Area) */}
-      <div className="flex-1 flex flex-row w-full min-h-[calc(100vh-54px)]">
+      {/* Main Responsive Body Layout (Header + Scrollable Workspace) */}
+      <div className="flex-1 flex flex-col min-w-0 h-full lg:h-screen lg:overflow-hidden">
         
-        {/* Navigation Component (Sidebar on Desktop, Drawer on Mobile) */}
-        <Navigation
+        {/* Top Global Header (Slim & Professional) */}
+        <Header
           currentStaff={currentStaff}
-          activeTab={activeTab}
-          onChangeTab={(tab) => {
-            setActiveTab(tab);
-            setIsMobileNavOpen(false);
+          allStaff={staffList}
+          onSwitchStaff={(staff) => {
+            setCurrentStaff(staff);
+            try {
+              sessionStorage.setItem('fotop_auth_staff_id', staff.id);
+            } catch {
+              // ignore
+            }
           }}
-          lowStockCount={lowStockCount}
-          openOrdersCount={openOrdersCount}
-          isMobileOpen={isMobileNavOpen}
-          onCloseMobile={() => setIsMobileNavOpen(false)}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          onLogout={handleLogout}
+          activeShift={activeShift}
+          attendanceLogs={attendanceLogs}
+          onClockIn={handleClockIn}
+          onClockOut={handleClockOut}
+          onOpenLogWaste={() => setShowQuickWasteModal(true)}
+          onOpenExpenseModal={() => setShowQuickExpenseModal(true)}
+          onOpenSpecsModal={() => handleTabChange('specs')}
+          onResetData={handleResetData}
+          materials={materials}
+          services={services}
+          onNavigateToInventory={() => handleTabChange('inventory')}
+          onToggleMobileMenu={() => setIsMobileNavOpen(!isMobileNavOpen)}
+          isMobileMenuOpen={isMobileNavOpen}
+          isCompact={isHeaderCompact}
+          onToggleCompact={toggleHeaderCompact}
+          onNavigateToHome={() => handleTabChange('pos')}
+          onNavigateToSettings={() => handleTabChange('settings')}
         />
 
         {/* Dynamic Main Workspace with Motion Transitions */}
-        <main className="flex-1 min-w-0 p-3 sm:p-5 lg:p-6 overflow-y-auto flex flex-col justify-between">
+        <main className="flex-1 min-w-0 p-3 sm:p-5 lg:p-6 pb-24 lg:pb-6 overflow-y-auto flex flex-col justify-between">
           <div>
             {isLoading ? (
               <div className="flex items-center justify-center min-h-[400px]">
@@ -766,6 +872,22 @@ export function App() {
                   transition={{ duration: 0.2, ease: "easeOut" }}
                   className="w-full"
                 >
+                  {activeTab === 'dashboard' && (
+                    <DashboardView
+                      orders={orders || []}
+                      materials={materials || []}
+                      wasteRecords={wasteRecords || []}
+                      expenses={expenses || []}
+                      shifts={shifts || []}
+                      currentStaff={currentStaff}
+                      allStaff={staffList || []}
+                      attendanceLogs={attendanceLogs || []}
+                      onNavigateTab={handleTabChange}
+                      onOpenQuickExpense={() => setShowQuickExpenseModal(true)}
+                      onOpenQuickWaste={() => setShowQuickWasteModal(true)}
+                    />
+                  )}
+
                   {activeTab === 'pos' && (
                     <PosView
                       services={services || []}
@@ -866,7 +988,7 @@ export function App() {
                   )}
 
                   {activeTab === 'specs' && (
-                    <SpecsView onGoToPOS={() => setActiveTab('pos')} />
+                    <SpecsView onGoToPOS={() => handleTabChange('pos')} />
                   )}
 
                   {activeTab === 'settings' && (
@@ -878,7 +1000,7 @@ export function App() {
                       onAutoClockOutAll={handleAutoClockOutAll}
                       onClockInStaff={handleClockInStaff}
                       onClockOutStaff={handleClockOutStaff}
-                      onGoToPOS={() => setActiveTab('pos')}
+                      onGoToPOS={() => handleTabChange('pos')}
                     />
                   )}
                 </motion.div>
@@ -889,7 +1011,8 @@ export function App() {
           {/* Footer Branding */}
           <footer className="bg-white/80 border border-slate-200/80 rounded-2xl py-3 px-5 text-center text-xs text-slate-500 mt-8 shadow-xs">
             <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
+                <FotopLogo className="w-6 h-6" />
                 <span className="font-bold text-[#292A34]">Fotop Studio ERP</span>
                 <span>─</span>
                 <span>استضافة سحابية: <strong className="text-[#E31C2B]">Redox Cloud Solutions</strong></span>
@@ -903,6 +1026,102 @@ export function App() {
           </footer>
         </main>
       </div>
+
+      {/* ========================================================================= */}
+      {/* MOBILE BOTTOM NAVIGATION BAR (Instant 1-Tap Switching on Mobile Screens)  */}
+      {/* ========================================================================= */}
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-[#1f2029]/95 backdrop-blur-md border-t border-slate-700/80 px-1.5 py-1.5 flex items-center justify-around shadow-2xl safe-bottom select-none">
+        
+        {/* Dashboard Tab */}
+        <button
+          onClick={() => {
+            soundManager.playClickSound();
+            handleTabChange('dashboard');
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
+            activeTab === 'dashboard'
+              ? 'text-[#ff4d5a] font-black'
+              : 'text-slate-400 hover:text-slate-200 font-medium'
+          }`}
+        >
+          <LayoutDashboard className={`w-5 h-5 mb-0.5 ${activeTab === 'dashboard' ? 'stroke-[2.5]' : ''}`} />
+          <span className="text-[10px]">الرئيسية</span>
+        </button>
+
+        {/* POS Tab */}
+        <button
+          onClick={() => {
+            soundManager.playClickSound();
+            handleTabChange('pos');
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
+            activeTab === 'pos'
+              ? 'text-[#ff4d5a] font-black'
+              : 'text-slate-400 hover:text-slate-200 font-medium'
+          }`}
+        >
+          <Zap className={`w-5 h-5 mb-0.5 ${activeTab === 'pos' ? 'stroke-[2.5]' : ''}`} />
+          <span className="text-[10px]">نقطة البيع</span>
+        </button>
+
+        {/* Orders Tab */}
+        <button
+          onClick={() => {
+            soundManager.playClickSound();
+            handleTabChange('orders');
+          }}
+          className={`relative flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
+            activeTab === 'orders'
+              ? 'text-[#ff4d5a] font-black'
+              : 'text-slate-400 hover:text-slate-200 font-medium'
+          }`}
+        >
+          <ReceiptText className={`w-5 h-5 mb-0.5 ${activeTab === 'orders' ? 'stroke-[2.5]' : ''}`} />
+          <span className="text-[10px]">الطلبات</span>
+          {openOrdersCount > 0 && (
+            <span className="absolute top-0 right-1 w-4 h-4 bg-amber-500 text-black text-[9px] font-black rounded-full flex items-center justify-center border border-[#1f2029]">
+              {openOrdersCount}
+            </span>
+          )}
+        </button>
+
+        {/* Inventory Tab */}
+        <button
+          onClick={() => {
+            soundManager.playClickSound();
+            handleTabChange('inventory');
+          }}
+          className={`relative flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
+            activeTab === 'inventory'
+              ? 'text-[#ff4d5a] font-black'
+              : 'text-slate-400 hover:text-slate-200 font-medium'
+          }`}
+        >
+          <Layers className={`w-5 h-5 mb-0.5 ${activeTab === 'inventory' ? 'stroke-[2.5]' : ''}`} />
+          <span className="text-[10px]">المخزن</span>
+          {lowStockCount > 0 && (
+            <span className="absolute top-0 right-1 w-4 h-4 bg-[#E31C2B] text-white text-[9px] font-black rounded-full flex items-center justify-center border border-[#1f2029] animate-pulse">
+              {lowStockCount}
+            </span>
+          )}
+        </button>
+
+        {/* More / Menu Drawer Toggle */}
+        <button
+          onClick={() => {
+            soundManager.playClickSound();
+            setIsMobileNavOpen(!isMobileNavOpen);
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer ${
+            isMobileNavOpen
+              ? 'text-[#ff4d5a] font-black'
+              : 'text-slate-400 hover:text-slate-200 font-medium'
+          }`}
+        >
+          <Menu className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px]">المزيد</span>
+        </button>
+      </nav>
 
 
       {/* Printable Receipt Modal */}

@@ -17,5 +17,109 @@
   "orders": [],
   "wasteRecords": [],
   "expenses": [],
-  "attendanceLogs": []
+  "attendanceLogs": [
+    {
+      "id": "att_1788529276859",
+      "staffId": "staff_fouad",
+      "staffName": "فؤاد (fouad)",
+      "clockIn": "2026-09-04T13:41:16.859Z",
+      "date": "2026-09-04",
+      "status": "clocked_in",
+      "hourlyRateApplied": 250,
+      "notes": "تسجيل دخول وبداية الدوام"
+    },
+    {
+      "id": "att_1788529055367",
+      "staffId": "staff_fouad",
+      "staffName": "فؤاد (fouad)",
+      "clockIn": "2026-09-04T13:37:35.367Z",
+      "date": "2026-09-04",
+      "status": "clocked_in",
+      "hourlyRateApplied": 250,
+      "notes": "تسجيل دخول وبداية الدوام"
+    },
+    {
+      "id": "att_1788528416395",
+      "staffId": "staff_fouad",
+      "staffName": "فؤاد (fouad)",
+      "clockIn": "2026-09-04T13:26:56.395Z",
+      "date": "2026-09-04",
+      "status": "clocked_in",
+      "hourlyRateApplied": 250,
+      "notes": "تسجيل دخول وبداية الدوام"
+    },
+    {
+      "id": "att_1788527828051",
+      "staffId": "staff_fouad",
+      "staffName": "فؤاد (fouad)",
+      "clockIn": "2026-09-04T13:17:08.051Z",
+      "date": "2026-09-04",
+      "status": "clocked_in",
+      "hourlyRateApplied": 250,
+      "notes": "تسجيل دخول وبداية الدوام"
+    },
+    {
+      "id": "att_1788526635400_staff_fouad",
+      "staffId": "staff_fouad",
+      "staffName": "فؤاد (fouad)",
+      "clockIn": "2026-09-04T12:57:15.400Z",
+      "date": "2026-09-04",
+      "status": "clocked_in",
+      "hourlyRateApplied": 250,
+      "notes": "تسجيل دخول تلقائي لجميع العمال بواسطة المدير"
+    },
+    {
+      "id": "att_1788526553410",
+      "staffId": "staff_fouad",
+      "staffName": "فؤاد (fouad)",
+      "clockIn": "2026-09-04T12:55:53.410Z",
+      "date": "2026-09-04",
+      "status": "clocked_out",
+      "hourlyRateApplied": 250,
+      "notes": "تسجيل خروج ونهاية الدوام",
+      "clockOut": "2026-09-04T12:56:57.353Z",
+      "totalMinutes": 1,
+      "earnedPay": 4
+    },
+    {
+      "id": "att_1788526420903",
+      "staffId": "staff_fouad",
+      "staffName": "فؤاد (fouad)",
+      "clockIn": "2026-09-04T12:53:40.903Z",
+      "date": "2026-09-04",
+      "status": "clocked_out",
+      "hourlyRateApplied": 250,
+      "notes": "تسجيل خروج ونهاية الدوام",
+      "clockOut": "2026-09-04T12:56:57.353Z",
+      "totalMinutes": 3,
+      "earnedPay": 13
+    },
+    {
+      "id": "att_1788520854749",
+      "staffId": "staff_fouad",
+      "staffName": "فؤاد (fouad)",
+      "clockIn": "2026-09-04T11:20:54.749Z",
+      "date": "2026-09-04",
+      "status": "clocked_out",
+      "hourlyRateApplied": 250,
+      "notes": "تسجيل خروج ونهاية الدوام",
+      "clockOut": "2026-09-04T12:56:57.353Z",
+      "totalMinutes": 96,
+      "earnedPay": 400
+    },
+    {
+      "id": "att_1788520815605",
+      "staffId": "staff_fouad",
+      "staffName": "فؤاد (fouad)",
+      "clockIn": "2026-09-04T11:20:15.605Z",
+      "date": "2026-09-04",
+      "status": "clocked_out",
+      "hourlyRateApplied": 250,
+      "notes": "تسجيل خروج ونهاية الدوام",
+      "clockOut": "2026-09-04T12:56:57.353Z",
+      "totalMinutes": 97,
+      "earnedPay": 404
+    }
+  ],
+  "salaryPayments": []
 }

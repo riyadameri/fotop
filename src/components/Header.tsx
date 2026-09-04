@@ -32,12 +32,16 @@ import {
   Upload,
   Sparkles,
   Check,
-  Sliders
+  Sliders,
+  Database,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Staff, Shift, Material, AttendanceRecord, ServiceItem } from '../types';
 import { formatCurrency, formatTime, formatNumber } from '../utils/formatters';
 import { soundManager } from '../utils/audio';
+import { api } from '../api';
+import { FotopLogo } from './common/FotopLogo';
 
 interface HeaderProps {
   currentStaff: Staff;
@@ -96,16 +100,64 @@ export const Header: React.FC<HeaderProps> = ({
   );
   const totalLowStockCount = lowStockMaterials.length + lowStockProducts.length;
 
-  // Local Compact state if not controlled externally
-  const [internalCompact, setInternalCompact] = useState<boolean>(false);
-  const isCompact = externalIsCompact !== undefined ? externalIsCompact : internalCompact;
+  // Live Real-Time Clock & Date for Computer Screens Header
+  const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentDateTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-  const handleToggleCompact = () => {
-    soundManager.playClickSound();
-    if (onToggleCompact) {
-      onToggleCompact();
-    } else {
-      setInternalCompact(!internalCompact);
+  const formattedTimeStr = currentDateTime.toLocaleTimeString('fr-FR', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    second: '2-digit' 
+  });
+  
+  const formattedDateStr = currentDateTime.toLocaleDateString('ar-DZ', { 
+    weekday: 'short', 
+    day: 'numeric', 
+    month: 'short',
+    year: 'numeric'
+  });
+
+  // MongoDB Atlas Cloud Connection State
+  const [mongoStatus, setMongoStatus] = useState<{
+    connected: boolean;
+    database?: string;
+    counts?: Record<string, number>;
+    message?: string;
+  }>({ connected: false });
+  const [isSyncingMongo, setIsSyncingMongo] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const checkStatus = async () => {
+      try {
+        const res = await api.getMongoStatus();
+        if (isMounted) setMongoStatus(res);
+      } catch {
+        if (isMounted) setMongoStatus({ connected: false });
+      }
+    };
+    checkStatus();
+    const interval = setInterval(checkStatus, 25000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const handleManualMongoSync = async () => {
+    setIsSyncingMongo(true);
+    try {
+      await api.syncToMongo();
+      const status = await api.getMongoStatus();
+      setMongoStatus(status);
+      soundManager.playSuccessSound();
+    } catch {
+      soundManager.playAlertSound();
+    } finally {
+      setIsSyncingMongo(false);
     }
   };
 
@@ -356,203 +408,21 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className={`bg-[#1f2029] text-white border-b border-slate-700/80 sticky top-0 z-30 transition-all duration-200 shadow-md backdrop-blur-md ${
-      isCompact ? 'py-1 px-2.5 sm:px-4' : 'py-2 px-3 sm:px-5'
-    }`}>
+    <header className="w-full bg-[#1f2029] text-white border-b border-slate-700/80 sticky top-0 z-30 transition-all duration-200 shadow-md backdrop-blur-md">
       {/* ========================================================================= */}
-      {/* 1. COMPACT / HIDDEN HEADER VIEW (Icons Perfectly Centered & Arranged)      */}
+      {/* 1. PRIMARY TOP NAVIGATION BAR (Clean & Adaptive across Mobile & Desktop)   */}
       {/* ========================================================================= */}
-      {isCompact ? (
-        <div className="w-full mx-auto flex items-center justify-between">
-          {/* Mobile Burger Menu on Start */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {onToggleMobileMenu && (
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                onClick={onToggleMobileMenu}
-                className="lg:hidden p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white flex items-center justify-center cursor-pointer transition-colors shadow-sm"
-                title="فتح القائمة الرئيسية"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="w-4 h-4 text-rose-400" />
-                ) : (
-                  <Menu className="w-4 h-4 text-slate-200" />
-                )}
-              </motion.button>
-            )}
-
-            {/* Studio Logo / Icon */}
-            <div 
-              onClick={() => {
-                soundManager.playClickSound();
-                if (onNavigateToHome) onNavigateToHome();
-              }}
-              className="w-8 h-8 rounded-xl bg-[#292A34] border border-slate-700/80 p-0.5 text-white font-black shadow-md flex items-center justify-center cursor-pointer overflow-hidden transition-transform active:scale-95 shrink-0"
-              title="الواجهة الرئيسية (نقطة البيع)"
-            >
-              {customStudioLogo ? (
-                <img src={customStudioLogo} alt={customStudioName || "Studio Logo"} className="w-full h-full object-contain rounded-lg" />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-[#E31C2B] to-[#b8121f] rounded-lg flex items-center justify-center">
-                  <Camera className="w-3.5 h-3.5 stroke-[2.5]" />
-                </div>
-              )}
-            </div>
-
-            {/* Studio Name (Always visible) */}
-            <div 
-              onClick={() => {
-                soundManager.playClickSound();
-                if (onNavigateToHome) onNavigateToHome();
-              }}
-              className="cursor-pointer flex items-center gap-1"
-            >
-              <span className="text-xs font-black text-white truncate max-w-[75px] sm:max-w-[120px]">
-                {customStudioName}
-              </span>
-              <span className="bg-[#E31C2B] text-white text-[8px] px-1 py-0.2 rounded font-black tracking-normal shrink-0">
-                ERP
-              </span>
-            </div>
-          </div>
-
-          {/* PERFECTLY CENTERED ACTION DOCK */}
-          <div className="flex items-center justify-center gap-1.5 sm:gap-2.5 bg-[#171820]/95 border border-slate-700/80 rounded-2xl px-2 sm:px-3 py-0.5 shadow-inner">
-            {/* Clock-In / Clock-Out Icon */}
-            {activeAttendance ? (
-              <div className="flex items-center gap-1">
-                <span className="flex items-center gap-1 text-emerald-400 font-bold text-[11px] font-mono px-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  {formatTime(activeAttendance.clockIn)}
-                </span>
-                <button
-                  onClick={handleClockOutClick}
-                  className="bg-rose-950 hover:bg-rose-900 text-rose-200 p-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
-                  title="تسجيل نهاية الدوام (خروج)"
-                >
-                  <StopCircle className="w-3.5 h-3.5 text-rose-400" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleClockInClick}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-0.5 rounded-lg text-[10px] font-black flex items-center gap-1 cursor-pointer transition-all shadow-sm"
-                title="تسجيل بدء الدوام والعمل الفعلي"
-              >
-                <PlayCircle className="w-3.5 h-3.5" />
-                <span className="text-[10px]">بدء دوام</span>
-              </button>
-            )}
-
-            <div className="h-4 w-[1px] bg-slate-700" />
-
-            {/* Active Shift Cash Indicator */}
-            {activeShift && (
-              <div className="hidden sm:flex items-center gap-1 text-amber-400 text-xs font-mono font-bold" title="رصيد الصندوق المتوقع للوردية">
-                <Wallet className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="text-[11px]">{formatCurrency(activeShift.expectedCash)}</span>
-              </div>
-            )}
-
-            {/* Low Stock Bell Alert */}
-            <div className="relative" ref={notifRef}>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={handleOpenAlerts}
-                className={`relative p-1 rounded-xl border text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
-                  totalLowStockCount > 0
-                    ? 'bg-[#E31C2B]/20 hover:bg-[#E31C2B]/30 border-[#E31C2B] text-white shadow-md shadow-[#E31C2B]/20'
-                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
-                }`}
-                title={totalLowStockCount > 0 ? `تنبيه: ${totalLowStockCount} مواد تحتاج إعادة تعبئة` : 'تنبيهات المخزون'}
-              >
-                {totalLowStockCount > 0 ? (
-                  <BellRing className="w-3.5 h-3.5 text-[#ff6b6b] animate-bounce" />
-                ) : (
-                  <Bell className="w-3.5 h-3.5 text-slate-300" />
-                )}
-                {totalLowStockCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 bg-[#E31C2B] text-white text-[8px] font-black rounded-full flex items-center justify-center border border-[#1f2029]">
-                    {totalLowStockCount}
-                  </span>
-                )}
-              </motion.button>
-            </div>
-
-            {/* Sound Toggle */}
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              onClick={handleToggleMute}
-              className={`p-1 rounded-xl border text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
-                isMuted 
-                  ? 'bg-slate-800/80 border-slate-700 text-slate-400' 
-                  : 'bg-emerald-950/70 border-emerald-700/80 text-emerald-300 hover:bg-emerald-900'
-              }`}
-              title={isMuted ? 'الصوت مكتوم' : 'الأصوات مفعلة'}
-            >
-              {isMuted ? (
-                <VolumeX className="w-3.5 h-3.5 text-slate-400" />
-              ) : (
-                <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
-              )}
-            </motion.button>
-
-            {/* Quick Expense */}
-            <button
-              onClick={() => {
-                soundManager.playClickSound();
-                onOpenExpenseModal();
-              }}
-              className="p-1 text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 rounded-xl flex items-center justify-center cursor-pointer"
-              title="تسجيل مصروف نثري"
-            >
-              <Wallet className="w-3.5 h-3.5" />
-            </button>
-
-            <div className="h-4 w-[1px] bg-slate-700" />
-
-            {/* User Avatar / Profile */}
-            <div className="relative" ref={profileRef}>
-              <button
-                onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                className="flex items-center gap-1 p-0.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 cursor-pointer"
-                title={`${currentStaff.name} - انقر للتبديل أو تعديل البروفايل`}
-              >
-                {customStaffPhoto ? (
-                  <img src={customStaffPhoto} alt={currentStaff.name} className="w-5 h-5 rounded-lg object-cover" />
-                ) : (
-                  <span className="text-xs">{currentStaff.avatar}</span>
-                )}
-                <ChevronDown className="w-2.5 h-2.5 text-slate-400" />
-              </button>
-            </div>
-          </div>
-
-          {/* Expand Toggle on End (Desktop only) */}
-          <motion.button
-            whileTap={{ scale: 0.92 }}
-            onClick={handleToggleCompact}
-            className="hidden sm:flex p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white items-center justify-center transition-colors cursor-pointer shrink-0"
-            title="توسيع الهيدر للوضع الكامل"
-          >
-            <Maximize2 className="w-3.5 h-3.5 text-slate-200" />
-          </motion.button>
-        </div>
-      ) : (
-        /* ========================================================================= */
-        /* 2. FULL HEADER VIEW (Rich Typography & Comprehensive Controls)             */
-        /* ========================================================================= */
-        <div className="w-full mx-auto flex items-center justify-between gap-1.5 sm:gap-3">
+      <div className="w-full mx-auto flex items-center justify-between gap-1.5 sm:gap-3 py-2 sm:py-2.5 px-3 sm:px-6 lg:px-8">
           
           {/* Right / Start: Burger (Mobile) + Logo & Branding */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 min-w-0">
             
             {/* Mobile Burger Menu Button */}
             {onToggleMobileMenu && (
               <motion.button
                 whileTap={{ scale: 0.92 }}
                 onClick={onToggleMobileMenu}
-                className="lg:hidden p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white flex items-center justify-center cursor-pointer transition-colors shadow-sm"
+                className="lg:hidden p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white flex items-center justify-center cursor-pointer transition-colors shadow-sm shrink-0"
                 title="فتح القائمة الرئيسية"
               >
                 {isMobileMenuOpen ? (
@@ -564,7 +434,7 @@ export const Header: React.FC<HeaderProps> = ({
             )}
 
             {/* Logo & Branding */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 min-w-0">
               <div 
                 className="relative flex items-center justify-center rounded-xl bg-[#292A34] border border-slate-700/80 p-0.5 text-white font-black shadow-md shrink-0 cursor-pointer w-8 h-8 sm:w-9 sm:h-9 overflow-hidden transition-transform active:scale-95"
                 onClick={() => {
@@ -576,28 +446,26 @@ export const Header: React.FC<HeaderProps> = ({
                 {customStudioLogo ? (
                   <img src={customStudioLogo} alt={customStudioName || "شعار الاستوديو"} className="w-full h-full object-contain rounded-lg" />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-[#E31C2B] to-[#b8121f] rounded-lg flex items-center justify-center">
-                    <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
-                  </div>
+                  <FotopLogo className="w-full h-full" showGlow />
                 )}
                 <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-emerald-400 border-2 border-[#1f2029] rounded-full" title="متصل بالسيرفر السحابي Redox" />
               </div>
 
               {/* Branding Text */}
               <div 
-                className="flex flex-col cursor-pointer transition-opacity hover:opacity-90" 
+                className="flex flex-col cursor-pointer transition-opacity hover:opacity-90 min-w-0" 
                 onClick={() => {
                   soundManager.playClickSound();
                   if (onNavigateToHome) onNavigateToHome();
                 }}
                 title="الواجهة الرئيسية (نقطة البيع)"
               >
-                <div className="flex items-center gap-1.5">
-                  <h1 className="text-sm sm:text-base font-black tracking-tight text-white flex items-center gap-1">
-                    <span>{customStudioName}</span>
-                    <span className="bg-[#E31C2B] text-white text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded font-black tracking-normal">ERP</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <h1 className="text-sm sm:text-base font-black tracking-tight text-white flex items-center gap-1 min-w-0">
+                    <span className="truncate max-w-[85px] xs:max-w-[130px] sm:max-w-[200px]">{customStudioName}</span>
+                    <span className="bg-[#E31C2B] text-white text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded font-black tracking-normal shrink-0">ERP</span>
                   </h1>
-                  <span className="text-[11px] text-slate-400 font-medium hidden md:inline-block">| {studioTagline}</span>
+                  <span className="text-[11px] text-slate-400 font-medium hidden md:inline-block truncate">| {studioTagline}</span>
                 </div>
                 <div className="hidden sm:flex items-center gap-1.5 text-[9px] text-slate-400">
                   <span className="text-slate-300">Redox Cloud Solutions</span>
@@ -610,8 +478,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Center: Live Attendance & Shift Status */}
-          <div className="flex items-center gap-1 sm:gap-2 justify-center">
+          {/* Center: Live Attendance & Shift Status (Desktop & Tablet Screens) */}
+          <div className="hidden sm:flex items-center gap-1.5 sm:gap-2 justify-center">
             
             {/* Worker Instant Clock-In / Clock-Out Widget */}
             <div className="flex items-center gap-1 bg-[#171820] border border-slate-700/80 rounded-xl text-xs shadow-inner px-2 py-1">
@@ -619,7 +487,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="flex items-center gap-1">
                   <div className="flex items-center gap-1 text-emerald-400 font-bold text-[10px] sm:text-xs">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    <span className="hidden sm:inline">دوام:</span>
+                    <span className="hidden md:inline">دوام:</span>
                     <span>{formatTime(activeAttendance.clockIn)}</span>
                   </div>
                   <button
@@ -628,7 +496,7 @@ export const Header: React.FC<HeaderProps> = ({
                     title="تسجيل نهاية الدوام اليومي (خروج)"
                   >
                     <StopCircle className="w-3 h-3 text-rose-400" />
-                    <span className="hidden md:inline">نهاية الدوام</span>
+                    <span className="hidden lg:inline">نهاية الدوام</span>
                   </button>
                 </div>
               ) : (
@@ -645,13 +513,46 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Active Shift Cash Indicator */}
             {activeShift && (
-              <div className="hidden sm:flex items-center gap-1 bg-[#171820] border border-slate-700/80 rounded-xl text-xs px-2.5 py-1">
+              <div className="flex items-center gap-1 bg-[#171820] border border-slate-700/80 rounded-xl text-xs px-2.5 py-1">
                 <Wallet className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span className="font-mono text-amber-300 font-bold text-[11px]">
                   {formatCurrency(activeShift.expectedCash)}
                 </span>
               </div>
             )}
+
+            {/* Live Clock & Calendar Indicator for Desktop / Computer Screens */}
+            <div className="hidden lg:flex items-center gap-2 bg-[#171820] border border-slate-700/80 rounded-xl px-2.5 py-1 text-xs text-slate-300 shadow-inner">
+              <Clock className="w-3.5 h-3.5 text-[#E31C2B] animate-pulse" />
+              <span className="font-mono font-bold text-white text-[11px] tracking-wide">
+                {formattedTimeStr}
+              </span>
+              <span className="text-slate-600">•</span>
+              <span className="text-[10px] text-slate-400 font-medium">
+                {formattedDateStr}
+              </span>
+            </div>
+
+            {/* MongoDB Cloud Database Status Indicator */}
+            <div 
+              onClick={handleManualMongoSync}
+              className={`hidden md:flex items-center gap-1.5 border rounded-xl px-2.5 py-1 text-xs cursor-pointer transition-all shadow-inner ${
+                mongoStatus.connected
+                  ? 'bg-emerald-950/60 border-emerald-600/60 text-emerald-300 hover:bg-emerald-900/60'
+                  : 'bg-amber-950/50 border-amber-600/50 text-amber-300 hover:bg-amber-900/50'
+              }`}
+              title={
+                mongoStatus.connected 
+                  ? `قاعدة بيانات MongoDB Atlas متصلة بنجاح (${mongoStatus.database || 'fotop_studio'}). انقر للمزامنة الفورية.`
+                  : 'قاعدة بيانات MongoDB Atlas: جاري الاتصال أو تعمل في النمط المحلي الاحتياطي. انقر لإعادة المحاولة والمزامنة.'
+              }
+            >
+              <Database className={`w-3.5 h-3.5 ${mongoStatus.connected ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}`} />
+              <span className="font-bold text-[10px]">
+                {mongoStatus.connected ? 'MongoDB متصل' : 'MongoDB'}
+              </span>
+              <RefreshCw className={`w-2.5 h-2.5 ${isSyncingMongo ? 'animate-spin text-white' : 'opacity-60'}`} />
+            </div>
 
             {/* Low Stock Quick Alert Trigger */}
             {totalLowStockCount > 0 && (
@@ -666,8 +567,8 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Left / End: Audio Sound Toggle, Notification Bell, Compact Toggle, Profile Switcher */}
-          <div className="flex items-center gap-1 sm:gap-1.5 justify-end">
+          {/* Left / End: Audio Sound Toggle, Notification Bell, Action Shortcuts, Profile Switcher */}
+          <div className="flex items-center gap-1 sm:gap-1.5 justify-end shrink-0">
             
             {/* Sound Mute / Unmute Button */}
             <motion.button
@@ -718,7 +619,7 @@ export const Header: React.FC<HeaderProps> = ({
               </motion.button>
             </div>
 
-            {/* Quick Expense Shortcut */}
+            {/* Quick Expense Shortcut (Desktop) */}
             <button
               onClick={() => {
                 soundManager.playClickSound();
@@ -731,6 +632,34 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="font-medium">مصروف</span>
             </button>
 
+            {/* Quick Waste Shortcut (Desktop) */}
+            <button
+              onClick={() => {
+                soundManager.playClickSound();
+                onOpenLogWaste();
+              }}
+              className="hidden lg:flex text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 hover:text-rose-200 border border-slate-700 rounded-xl items-center gap-1 px-2.5 py-1.5 transition-colors cursor-pointer"
+              title="تسجيل تالف ورق أو حبر"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+              <span className="font-medium">تالف</span>
+            </button>
+
+            {/* Direct Settings Shortcut (Desktop) */}
+            {onNavigateToSettings && (
+              <button
+                onClick={() => {
+                  soundManager.playClickSound();
+                  onNavigateToSettings();
+                }}
+                className="hidden xl:flex text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded-xl items-center gap-1.5 px-2.5 py-1.5 transition-colors cursor-pointer"
+                title="إعدادات النظام وهوية الاستوديو"
+              >
+                <Sliders className="w-3.5 h-3.5 text-slate-300" />
+                <span className="font-medium">الإعدادات</span>
+              </button>
+            )}
+
             {/* Staff Switcher Profile Pill */}
             <div className="relative" ref={profileRef}>
               <motion.button
@@ -739,7 +668,7 @@ export const Header: React.FC<HeaderProps> = ({
                   soundManager.playClickSound();
                   setShowProfileDropdown(!showProfileDropdown);
                 }}
-                className={`flex items-center gap-1.5 border rounded-xl cursor-pointer transition-all px-2 sm:px-2.5 py-1.5 ${
+                className={`flex items-center gap-1 sm:gap-1.5 border rounded-xl cursor-pointer transition-all px-2 sm:px-2.5 py-1.5 ${
                   currentStaff.role === 'manager' 
                     ? 'bg-gradient-to-r from-amber-600/90 to-amber-700/90 border-amber-500/80 text-white shadow-sm' 
                     : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-white'
@@ -747,36 +676,26 @@ export const Header: React.FC<HeaderProps> = ({
                 title={`${currentStaff.name} (${currentStaff.role === 'manager' ? 'مدير' : 'عامل'})`}
               >
                 {customStaffPhoto ? (
-                  <img src={customStaffPhoto} alt={currentStaff.name} className="w-5 h-5 rounded-lg object-cover" />
+                  <img src={customStaffPhoto} alt={currentStaff.name} className="w-5 h-5 rounded-lg object-cover shrink-0" />
                 ) : (
                   <span className="text-sm sm:text-base">{currentStaff.avatar}</span>
                 )}
                 <div className="text-right hidden sm:block">
                   <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
-                    <span>{currentStaff.name}</span>
+                    <span className="truncate max-w-[90px]">{currentStaff.name}</span>
                     {currentStaff.role === 'manager' && (
-                      <ShieldCheck className="w-3 h-3 text-amber-200" />
+                      <ShieldCheck className="w-3 h-3 text-amber-200 shrink-0" />
                     )}
                   </div>
                   <div className="text-[9px] text-slate-300 leading-none">
                     {currentStaff.role === 'manager' ? 'مدير' : 'عامل'}
                   </div>
                 </div>
-                <ChevronDown className="w-3 h-3 text-slate-300" />
+                <ChevronDown className="w-3 h-3 text-slate-300 shrink-0" />
               </motion.button>
             </div>
 
-            {/* Header Compact / Expand Toggle Button (Desktop only) */}
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              onClick={handleToggleCompact}
-              className="hidden sm:flex p-1.5 sm:p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white items-center justify-center transition-colors cursor-pointer shadow-xs"
-              title="تصغير الهيدر (أيقونات فقط وتوفير مساحة)"
-            >
-              <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-200" />
-            </motion.button>
-
-            {/* Quick Logout Button */}
+            {/* Quick Logout Button (Desktop only) */}
             {onLogout && (
               <motion.button
                 whileTap={{ scale: 0.95 }}
@@ -784,7 +703,7 @@ export const Header: React.FC<HeaderProps> = ({
                   soundManager.playClickSound();
                   onLogout();
                 }}
-                className="text-xs bg-rose-950/70 hover:bg-rose-900 border border-rose-700/60 text-rose-200 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl flex items-center gap-1 transition-colors cursor-pointer"
+                className="hidden sm:flex text-xs bg-rose-950/70 hover:bg-rose-900 border border-rose-700/60 text-rose-200 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl items-center gap-1 transition-colors cursor-pointer"
                 title="تسجيل الخروج"
               >
                 <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400 shrink-0" />
@@ -794,11 +713,89 @@ export const Header: React.FC<HeaderProps> = ({
 
           </div>
         </div>
-      )}
+
+      {/* ========================================================================= */}
+      {/* 2. MOBILE CONTEXTUAL STATUS & ACTION STRIP (Exclusively for Mobile Phones) */}
+      {/* ========================================================================= */}
+      <div className="sm:hidden flex items-center justify-between gap-1.5 px-3 py-1.5 bg-[#171820]/95 border-t border-slate-800/80 text-xs">
+        
+        {/* Mobile Clock-In/Out Quick Control */}
+        <div className="flex items-center gap-1">
+          {activeAttendance ? (
+            <div className="flex items-center gap-1 bg-[#23242e] border border-emerald-700/50 rounded-lg px-2 py-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              <span className="text-emerald-400 font-mono font-bold text-[10px]">
+                {formatTime(activeAttendance.clockIn)}
+              </span>
+              <button
+                onClick={handleClockOutClick}
+                className="bg-rose-950/90 text-rose-300 hover:bg-rose-900 px-1.5 py-0.2 rounded text-[9px] font-bold border border-rose-800/80 flex items-center gap-0.5 ml-0.5 cursor-pointer"
+                title="خروج من الدوام"
+              >
+                <StopCircle className="w-2.5 h-2.5 text-rose-400" />
+                <span>خروج</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleClockInClick}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 shadow-xs cursor-pointer"
+            >
+              <PlayCircle className="w-3 h-3" />
+              <span>بدء الدوام</span>
+            </button>
+          )}
+        </div>
+
+        {/* Center: Shift Cash OR Low Stock Alert */}
+        <div className="flex items-center gap-1">
+          {totalLowStockCount > 0 ? (
+            <button
+              onClick={handleOpenAlerts}
+              className="bg-[#E31C2B] text-white px-2 py-0.5 rounded-lg text-[9px] font-black flex items-center gap-1 animate-pulse cursor-pointer shadow-xs"
+              title="عرض نواقص المخزون"
+            >
+              <AlertTriangle className="w-2.5 h-2.5" />
+              <span>{totalLowStockCount} نواقص</span>
+            </button>
+          ) : activeShift ? (
+            <div className="flex items-center gap-1 bg-[#23242e] border border-slate-700/60 rounded-lg px-2 py-0.5 text-[10px] text-amber-400 font-mono font-bold" title="رصيد الصندوق المتوقع">
+              <Wallet className="w-3 h-3 text-amber-400" />
+              <span>{formatCurrency(activeShift.expectedCash)}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+              <Clock className="w-2.5 h-2.5 text-slate-400" />
+              <span>{formattedTimeStr}</span>
+            </div>
+          )}
+        </div>
+
+        {/* End: Quick Expense Shortcut on Mobile */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              soundManager.playClickSound();
+              onOpenExpenseModal();
+            }}
+            className="bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+            title="تسجيل مصروف سريع من الدرج"
+          >
+            <Wallet className="w-3 h-3" />
+            <span>+ مصروف</span>
+          </button>
+        </div>
+
+      </div>
 
       {/* Notifications Popover Dropdown (Shared for both Compact and Full modes) */}
       {showNotificationPopover && (
-        <div className="absolute left-4 sm:left-auto right-auto sm:right-16 top-full mt-2 w-80 sm:w-96 bg-[#23242e] border border-slate-700 rounded-2xl shadow-2xl p-3.5 z-50 text-white animate-in fade-in zoom-in-95" dir="rtl">
+        <>
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 sm:hidden"
+            onClick={() => setShowNotificationPopover(false)}
+          />
+          <div className="fixed sm:absolute inset-x-3 sm:inset-x-auto top-[78px] sm:top-full sm:left-4 sm:right-auto mt-1 sm:mt-2 w-auto sm:w-96 max-h-[85vh] overflow-y-auto bg-[#23242e] border border-slate-700 rounded-2xl shadow-2xl p-3.5 z-50 text-white animate-in fade-in zoom-in-95" dir="rtl">
           
           {/* Popover Header */}
           <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-700">
@@ -927,17 +924,22 @@ export const Header: React.FC<HeaderProps> = ({
               <span>فتح نظام المخزون وإعادة التعبئة</span>
             </button>
           </div>
-
         </div>
-      )}
+      </>
+    )}
 
       {/* Profile Dropdown Menu */}
       {showProfileDropdown && (
-        <div className="absolute left-3 top-full mt-1.5 w-72 bg-[#23242e] border border-slate-700 rounded-2xl shadow-2xl p-2.5 z-50 text-white animate-in fade-in zoom-in-95" dir="rtl">
-          <div className="text-[10px] font-bold text-slate-400 px-2.5 py-1 mb-1 border-b border-slate-700 flex items-center justify-between">
-            <span>تبديل الحساب والمستخدمين</span>
-            <KeyRound className="w-3 h-3 text-amber-400" />
-          </div>
+        <>
+          <div 
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 sm:hidden"
+            onClick={() => setShowProfileDropdown(false)}
+          />
+          <div className="fixed sm:absolute inset-x-3 sm:inset-x-auto top-[78px] sm:top-full sm:left-3 sm:right-auto mt-1 sm:mt-2 w-auto sm:w-80 max-h-[85vh] overflow-y-auto bg-[#23242e] border border-slate-700 rounded-2xl shadow-2xl p-3 z-50 text-white animate-in fade-in zoom-in-95" dir="rtl">
+            <div className="text-[10px] font-bold text-slate-400 px-2.5 py-1 mb-1 border-b border-slate-700 flex items-center justify-between">
+              <span>تبديل الحساب والمستخدمين</span>
+              <KeyRound className="w-3 h-3 text-amber-400" />
+            </div>
 
           <div className="space-y-1">
             {allStaff.map(s => (
@@ -1038,7 +1040,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
         </div>
-      )}
+      </>
+    )}
 
       {/* ========================================================================= */}
       {/* STUDIO PROFILE & LOGO EDITING MODAL (تعديل صورة واستوديو Fotop)          */}
@@ -1078,11 +1081,11 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#E31C2B] to-[#990f1a] text-white flex items-center justify-center font-black text-2xl overflow-hidden border-2 border-slate-600 shadow-md shrink-0">
+                  <div className="w-16 h-16 rounded-2xl bg-[#292A34] text-white flex items-center justify-center font-black text-2xl overflow-hidden border border-slate-700/80 shadow-md shrink-0 p-1">
                     {customStudioLogo ? (
-                      <img src={customStudioLogo} alt="Studio Logo" className="w-full h-full object-cover" />
+                      <img src={customStudioLogo} alt="Studio Logo" className="w-full h-full object-cover rounded-xl" />
                     ) : (
-                      <Camera className="w-8 h-8 stroke-[2.5]" />
+                      <FotopLogo className="w-full h-full" showGlow />
                     )}
                   </div>
 

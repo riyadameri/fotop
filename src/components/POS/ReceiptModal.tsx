@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { 
   X, 
   Printer, 
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Order } from '../../types';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { FotopLogo } from '../common/FotopLogo';
 
 interface ReceiptModalProps {
   order: Order | null;
@@ -36,6 +37,25 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
   const handlePrint = () => {
     window.print();
   };
+
+  // Keyboard shortcuts: Ctrl+P for printing, Esc for close
+  useEffect(() => {
+    if (!order) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isModifier = e.ctrlKey || e.metaKey;
+      if (isModifier && (e.key === 'p' || e.key === 'P' || e.code === 'KeyP')) {
+        e.preventDefault();
+        e.stopPropagation();
+        handlePrint();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [order, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto">
@@ -70,9 +90,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
                       <img src={customLogo} alt="Receipt Logo" className="w-full h-full object-cover" />
                     </div>
                   ) : (
-                    <div className="px-3 py-1 bg-[#E31C2B] text-white rounded-lg inline-block font-black text-base shadow-sm">
-                      📸 {studioName}
-                    </div>
+                    <FotopLogo className="w-14 h-14" />
                   )}
                 </div>
               )}
@@ -207,17 +225,19 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, onClose }) =>
         <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer flex items-center gap-1.5"
           >
-            إغلاق ومتابعة البيع
+            <span>إغلاق ومتابعة البيع</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px] font-bold">Esc</kbd>
           </button>
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 bg-[#E31C2B] hover:bg-[#c91422] text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg shadow-[#E31C2B]/30 transition-all cursor-pointer active:scale-95"
+              className="flex items-center gap-2 bg-[#E31C2B] hover:bg-[#c91422] text-white px-5 py-2.5 rounded-xl font-black text-xs shadow-lg shadow-[#E31C2B]/30 transition-all cursor-pointer active:scale-95"
             >
               <Printer className="w-4 h-4" />
-              <span>طباعة الوصل الفوري (Print Ticket)</span>
+              <span>طباعة الوصل الفوري</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-white/20 text-white font-mono text-[10px] font-bold border border-white/30">Ctrl+P</kbd>
             </button>
           </div>
         </div>

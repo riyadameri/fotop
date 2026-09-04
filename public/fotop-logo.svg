@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Outer Red Ring Gradient -->
+    <linearGradient id="fotopRedRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EF2330" />
+      <stop offset="50%" stop-color="#E31C2B" />
+      <stop offset="100%" stop-color="#B8121F" />
+    </linearGradient>
+
+    <!-- Subtle Bevel & Shadow Filters -->
+    <filter id="logoDepth" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.18" />
+    </filter>
+    <radialGradient id="pupilShine" cx="42%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#2D323F" />
+      <stop offset="35%" stop-color="#181A22" />
+      <stop offset="100%" stop-color="#0B0C10" />
+    </radialGradient>
+  </defs>
+
+  <!-- Base White Circular Canvas with Red Outer Ring -->
+  <circle cx="100" cy="100" r="95" fill="#FFFFFF" />
+  <circle cx="100" cy="100" r="88" fill="#FFFFFF" stroke="url(#fotopRedRing)" stroke-width="11" filter="url(#logoDepth)" />
+
+  <!-- Inside Logo Geometry -->
+  <g id="fotop-emblem" transform="translate(0, 0)">
+    <!-- Right Crescent Wave Accent -->
+    <path 
+      d="M 124 68 C 148 80, 154 116, 128 128" 
+      stroke="#222631" 
+      stroke-width="5.5" 
+      stroke-linecap="round" 
+    />
+
+    <!-- Stylized Red "F" Outer Arc and Stem -->
+    <path 
+      d="M 110 52 C 86 42, 58 56, 58 90 L 58 144" 
+      stroke="url(#fotopRedRing)" 
+      stroke-width="11" 
+      stroke-linecap="round" 
+      stroke-linejoin="round"
+    />
+    <!-- Red F Middle Arm -->
+    <path 
+      d="M 58 106 L 80 106" 
+      stroke="url(#fotopRedRing)" 
+      stroke-width="10.5" 
+      stroke-linecap="round" 
+    />
+    <!-- Red Dot below stem -->
+    <circle cx="73" cy="139" r="6" fill="#E31C2B" />
+
+    <!-- Dark Charcoal Camera Body / "P" contour -->
+    <path 
+      d="M 112 68 C 96 59, 74 72, 72 96 L 72 128 L 86 128 L 86 112 L 110 112 C 122 112, 128 102, 128 90 C 128 78, 122 68, 112 68 Z" 
+      fill="#222631" 
+    />
+    <!-- Cutout in camera body for the lens aperture -->
+    <circle cx="100" cy="98" r="23" fill="#FFFFFF" />
+
+    <!-- Central Camera Lens Pupil -->
+    <circle cx="100" cy="98" r="16.5" fill="url(#pupilShine)" />
+    
+    <!-- Specular Highlight on Lens -->
+    <circle cx="107" cy="92" r="3.6" fill="#FFFFFF" opacity="0.95" />
+    <ellipse cx="96" cy="104" rx="2.5" ry="1.2" fill="#FFFFFF" opacity="0.18" />
+  </g>
+</svg>

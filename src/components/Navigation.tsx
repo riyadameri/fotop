@@ -21,13 +21,15 @@ import {
   Clock,
   Sparkles,
   ChevronDown,
-  Sliders
+  Sliders,
+  LayoutDashboard
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Staff, AttendanceRecord } from '../types';
 import { soundManager } from '../utils/audio';
+import { FotopLogo } from './common/FotopLogo';
 
-export type TabType = 'pos' | 'inventory' | 'waste' | 'shifts' | 'accounting' | 'hr' | 'orders' | 'specs' | 'settings';
+export type TabType = 'pos' | 'dashboard' | 'inventory' | 'waste' | 'shifts' | 'accounting' | 'hr' | 'orders' | 'specs' | 'settings';
 
 interface NavigationProps {
   currentStaff: Staff;
@@ -105,6 +107,14 @@ export const Navigation: React.FC<NavigationProps> = ({
     badgeColor?: string; 
     managerOnly?: boolean 
   }[] = [
+    {
+      id: 'dashboard',
+      label: 'لوحة التحكم والقيادة التنفيذية',
+      shortLabel: 'لوحة التحكم',
+      description: 'نظرة شاملة ولحظية على مؤشرات الأداء',
+      icon: LayoutDashboard,
+      managerOnly: true
+    },
     {
       id: 'pos',
       label: 'نقطة البيع السريعة (POS)',
@@ -258,7 +268,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         }`}
       >
         {/* Brand Header */}
-        <div className="p-4 border-b border-slate-700/80 flex items-center justify-between">
+        <div className="p-4 border-b border-slate-700/80 flex items-center justify-between shrink-0">
           <div 
             onClick={() => {
               soundManager.playClickSound();
@@ -271,9 +281,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               {studioLogo ? (
                 <img src={studioLogo} alt={studioName} className="w-full h-full object-contain rounded-xl" />
               ) : (
-                <div className="w-full h-full bg-[#E31C2B] rounded-xl flex items-center justify-center">
-                  <Camera className="w-5 h-5 stroke-[2.5]" />
-                </div>
+                <FotopLogo className="w-full h-full" showGlow />
               )}
             </div>
             {!isCollapsed && (
@@ -300,7 +308,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         </div>
 
         {/* Current Staff Card */}
-        <div className="p-3 border-b border-slate-700/60 bg-[#191a21]">
+        <div className="p-3 border-b border-slate-700/60 bg-[#191a21] shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="relative shrink-0">
               <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-lg">
@@ -347,7 +355,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         </div>
 
         {/* Bottom Quick Tools */}
-        <div className="p-3 border-t border-slate-700/80 bg-[#191a21] space-y-1.5">
+        <div className="p-3 border-t border-slate-700/80 bg-[#191a21] space-y-1.5 shrink-0">
           {onOpenExpense && !isCollapsed && (
             <button
               onClick={onOpenExpense}
@@ -428,9 +436,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                     {studioLogo ? (
                       <img src={studioLogo} alt={studioName} className="w-full h-full object-contain rounded-xl" />
                     ) : (
-                      <div className="w-full h-full bg-[#E31C2B] rounded-xl flex items-center justify-center">
-                        <Camera className="w-5 h-5 stroke-[2.5]" />
-                      </div>
+                      <FotopLogo className="w-full h-full" showGlow />
                     )}
                   </div>
                   <div>

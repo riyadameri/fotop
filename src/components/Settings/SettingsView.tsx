@@ -38,6 +38,7 @@ import {
 import { soundManager } from '../../utils/audio';
 import { Staff, AttendanceRecord } from '../../types';
 import { api } from '../../api';
+import { FotopLogo } from '../common/FotopLogo';
 
 interface SettingsViewProps {
   currentStaff: Staff;
@@ -584,11 +585,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
                 {/* Logo Live Box */}
                 <div className="sm:col-span-4 flex flex-col items-center justify-center p-5 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl text-center space-y-3">
-                  <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-[#E31C2B] to-[#b8121f] text-white flex items-center justify-center shadow-lg shadow-[#E31C2B]/20 overflow-hidden relative group">
+                  <div className="w-24 h-24 rounded-2xl bg-[#292A34] text-white flex items-center justify-center shadow-lg shadow-[#E31C2B]/20 overflow-hidden relative group p-1.5 border border-slate-700">
                     {studioLogo ? (
-                      <img src={studioLogo} alt="Studio Logo Preview" className="w-full h-full object-cover" />
+                      <img src={studioLogo} alt="Studio Logo Preview" className="w-full h-full object-cover rounded-xl" />
                     ) : (
-                      <Camera className="w-10 h-10 stroke-[2.2]" />
+                      <FotopLogo className="w-full h-full" showGlow />
                     )}
                   </div>
                   <div>
@@ -1263,9 +1264,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         <img src={studioLogo} alt="Receipt Logo" className="w-full h-full object-cover" />
                       </div>
                     ) : (
-                      <div className="px-2.5 py-1 bg-[#E31C2B] text-white rounded-lg inline-block font-black text-xs shadow-xs">
-                        📸 {studioName}
-                      </div>
+                      <FotopLogo className="w-12 h-12" />
                     )}
                   </div>
                 )}

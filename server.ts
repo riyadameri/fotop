@@ -2,6 +2,19 @@ import express from 'express';
 import path from 'path';
 import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
+import dotenv from 'dotenv';
+dotenv.config();
+
+import { 
+  connectToMongoDB, 
+  loadAllFromMongo, 
+  seedMongoIfEmpty, 
+  syncCollectionToMongo, 
+  syncAllToMongo, 
+  getMongoStatus, 
+  isMongoConnected,
+  CollectionName 
+} from './server/mongodb';
 
 interface BOMItem {
   materialId: string;
@@ -253,11 +266,22 @@ function loadDatabase(): DatabaseSchema {
   return JSON.parse(JSON.stringify(DEFAULT_DB_DATA));
 }
 
-function saveDatabase(data: DatabaseSchema): void {
+async function saveDatabase(data: DatabaseSchema, collectionToSync?: CollectionName): Promise<void> {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
     console.error('Error saving database file:', err);
+  }
+
+  // Ensure persistent sync to MongoDB Atlas URL Database
+  try {
+    if (collectionToSync) {
+      await syncCollectionToMongo(collectionToSync, data[collectionToSync]);
+    } else {
+      await syncAllToMongo(data as any);
+    }
+  } catch (err) {
+    console.error(`[MongoDB] Async sync error for collection "${collectionToSync || 'all'}":`, err);
   }
 }
 
@@ -270,15 +294,104 @@ async function startServer() {
 
   app.use(express.json());
 
-  // === API ROUTES ===
+  // Initialize MongoDB Atlas connection & sync
+  connectToMongoDB().then(async (connected) => {
+    if (connected) {
+      console.log('[MongoDB] Checking cloud collections for existing Fotop Studio data...');
+      const cloudData = await loadAllFromMongo();
+      if (cloudData) {
+        // Merge cloud data into active db state
+        db = {
+          materials: (cloudData.materials && cloudData.materials.length > 0) ? cloudData.materials : db.materials,
+          services: (cloudData.services && cloudData.services.length > 0) ? cloudData.services : db.services,
+          staff: (cloudData.staff && cloudData.staff.length > 0) ? cloudData.staff : db.staff,
+          shifts: cloudData.shifts || db.shifts,
+          orders: cloudData.orders || db.orders,
+          wasteRecords: cloudData.wasteRecords || db.wasteRecords,
+          expenses: cloudData.expenses || db.expenses,
+          attendanceLogs: cloudData.attendanceLogs || db.attendanceLogs,
+          salaryPayments: cloudData.salaryPayments || db.salaryPayments,
+        };
+        // Update local file cache
+        try {
+          fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
+        } catch (e) {
+          console.error('[MongoDB] Local cache write error:', e);
+        }
+        console.log('[MongoDB] Local ERP state successfully hydrated from MongoDB Atlas.');
 
-  // Health check
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', server: 'Fotop Studio ERP Backend', timestamp: new Date().toISOString() });
+        // Seed any empty collection from defaults
+        await seedMongoIfEmpty(db as any);
+      } else {
+        // Collections are empty, seed them from local state
+        console.log('[MongoDB] Cloud database is empty. Seeding MongoDB Atlas from local ERP database...');
+        await seedMongoIfEmpty(db as any);
+        console.log('[MongoDB] Initial cloud seeding complete.');
+      }
+    } else {
+      console.log('[MongoDB] Operating with local JSON persistence until MongoDB Atlas connection is established.');
+    }
+  }).catch(err => {
+    console.error('[MongoDB] Unexpected error during connection init:', err);
   });
 
-  // Get all data
-  app.get('/api/data', (req, res) => {
+  // === API ROUTES ===
+
+  // Health check & DB Status
+  app.get('/api/health', async (req, res) => {
+    const mongoStatus = await getMongoStatus();
+    res.json({ 
+      status: 'ok', 
+      server: 'Fotop Studio ERP Backend', 
+      mongodb: mongoStatus,
+      timestamp: new Date().toISOString() 
+    });
+  });
+
+  // MongoDB Status API
+  app.get('/api/mongodb/status', async (req, res) => {
+    const status = await getMongoStatus();
+    res.json(status);
+  });
+
+  // Force Sync with MongoDB Atlas
+  app.post('/api/mongodb/sync', async (req, res) => {
+    if (!isMongoConnected()) {
+      const connected = await connectToMongoDB();
+      if (!connected) {
+        return res.status(503).json({ 
+          success: false, 
+          message: 'تعذر الاتصال بـ MongoDB Atlas. يرجى التحقق من إعدادات الشبكة وقائمة السماح بالآيبيهات في Atlas.' 
+        });
+      }
+    }
+    await syncAllToMongo(db as any);
+    const status = await getMongoStatus();
+    res.json({ success: true, message: 'تمت مزامنة جميع البيانات مع MongoDB Atlas بنجاح', status });
+  });
+
+  // Get all data (directly hydrated from MongoDB Atlas if connected)
+  app.get('/api/data', async (req, res) => {
+    if (isMongoConnected()) {
+      try {
+        const cloudData = await loadAllFromMongo();
+        if (cloudData) {
+          db = {
+            materials: (cloudData.materials && cloudData.materials.length > 0) ? cloudData.materials : db.materials,
+            services: (cloudData.services && cloudData.services.length > 0) ? cloudData.services : db.services,
+            staff: (cloudData.staff && cloudData.staff.length > 0) ? cloudData.staff : db.staff,
+            shifts: cloudData.shifts || db.shifts,
+            orders: cloudData.orders || db.orders,
+            wasteRecords: cloudData.wasteRecords || db.wasteRecords,
+            expenses: cloudData.expenses || db.expenses,
+            attendanceLogs: cloudData.attendanceLogs || db.attendanceLogs,
+            salaryPayments: cloudData.salaryPayments || db.salaryPayments,
+          };
+        }
+      } catch (err) {
+        console.warn('Error reading from MongoDB on /api/data:', err);
+      }
+    }
     res.json(db);
   });
 

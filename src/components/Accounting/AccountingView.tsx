@@ -31,11 +31,13 @@ import {
   Activity,
   Award,
   Zap,
-  Calculator
+  Calculator,
+  Printer
 } from 'lucide-react';
 import { StaffPerformanceDashboard, getOrderTurnaroundMinutes } from './StaffPerformanceDashboard';
 import { PayrollCalculator } from './PayrollCalculator';
 import { ProfitBreakdownView } from './ProfitBreakdownView';
+import { AccountingReportPDFModal } from './AccountingReportPDFModal';
 import { HumanResourcesView } from '../HR/HumanResourcesView';
 import { 
   ResponsiveContainer, 
@@ -127,6 +129,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   // Modal states
   const [showExpenseModal, setShowExpenseModal] = useState<boolean>(false);
   const [showAddStaffModal, setShowAddStaffModal] = useState<boolean>(false);
+  const [showPDFReportModal, setShowPDFReportModal] = useState<boolean>(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
   // New Expense form state
@@ -691,6 +694,15 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowPDFReportModal(true)}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm shadow-rose-600/30 cursor-pointer transition-all"
+            title="تصدير تقرير الأرباح والمصروفات كـ PDF للطباعة أو الأرشفة"
+          >
+            <Printer className="w-4 h-4" />
+            <span>تصدير كـ PDF (الأرباح والمصاريف)</span>
+          </button>
+
           <button
             onClick={handleExportStatement}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
@@ -2250,6 +2262,20 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* PDF Report Export Modal */}
+      <AccountingReportPDFModal
+        isOpen={showPDFReportModal}
+        onClose={() => setShowPDFReportModal(false)}
+        orders={orders}
+        materials={materials}
+        wasteRecords={wasteRecords}
+        expenses={expenses}
+        allStaff={allStaff}
+        currentStaff={currentStaff}
+        initialStartDate={periodPreset === 'custom' ? customStartDate : undefined}
+        initialEndDate={periodPreset === 'custom' ? customEndDate : undefined}
+      />
 
     </div>
   );

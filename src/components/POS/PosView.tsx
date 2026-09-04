@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Search, 
   Plus, 
@@ -30,7 +30,11 @@ import {
   TrendingUp,
   ShoppingBag,
   Boxes,
-  AlertTriangle
+  AlertTriangle,
+  Keyboard,
+  Printer,
+  HelpCircle,
+  Zap
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { ServiceItem, CartItem, Material, Order, PaymentMethod, Shift, Staff } from '../../types';
@@ -41,6 +45,9 @@ import {
   getItemProfit,
   getItemProfitMargin
 } from '../../utils/formatters';
+import { soundManager } from '../../utils/audio';
+import { usePosKeyboardShortcuts } from '../../hooks/usePosKeyboardShortcuts';
+import { ShortcutsGuideModal } from '../common/ShortcutsGuideModal';
 
 interface PosViewProps {
   services: ServiceItem[];
@@ -49,6 +56,7 @@ interface PosViewProps {
   activeShift: Shift | undefined;
   orders?: Order[];
   onCheckoutOrder: (orderData: Omit<Order, 'id' | 'ticketNumber' | 'createdAt'>) => void;
+  onPrintLastReceipt?: () => void;
 }
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -492,7 +500,7 @@ export const PosView: React.FC<PosViewProps> = ({
       </div>
 
       {/* Right Section: Interactive Cart & Checkout Drawer (4-5 cols) */}
-      <div className="lg:col-span-5 xl:col-span-4 bg-white border border-slate-200 rounded-2xl shadow-xl p-5 sticky top-[135px] space-y-4">
+      <div id="pos-cart-section" className="lg:col-span-5 xl:col-span-4 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 sm:p-5 sticky top-[135px] space-y-4">
         
         {/* Cart Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200">
@@ -749,6 +757,27 @@ export const PosView: React.FC<PosViewProps> = ({
         </form>
 
       </div>
+
+      {/* Mobile Floating Cart Summary Button */}
+      {cart.length > 0 && (
+        <div className="lg:hidden fixed bottom-16 inset-x-3 z-20 animate-in fade-in slide-in-from-bottom-3">
+          <button
+            onClick={() => {
+              document.getElementById('pos-cart-section')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="w-full bg-[#E31C2B] hover:bg-[#c91422] text-white py-2.5 px-4 rounded-2xl shadow-2xl flex items-center justify-between font-black text-xs transition-transform active:scale-98 border border-white/20 cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <Receipt className="w-4 h-4" />
+              <span>سلة الطلب ({cart.reduce((s, i) => s + i.quantity, 0)} عنصر)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm">{formatCurrency(total)}</span>
+              <span className="bg-white/20 px-2 py-0.5 rounded-lg text-[10px]">إتمام المحاسبة ↵</span>
+            </div>
+          </button>
+        </div>
+      )}
 
     </div>
   );

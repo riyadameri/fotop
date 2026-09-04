@@ -317,5 +317,27 @@ export const api = {
     });
     if (!res.ok) throw new Error('Failed to delete salary payment');
     return res.json();
+  },
+
+  // MongoDB Atlas integration helpers
+  async getMongoStatus(): Promise<{ 
+    connected: boolean; 
+    database?: string; 
+    counts?: Record<string, number>; 
+    error?: string; 
+    message?: string 
+  }> {
+    try {
+      const res = await fetch('/api/mongodb/status');
+      if (!res.ok) throw new Error('Failed to fetch MongoDB status');
+      return res.json();
+    } catch (e: any) {
+      return { connected: false, error: e?.message || 'تعذر الوصول لخادم الحالة' };
+    }
+  },
+
+  async syncToMongo(): Promise<{ success: boolean; message?: string }> {
+    const res = await fetch('/api/mongodb/sync', { method: 'POST' });
+    return res.json();
   }
 };

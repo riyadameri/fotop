@@ -10,18 +10,27 @@ import {
   AlertCircle,
   KeyRound,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  ArrowRight,
+  Sparkles
 } from 'lucide-react';
 import { Staff } from '../../types';
+import { FotopLogo } from '../common/FotopLogo';
 
 interface LoginScreenProps {
   staffList: Staff[];
   onLogin: (staff: Staff, autoClockIn: boolean) => void;
+  isAuthenticated?: boolean;
+  currentStaff?: Staff;
+  onReturnToApp?: () => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   staffList = [],
-  onLogin
+  onLogin,
+  isAuthenticated = false,
+  currentStaff,
+  onReturnToApp
 }) => {
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
@@ -124,8 +133,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           
           {/* Studio Brand Header */}
           <div className="bg-gradient-to-r from-[#292A34] to-[#1f2029] p-7 text-center border-b border-slate-700/80 relative">
-            <div className="w-16 h-16 rounded-2xl bg-[#E31C2B] text-white flex items-center justify-center mx-auto mb-3.5 shadow-xl shadow-[#E31C2B]/30 transform hover:scale-105 transition-transform">
-              <Camera className="w-9 h-9 stroke-[2.2]" />
+            <div className="mx-auto mb-3.5 flex items-center justify-center transform hover:scale-105 transition-transform">
+              <FotopLogo className="w-20 h-20" showGlow />
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
               Fotop <span className="bg-[#E31C2B] text-white text-xs px-2.5 py-0.5 rounded-md font-black">ERP</span>
@@ -133,11 +142,39 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             <p className="text-xs sm:text-sm text-slate-300 font-medium mt-1.5">
               نظام إدارة استوديو التصوير، المبيعات والمخزون
             </p>
-            <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-slate-800/90 border border-slate-700 text-[11px] text-slate-300">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>نظام موثق ومحمي بتقنية التشفير</span>
+            <div className="flex items-center justify-center gap-2 mt-3">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/90 border border-slate-700 text-[11px] text-slate-300">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>نظام موثق ومحمي بتقنية التشفير</span>
+              </div>
+              <span className="bg-[#E31C2B]/20 text-[#fca5a5] border border-[#E31C2B]/40 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full">
+                /login
+              </span>
             </div>
           </div>
+
+          {/* If already authenticated, show return button option */}
+          {isAuthenticated && currentStaff && onReturnToApp && (
+            <div className="m-5 mb-0 p-4 bg-emerald-950/40 border border-emerald-500/40 rounded-2xl flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-base">{currentStaff.avatar || '👤'}</span>
+                <div>
+                  <div className="font-bold text-white">متصل حالياً: {currentStaff.name}</div>
+                  <div className="text-[10px] text-emerald-300">
+                    {currentStaff.role === 'manager' ? 'مدير النظام' : 'مصور ومسؤول طباعة'}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onReturnToApp}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <span>العودة للنظام</span>
+                <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+              </button>
+            </div>
+          )}
 
           {/* Login Form Body */}
           <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-5">
@@ -251,8 +288,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
       {/* Bottom Footer */}
       <div className="max-w-5xl mx-auto w-full text-center py-3 border-t border-slate-700/60 text-xs text-slate-400">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-1">
-          <span>جميع الحقوق محفوظة © {new Date().getFullYear()} استوديو Fotop</span>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <FotopLogo className="w-5 h-5" />
+            <span>جميع الحقوق محفوظة © {new Date().getFullYear()} استوديو Fotop</span>
+          </div>
           <span className="font-semibold text-slate-300">
             برمجة واستضافة: <strong className="text-[#fca5a5]">Redox Cloud Solutions</strong> (05 63898395)
           </span>

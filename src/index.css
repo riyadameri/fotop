@@ -38,30 +38,85 @@
   background: #94a3b8;
 }
 
-/* Print optimizations for receipts & reports */
+/* Print optimizations for receipts & PDF reports */
 @media print {
   body {
     background: #ffffff !important;
     color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  .no-print {
+  
+  /* Hide interactive app elements during print */
+  .no-print,
+  nav,
+  header,
+  aside,
+  button:not(.print-include) {
     display: none !important;
   }
+
+  /* Make sure modal overlays do not block or darken printed content */
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
   .print-only {
     display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    margin: 0;
-    padding: 10px;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
     background: #fff !important;
     color: #000 !important;
   }
+
   .print-ticket {
-    max-width: 80mm;
-    margin: 0 auto;
-    font-size: 12px;
+    max-width: 80mm !important;
+    margin: 0 auto !important;
+    font-size: 12px !important;
     color: #000 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .print-document {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-after: auto;
+  }
+
+  .print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .print-table th,
+  .print-table td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 8px !important;
+  }
+
+  .print-table thead {
+    display: table-header-group !important;
+  }
+
+  .print-table tr {
+    page-break-inside: avoid !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
   }
 }
