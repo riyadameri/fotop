@@ -691,8 +691,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-right text-xs">
               <thead>
                 <tr className="bg-[#292A34] text-white font-bold rounded-xl">
@@ -768,10 +768,87 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </table>
           </div>
 
+          {/* Mobile Card View (No Horizontal Scroll on Small Screens) */}
+          <div className="md:hidden space-y-3">
+            {filteredMaterials.length === 0 ? (
+              <div className="text-center py-8 text-slate-400 font-bold text-xs">
+                لا توجد مواد مطابقة للبحث
+              </div>
+            ) : (
+              filteredMaterials.map(m => {
+                const isLow = m.currentStock <= m.minThreshold;
+                const unitLabel = m.unit === 'sheet' ? 'ورقة' : m.unit === 'ml' ? 'مل' : 'قطعة';
+                return (
+                  <div 
+                    key={m.id}
+                    className={`p-3.5 rounded-2xl border transition-all ${
+                      isLow 
+                        ? 'bg-red-50/40 border-red-200' 
+                        : 'bg-slate-50/70 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-mono text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-bold">
+                            {m.sku}
+                          </span>
+                          <span className="text-[10px] bg-[#F0F0F0] text-slate-600 px-2 py-0.5 rounded font-medium">
+                            {categories.find(c => c.id === m.category)?.label || m.category}
+                          </span>
+                          {isLow && (
+                            <span className="bg-[#E31C2B] text-white text-[9px] px-1.5 py-0.2 rounded font-black animate-pulse">
+                              تحت حد الأمان
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="font-black text-sm text-[#292A34] mt-1">
+                          {m.name}
+                        </h4>
+                        {m.supplier && (
+                          <p className="text-[10px] text-slate-500 mt-0.5">
+                            المورد: {m.supplier}
+                          </p>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => setRestockMat(m)}
+                        className="bg-[#292A34] hover:bg-[#E31C2B] text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shrink-0 shadow-xs"
+                      >
+                        <PackagePlus className="w-3.5 h-3.5" />
+                        <span>تزويد</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 pt-2.5 border-t border-slate-200 text-[11px]">
+                      <div className="bg-white p-2 rounded-xl border border-slate-100">
+                        <span className="text-[10px] text-slate-400 block font-bold">الرصيد</span>
+                        <span className={`font-mono font-black ${isLow ? 'text-[#E31C2B]' : 'text-slate-800'}`}>
+                          {formatNumber(m.currentStock)} {unitLabel}
+                        </span>
+                      </div>
+                      <div className="bg-white p-2 rounded-xl border border-slate-100">
+                        <span className="text-[10px] text-slate-400 block font-bold">سعر الشراء</span>
+                        <span className="font-mono font-bold text-slate-700">
+                          {formatCurrency(m.unitCost)}
+                        </span>
+                      </div>
+                      <div className="bg-white p-2 rounded-xl border border-slate-100">
+                        <span className="text-[10px] text-slate-400 block font-bold">إجمالي القيمة</span>
+                        <span className="font-mono font-black text-[#292A34]">
+                          {formatCurrency(m.currentStock * m.unitCost)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
         </div>
       )}
-
-      {/* VIEW 2: PRODUCTS & SERVICES (Direct Sale + Associative Services) */}
       {activeSubTab === 'products' && (
         <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
           

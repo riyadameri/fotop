@@ -267,11 +267,13 @@ export const Navigation: React.FC<NavigationProps> = ({
             className="flex items-center gap-3 overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
             title="الواجهة الرئيسية (نقطة البيع)"
           >
-            <div className="w-10 h-10 rounded-2xl bg-[#E31C2B] text-white flex items-center justify-center shadow-lg shadow-[#E31C2B]/30 shrink-0 font-black overflow-hidden">
+            <div className="w-10 h-10 rounded-2xl bg-[#292A34] border border-slate-700/80 p-0.5 text-white flex items-center justify-center shadow-lg shrink-0 font-black overflow-hidden">
               {studioLogo ? (
-                <img src={studioLogo} alt="Studio Logo" className="w-full h-full object-cover" />
+                <img src={studioLogo} alt={studioName} className="w-full h-full object-contain rounded-xl" />
               ) : (
-                <Camera className="w-5 h-5 stroke-[2.5]" />
+                <div className="w-full h-full bg-[#E31C2B] rounded-xl flex items-center justify-center">
+                  <Camera className="w-5 h-5 stroke-[2.5]" />
+                </div>
               )}
             </div>
             {!isCollapsed && (
@@ -422,11 +424,13 @@ export const Navigation: React.FC<NavigationProps> = ({
                   className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
                   title="الواجهة الرئيسية (نقطة البيع)"
                 >
-                  <div className="w-10 h-10 rounded-2xl bg-[#E31C2B] text-white flex items-center justify-center shadow-lg shadow-[#E31C2B]/30 font-black overflow-hidden">
+                  <div className="w-10 h-10 rounded-2xl bg-[#292A34] border border-slate-700/80 p-0.5 text-white flex items-center justify-center shadow-lg shrink-0 font-black overflow-hidden">
                     {studioLogo ? (
-                      <img src={studioLogo} alt="Studio Logo" className="w-full h-full object-cover" />
+                      <img src={studioLogo} alt={studioName} className="w-full h-full object-contain rounded-xl" />
                     ) : (
-                      <Camera className="w-5 h-5 stroke-[2.5]" />
+                      <div className="w-full h-full bg-[#E31C2B] rounded-xl flex items-center justify-center">
+                        <Camera className="w-5 h-5 stroke-[2.5]" />
+                      </div>
                     )}
                   </div>
                   <div>

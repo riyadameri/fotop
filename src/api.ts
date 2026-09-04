@@ -209,6 +209,33 @@ export const api = {
   },
 
   // Attendance
+  async autoClockInAll(managerStaffId: string): Promise<{
+    attendanceLogs: AttendanceRecord[];
+    clockedInCount: number;
+    clockedInStaffNames: string[];
+  }> {
+    const res = await fetch('/api/attendance/auto-clock-in-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ managerStaffId }),
+    });
+    if (!res.ok) throw new Error('Failed to auto clock in staff');
+    return res.json();
+  },
+
+  async autoClockOutAll(): Promise<{
+    attendanceLogs: AttendanceRecord[];
+    clockedOutCount: number;
+  }> {
+    const res = await fetch('/api/attendance/auto-clock-out-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error('Failed to auto clock out staff');
+    return res.json();
+  },
+
   async clockIn(staffId: string, staffName: string): Promise<AttendanceRecord[]> {
     const res = await fetch('/api/attendance/clock-in', {
       method: 'POST',

@@ -25,21 +25,42 @@ import {
   Camera,
   Link,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Zap,
+  Clock,
+  Users,
+  Timer,
+  FileSpreadsheet,
+  RefreshCw,
+  LogOut,
+  LogIn
 } from 'lucide-react';
 import { soundManager } from '../../utils/audio';
-import { Staff } from '../../types';
+import { Staff, AttendanceRecord } from '../../types';
+import { api } from '../../api';
 
 interface SettingsViewProps {
   currentStaff: Staff;
+  allStaff?: Staff[];
+  attendanceLogs?: AttendanceRecord[];
   onUpdateStudioProfile?: (logo: string | null, name: string) => void;
   onGoToPOS?: () => void;
+  onAutoClockInAll?: () => Promise<{ clockedInCount: number; clockedInStaffNames?: string[] } | any>;
+  onAutoClockOutAll?: () => Promise<{ clockedOutCount: number } | any>;
+  onClockInStaff?: (staffId: string, staffName: string) => void;
+  onClockOutStaff?: (staffId: string) => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   currentStaff,
+  allStaff = [],
+  attendanceLogs = [],
   onUpdateStudioProfile,
-  onGoToPOS
+  onGoToPOS,
+  onAutoClockInAll,
+  onAutoClockOutAll,
+  onClockInStaff,
+  onClockOutStaff
 }) => {
   const isManager = currentStaff?.role === 'manager';
 
@@ -144,12 +165,147 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   });
 
+  // Extra Studio Operations Settings
+  const [studioOpenTime, setStudioOpenTime] = useState<string>(() => {
+    try {
+      return localStorage.getItem('fotop_studio_open_time') || '08:30';
+    } catch {
+      return '08:30';
+    }
+  });
+
+  const [studioCloseTime, setStudioCloseTime] = useState<string>(() => {
+    try {
+      return localStorage.getItem('fotop_studio_close_time') || '20:00';
+    } catch {
+      return '20:00';
+    }
+  });
+
+  const [defaultTurnaround, setDefaultTurnaround] = useState<string>(() => {
+    try {
+      return localStorage.getItem('fotop_default_turnaround') || '30m';
+    } catch {
+      return '30m';
+    }
+  });
+
+  const [taxRate, setTaxRate] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('fotop_tax_rate')) || 0;
+    } catch {
+      return 0;
+    }
+  });
+
+  const [defaultLowStockThreshold, setDefaultLowStockThreshold] = useState<number>(() => {
+    try {
+      return Number(localStorage.getItem('fotop_low_stock_threshold')) || 10;
+    } catch {
+      return 10;
+    }
+  });
+
+  const [autoAttendanceOnOpen, setAutoAttendanceOnOpen] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('fotop_auto_attendance_on_open') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Attendance Trigger States
+  const [isAutoClocking, setIsAutoClocking] = useState<boolean>(false);
+  const [attendanceActionMessage, setAttendanceActionMessage] = useState<string | null>(null);
+
   // URL input state
   const [imageUrlInput, setImageUrlInput] = useState<string>('');
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
-  const [activeTabSection, setActiveTabSection] = useState<'branding' | 'receipt' | 'system'>('branding');
+  const [activeTabSection, setActiveTabSection] = useState<'branding' | 'receipt' | 'attendance' | 'system'>('branding');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Date today string (YYYY-MM-DD)
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // Helper to determine currently active clocked-in staff
+  const activeClockedInStaffIds = new Set(
+    (attendanceLogs || [])
+      .filter(a => a.date === todayStr && a.status === 'clocked_in')
+      .map(a => a.staffId)
+  );
+
+  // Auto Clock-In All
+  const handleTriggerAutoClockIn = async () => {
+    setIsAutoClocking(true);
+    try {
+      if (onAutoClockInAll) {
+        const res = await onAutoClockInAll();
+        soundManager.playSuccessSound();
+        const count = res?.clockedInCount ?? (res?.clockedInStaffNames?.length ?? allStaff.length);
+        setAttendanceActionMessage(`تم بنجاح تسجيل حضور ودخول ${count} من عمال الاستوديو تلقائياً! ⚡`);
+      } else {
+        const res = await api.autoClockInAll(currentStaff.id);
+        soundManager.playSuccessSound();
+        setAttendanceActionMessage(`تم بنجاح تسجيل حضور ودخول ${res.clockedInCount} من عمال الاستوديو تلقائياً! ⚡`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('حدث خطأ أثناء تسجيل الدوام التلقائي، يرجى المحاولة ثانية.');
+    } finally {
+      setIsAutoClocking(false);
+      setTimeout(() => setAttendanceActionMessage(null), 5000);
+    }
+  };
+
+  // Auto Clock-Out All
+  const handleTriggerAutoClockOut = async () => {
+    if (!confirm('هل تريد بالتأكيد إنهاء دوام وتسجيل خروج جميع العمال الحاضرين حالياً؟')) return;
+    setIsAutoClocking(true);
+    try {
+      if (onAutoClockOutAll) {
+        const res = await onAutoClockOutAll();
+        soundManager.playClickSound();
+        setAttendanceActionMessage(`تم إنهاء دوام وتسجيل خروج ${res?.clockedOutCount || 0} من العمال.`);
+      } else {
+        const res = await api.autoClockOutAll();
+        soundManager.playClickSound();
+        setAttendanceActionMessage(`تم إنهاء دوام وتسجيل خروج ${res.clockedOutCount} من العمال.`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('حدث خطأ أثناء إنهاء دوام العمال');
+    } finally {
+      setIsAutoClocking(false);
+      setTimeout(() => setAttendanceActionMessage(null), 5000);
+    }
+  };
+
+  // Export JSON Backup
+  const handleExportBackup = () => {
+    try {
+      const backupData: Record<string, any> = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('fotop_') || key.startsWith('materials') || key.startsWith('orders'))) {
+          backupData[key] = localStorage.getItem(key);
+        }
+      }
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fotop_studio_backup_${todayStr}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      soundManager.playSuccessSound();
+      setAttendanceActionMessage('تم تنزيل النسخة الاحتياطية لبيانات الاستوديو بنجاح');
+      setTimeout(() => setAttendanceActionMessage(null), 4000);
+    } catch (err) {
+      console.error(err);
+      alert('تعذر تصدير النسخة الاحتياطية');
+    }
+  };
 
   // Preset Logos/Icons for quick selection
   const presetLogos = [
@@ -213,6 +369,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       // Save System Prefs
       localStorage.setItem('fotop_header_compact', String(compactHeader));
+      localStorage.setItem('fotop_studio_open_time', studioOpenTime);
+      localStorage.setItem('fotop_studio_close_time', studioCloseTime);
+      localStorage.setItem('fotop_default_turnaround', defaultTurnaround);
+      localStorage.setItem('fotop_tax_rate', String(taxRate));
+      localStorage.setItem('fotop_low_stock_threshold', String(defaultLowStockThreshold));
+      localStorage.setItem('fotop_auto_attendance_on_open', String(autoAttendanceOnOpen));
 
       if (soundEnabled) {
         soundManager.setMuted(false);
@@ -341,6 +503,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTabSection('attendance')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTabSection === 'attendance'
+                ? 'bg-white text-[#292A34] shadow-md font-black'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Clock className="w-4 h-4 text-blue-400" />
+            <span>تسجيل دوام العمال التلقائي (Auto Attendance)</span>
+            <span className="bg-[#E31C2B] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">مدير</span>
+          </button>
+
+          <button
             onClick={() => setActiveTabSection('system')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               activeTabSection === 'system'
@@ -349,10 +524,26 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             }`}
           >
             <Sliders className="w-4 h-4 text-amber-500" />
-            <span>تفضيلات النظام والأصوات (Preferences)</span>
+            <span>إعدادات الاستوديو والنظام (Studio & System)</span>
           </button>
         </div>
       </div>
+
+      {/* Action Notification Toast if trigger happened */}
+      {attendanceActionMessage && (
+        <div className="bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-lg flex items-center justify-between text-xs font-bold animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-white animate-bounce" />
+            <span className="text-sm font-black">{attendanceActionMessage}</span>
+          </div>
+          <button 
+            onClick={() => setAttendanceActionMessage(null)}
+            className="text-white/80 hover:text-white text-xs px-2 py-1 rounded-lg bg-emerald-700/50"
+          >
+            إغلاق
+          </button>
+        </div>
+      )}
 
       {/* Main Content Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -635,6 +826,242 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           )}
 
           {/* ========================================================================= */}
+          {/* SECTION: MANAGER AUTO ATTENDANCE CONTROL                                   */}
+          {/* ========================================================================= */}
+          {activeTabSection === 'attendance' && (
+            <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 space-y-6 animate-in fade-in duration-200">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl font-bold">
+                    <Clock className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-black text-[#292A34]">تسجيل دوام وحضور العمال التلقائي</h2>
+                      <span className="bg-[#E31C2B] text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                        لوحة تحكم المدير
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      بداء وإيقاف تسجيل الدوام لجميع عمال الاستوديو تلقائياً دون الحاجة لتسجيل كل عامل يدوياً
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs font-mono font-bold bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl border border-slate-200">
+                  <Clock className="w-3.5 h-3.5 text-slate-500" />
+                  <span>تاريخ اليوم: {todayStr}</span>
+                </div>
+              </div>
+
+              {/* Status KPI Overview */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                  <span className="text-[11px] font-bold text-slate-500 block">إجمالي العمال المسجلين</span>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xl font-black text-[#292A34] font-mono">{allStaff.length}</span>
+                    <Users className="w-5 h-5 text-slate-400" />
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200">
+                  <span className="text-[11px] font-bold text-emerald-800 block">الحاضرون حالياً (مسجل دوامهم اليوم)</span>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xl font-black text-emerald-700 font-mono">{activeClockedInStaffIds.size}</span>
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200">
+                  <span className="text-[11px] font-bold text-amber-800 block">لم يسجل دوامهم بعد اليوم</span>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xl font-black text-amber-700 font-mono">
+                      {Math.max(0, allStaff.length - activeClockedInStaffIds.size)}
+                    </span>
+                    <AlertCircle className="w-5 h-5 text-amber-600" />
+                  </div>
+                </div>
+              </div>
+
+              {/* MANAGER ACTION BUTTONS: AUTO CLOCK-IN ALL & AUTO CLOCK-OUT ALL */}
+              <div className="bg-gradient-to-br from-slate-900 via-[#292A34] to-slate-800 text-white p-5 rounded-3xl shadow-lg space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-amber-400 fill-amber-400 animate-pulse" />
+                    <span className="font-black text-sm">أوامر التشغيل السريع للدوام (One-Click Operations)</span>
+                  </div>
+                  <span className="text-[11px] text-slate-300 bg-white/10 px-2.5 py-0.5 rounded-full font-bold">
+                    إشراف وإدارة فورية
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Primary Button: Auto Clock-In All Staff */}
+                  <button
+                    type="button"
+                    disabled={isAutoClocking}
+                    onClick={handleTriggerAutoClockIn}
+                    className="flex flex-col items-center justify-center p-4 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white rounded-2xl shadow-lg shadow-emerald-950/40 transition-all cursor-pointer border border-emerald-400/40 text-center group disabled:opacity-50"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Zap className="w-5 h-5 text-amber-300 fill-amber-300" />
+                      <span className="font-black text-sm sm:text-base">
+                        {isAutoClocking ? 'جاري تسجيل دوام العمال...' : 'بدء تسجيل دوام جميع العمال تلقائياً'}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-emerald-100 font-medium">
+                      تسجيل حضور فوري لكافة عمال الاستوديو غير المسجلين اليوم
+                    </span>
+                  </button>
+
+                  {/* Secondary Button: Auto Clock-Out All Clocked-in Staff */}
+                  <button
+                    type="button"
+                    disabled={isAutoClocking || activeClockedInStaffIds.size === 0}
+                    onClick={handleTriggerAutoClockOut}
+                    className="flex flex-col items-center justify-center p-4 bg-slate-800 hover:bg-rose-900/60 active:scale-98 text-white rounded-2xl shadow-md transition-all cursor-pointer border border-slate-700 hover:border-rose-500/50 text-center group disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <LogOut className="w-5 h-5 text-rose-400" />
+                      <span className="font-black text-sm sm:text-base text-rose-200 group-hover:text-white">
+                        إنهاء دوام جميع العمال الحاضرين
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      يحسب ساعات العمل الإجمالية ويقفل وردية الحضور للجميع
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Individual Staff Attendance Status List */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black text-[#292A34] flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-[#E31C2B]" />
+                    <span>قائمة عمال الاستوديو وحالة دوامهم اليوم</span>
+                  </h3>
+                  <span className="text-[11px] text-slate-500">
+                    يمكن للمدير أيضاً تبديل حالة دوام أي عامل فردياً
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {allStaff.length === 0 ? (
+                    <div className="p-4 bg-slate-50 rounded-xl text-center text-xs text-slate-500">
+                      لا يوجد عمال مسجلين
+                    </div>
+                  ) : (
+                    allStaff.map(worker => {
+                      const isClockedIn = activeClockedInStaffIds.has(worker.id);
+                      const todayRecord = (attendanceLogs || []).find(
+                        a => a.staffId === worker.id && a.date === todayStr && a.status === 'clocked_in'
+                      );
+
+                      return (
+                        <div
+                          key={worker.id}
+                          className="flex items-center justify-between p-3.5 bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200 rounded-2xl transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#292A34] to-slate-700 text-white font-black text-sm flex items-center justify-center shadow-xs">
+                              {worker.name.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-black text-xs text-[#292A34]">{worker.name}</span>
+                                <span className="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-bold">
+                                  {worker.role === 'manager' ? 'مدير الاستوديو' : 'عامل استوديو'}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5 font-mono">
+                                {isClockedIn ? (
+                                  <span className="text-emerald-700 font-bold flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                                    حاضر الآن ─ وقت الدخول: {todayRecord?.clockIn ? new Date(todayRecord.clockIn).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' }) : 'مسجل'}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400">غير مسجل حالياً</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isClockedIn ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (onClockOutStaff) {
+                                    onClockOutStaff(worker.id);
+                                  } else {
+                                    api.clockOut(worker.id);
+                                  }
+                                  soundManager.playClickSound();
+                                  setAttendanceActionMessage(`تم تسجيل خروج العامل: ${worker.name}`);
+                                  setTimeout(() => setAttendanceActionMessage(null), 4000);
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-rose-100 text-rose-800 hover:bg-rose-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                              >
+                                <LogOut className="w-3.5 h-3.5" />
+                                <span>تسجيل خروج</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (onClockInStaff) {
+                                    onClockInStaff(worker.id, worker.name);
+                                  } else {
+                                    api.clockIn(worker.id, worker.name);
+                                  }
+                                  soundManager.playSuccessSound();
+                                  setAttendanceActionMessage(`تم تسجيل دوام العامل: ${worker.name}`);
+                                  setTimeout(() => setAttendanceActionMessage(null), 4000);
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 hover:bg-emerald-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                              >
+                                <LogIn className="w-3.5 h-3.5" />
+                                <span>تسجيل دخول</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Automatic Attendance Automation Settings */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <Timer className="w-4 h-4 text-blue-600" />
+                    <div>
+                      <span className="font-bold text-xs text-[#292A34] block">
+                        تسجيل الدوام التلقائي عند فتح الاستوديو (Auto Attendance on Open)
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        تسجيل حضور جميع العمال تلقائياً فور بدء أول وردية أو تسجيل أول عملية بيع باليوم
+                      </span>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={autoAttendanceOnOpen} 
+                      onChange={(e) => setAutoAttendanceOnOpen(e.target.checked)}
+                      className="sr-only peer" 
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
           {/* SECTION 3: SYSTEM PREFERENCES & AUDIO                                     */}
           {/* ========================================================================= */}
           {activeTabSection === 'system' && (
@@ -644,8 +1071,86 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <Sliders className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-black text-[#292A34]">تفضيلات الواجهة والأصوات التفاعلية</h2>
-                  <p className="text-xs text-slate-500">التحكم في المؤثرات الصوتية، وضع الشريط العلوي، وإدارة البيانات</p>
+                  <h2 className="text-base font-black text-[#292A34]">إعدادات الاستوديو والنظام والمؤثرات</h2>
+                  <p className="text-xs text-slate-500">أوقات العمل، مواعيد التسليم، الضرائب، التنبيهات، والنسخ الاحتياطي</p>
+                </div>
+              </div>
+
+              {/* Extra Studio Settings Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-slate-100">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    أوقات فتح وغلق الاستوديو اليومية (Operating Hours)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <span className="text-[10px] text-slate-400 block mb-0.5">ساعة الفتح:</span>
+                      <input 
+                        type="time" 
+                        value={studioOpenTime}
+                        onChange={(e) => setStudioOpenTime(e.target.value)}
+                        className="w-full p-2 border border-slate-300 rounded-xl font-mono text-xs"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-[10px] text-slate-400 block mb-0.5">ساعة الإغلاق:</span>
+                      <input 
+                        type="time" 
+                        value={studioCloseTime}
+                        onChange={(e) => setStudioCloseTime(e.target.value)}
+                        className="w-full p-2 border border-slate-300 rounded-xl font-mono text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    وقت تسليم الطلبات والصور الافتراضي للزبون
+                  </label>
+                  <select
+                    value={defaultTurnaround}
+                    onChange={(e) => setDefaultTurnaround(e.target.value)}
+                    className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-bold text-[#292A34]"
+                  >
+                    <option value="15m">15 دقيقة (صور جواز وبطاقة سريعة)</option>
+                    <option value="30m">30 دقيقة (طباعة قياسية)</option>
+                    <option value="1h">ساعة واحدة</option>
+                    <option value="3h">3 ساعات (تعديل فوتوشوب متقدم)</option>
+                    <option value="same_day">نفس اليوم قبل الإغلاق</option>
+                    <option value="24h">24 ساعة (ألبومات ومناسبات)</option>
+                  </select>
+                  <span className="text-[10px] text-slate-400">يظهر تلقائياً في خانة موعد التسليم عند إنشاء تذكرة طلب جديدة</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    نسبة الضريبة / الرسم الإضافي (TVA / Tax Rate %)
+                  </label>
+                  <select
+                    value={taxRate}
+                    onChange={(e) => setTaxRate(Number(e.target.value))}
+                    className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-bold text-[#292A34] font-mono"
+                  >
+                    <option value="0">0% (معفى من الضريبة)</option>
+                    <option value="9">9% (نسبة مخفضة)</option>
+                    <option value="19">19% (النسبة العادية TVA)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    حد تنبيه انخفاض المخزون الافتراضي للمواد
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={defaultLowStockThreshold}
+                    onChange={(e) => setDefaultLowStockThreshold(Number(e.target.value))}
+                    className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-mono font-bold"
+                  />
+                  <span className="text-[10px] text-slate-400">يطلق تنبيهاً باللون الأحمر عند نزول كمية ورق الصور أو الحبر عن هذا الحد</span>
                 </div>
               </div>
 
@@ -697,6 +1202,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     />
                     <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#292A34]"></div>
                   </label>
+                </div>
+
+                {/* Data Backup & Export Action */}
+                <div className="p-4 bg-slate-900 text-white rounded-2xl flex items-center justify-between shadow-md">
+                  <div>
+                    <span className="font-bold text-xs block">نسخ احتياطي لكافة بيانات وإعدادات الاستوديو</span>
+                    <span className="text-[11px] text-slate-400">تصدير ملف JSON يحتوي على سجلات الإعدادات والزبائن والمخزون</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleExportBackup}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>تنزيل نسخة احتياطية</span>
+                  </button>
                 </div>
 
                 {/* Reset Defaults Action */}

@@ -61,6 +61,8 @@ interface HeaderProps {
   onToggleCompact?: () => void;
   onNavigateToHome?: () => void;
   onNavigateToSettings?: () => void;
+  studioLogo?: string | null;
+  studioName?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -84,7 +86,9 @@ export const Header: React.FC<HeaderProps> = ({
   isCompact: externalIsCompact,
   onToggleCompact,
   onNavigateToHome,
-  onNavigateToSettings
+  onNavigateToSettings,
+  studioLogo: propStudioLogo,
+  studioName: propStudioName,
 }) => {
   const lowStockMaterials = (materials || []).filter(m => m.currentStock <= m.minThreshold);
   const lowStockProducts = (services || []).filter(
@@ -153,14 +157,14 @@ export const Header: React.FC<HeaderProps> = ({
   const [showStudioProfileModal, setShowStudioProfileModal] = useState<boolean>(false);
   const [customStudioLogo, setCustomStudioLogo] = useState<string | null>(() => {
     try {
-      return localStorage.getItem('fotop_custom_studio_logo') || null;
+      return propStudioLogo !== undefined ? propStudioLogo : (localStorage.getItem('fotop_custom_studio_logo') || null);
     } catch {
       return null;
     }
   });
   const [customStudioName, setCustomStudioName] = useState<string>(() => {
     try {
-      return localStorage.getItem('fotop_custom_studio_name') || 'Fotop';
+      return propStudioName !== undefined ? propStudioName : (localStorage.getItem('fotop_custom_studio_name') || 'Fotop');
     } catch {
       return 'Fotop';
     }
@@ -179,6 +183,18 @@ export const Header: React.FC<HeaderProps> = ({
       return null;
     }
   });
+
+  useEffect(() => {
+    if (propStudioLogo !== undefined) {
+      setCustomStudioLogo(propStudioLogo);
+    }
+  }, [propStudioLogo]);
+
+  useEffect(() => {
+    if (propStudioName !== undefined) {
+      setCustomStudioName(propStudioName);
+    }
+  }, [propStudioName]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const staffPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -371,14 +387,32 @@ export const Header: React.FC<HeaderProps> = ({
                 soundManager.playClickSound();
                 if (onNavigateToHome) onNavigateToHome();
               }}
-              className="w-7 h-7 rounded-xl bg-gradient-to-br from-[#E31C2B] to-[#b8121f] text-white font-black shadow-md shadow-[#E31C2B]/30 flex items-center justify-center cursor-pointer overflow-hidden transition-transform active:scale-95"
+              className="w-8 h-8 rounded-xl bg-[#292A34] border border-slate-700/80 p-0.5 text-white font-black shadow-md flex items-center justify-center cursor-pointer overflow-hidden transition-transform active:scale-95 shrink-0"
               title="الواجهة الرئيسية (نقطة البيع)"
             >
               {customStudioLogo ? (
-                <img src={customStudioLogo} alt="Studio Logo" className="w-full h-full object-cover" />
+                <img src={customStudioLogo} alt={customStudioName || "Studio Logo"} className="w-full h-full object-contain rounded-lg" />
               ) : (
-                <Camera className="w-3.5 h-3.5 stroke-[2.5]" />
+                <div className="w-full h-full bg-gradient-to-br from-[#E31C2B] to-[#b8121f] rounded-lg flex items-center justify-center">
+                  <Camera className="w-3.5 h-3.5 stroke-[2.5]" />
+                </div>
               )}
+            </div>
+
+            {/* Studio Name (Always visible) */}
+            <div 
+              onClick={() => {
+                soundManager.playClickSound();
+                if (onNavigateToHome) onNavigateToHome();
+              }}
+              className="cursor-pointer flex items-center gap-1"
+            >
+              <span className="text-xs font-black text-white truncate max-w-[75px] sm:max-w-[120px]">
+                {customStudioName}
+              </span>
+              <span className="bg-[#E31C2B] text-white text-[8px] px-1 py-0.2 rounded font-black tracking-normal shrink-0">
+                ERP
+              </span>
             </div>
           </div>
 
@@ -494,11 +528,11 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Expand Toggle on End */}
+          {/* Expand Toggle on End (Desktop only) */}
           <motion.button
             whileTap={{ scale: 0.92 }}
             onClick={handleToggleCompact}
-            className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+            className="hidden sm:flex p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white items-center justify-center transition-colors cursor-pointer shrink-0"
             title="توسيع الهيدر للوضع الكامل"
           >
             <Maximize2 className="w-3.5 h-3.5 text-slate-200" />
@@ -532,7 +566,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Logo & Branding */}
             <div className="flex items-center gap-2">
               <div 
-                className="relative flex items-center justify-center rounded-xl bg-gradient-to-br from-[#E31C2B] to-[#b8121f] text-white font-black shadow-md shadow-[#E31C2B]/30 shrink-0 cursor-pointer w-8 h-8 sm:w-9 sm:h-9 overflow-hidden transition-transform active:scale-95"
+                className="relative flex items-center justify-center rounded-xl bg-[#292A34] border border-slate-700/80 p-0.5 text-white font-black shadow-md shrink-0 cursor-pointer w-8 h-8 sm:w-9 sm:h-9 overflow-hidden transition-transform active:scale-95"
                 onClick={() => {
                   soundManager.playClickSound();
                   if (onNavigateToHome) onNavigateToHome();
@@ -540,9 +574,11 @@ export const Header: React.FC<HeaderProps> = ({
                 title="الواجهة الرئيسية (نقطة البيع)"
               >
                 {customStudioLogo ? (
-                  <img src={customStudioLogo} alt="Studio Logo" className="w-full h-full object-cover" />
+                  <img src={customStudioLogo} alt={customStudioName || "شعار الاستوديو"} className="w-full h-full object-contain rounded-lg" />
                 ) : (
-                  <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
+                  <div className="w-full h-full bg-gradient-to-br from-[#E31C2B] to-[#b8121f] rounded-lg flex items-center justify-center">
+                    <Camera className="w-4 h-4 sm:w-4.5 sm:h-4.5 stroke-[2.5]" />
+                  </div>
                 )}
                 <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-emerald-400 border-2 border-[#1f2029] rounded-full" title="متصل بالسيرفر السحابي Redox" />
               </div>
@@ -730,11 +766,11 @@ export const Header: React.FC<HeaderProps> = ({
               </motion.button>
             </div>
 
-            {/* Header Compact / Expand Toggle Button */}
+            {/* Header Compact / Expand Toggle Button (Desktop only) */}
             <motion.button
               whileTap={{ scale: 0.92 }}
               onClick={handleToggleCompact}
-              className="p-1.5 sm:p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer shadow-xs"
+              className="hidden sm:flex p-1.5 sm:p-2 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white items-center justify-center transition-colors cursor-pointer shadow-xs"
               title="تصغير الهيدر (أيقونات فقط وتوفير مساحة)"
             >
               <Minimize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-200" />

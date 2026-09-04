@@ -575,44 +575,85 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
               <p className="text-[11px] text-slate-400">ستظهر أرباحك وعملياتك هنا بمجرد إتمام أول عملية بيع من شاشة الكاشير.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
-                <thead>
-                  <tr className="bg-[#292A34] text-white font-bold rounded-xl">
-                    <th className="p-3 rounded-r-xl">رقم الإيصال</th>
-                    <th className="p-3">الوقت</th>
-                    <th className="p-3">الزبون والخدمات</th>
-                    <th className="p-3">سعر البيع</th>
-                    <th className="p-3">تكلفة المواد</th>
-                    <th className="p-3 text-center rounded-l-xl">صافي الربح</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {workerTodayOrders.map(o => {
-                    const orderBOM = o.materialsDeducted?.reduce((acc, m) => acc + m.cost, 0) || 0;
-                    const orderProfit = Math.max(0, o.total - orderBOM);
+            <>
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="bg-[#292A34] text-white font-bold rounded-xl">
+                      <th className="p-3 rounded-r-xl">رقم الإيصال</th>
+                      <th className="p-3">الوقت</th>
+                      <th className="p-3">الزبون والخدمات</th>
+                      <th className="p-3">سعر البيع</th>
+                      <th className="p-3">تكلفة المواد</th>
+                      <th className="p-3 text-center rounded-l-xl">صافي الربح</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {workerTodayOrders.map(o => {
+                      const orderBOM = o.materialsDeducted?.reduce((acc, m) => acc + m.cost, 0) || 0;
+                      const orderProfit = Math.max(0, o.total - orderBOM);
 
-                    return (
-                      <tr key={o.id} className="hover:bg-slate-50">
-                        <td className="p-3 font-mono font-bold text-slate-700">{o.ticketNumber}</td>
-                        <td className="p-3 font-mono text-slate-500">{formatTime(o.createdAt)}</td>
-                        <td className="p-3 font-bold text-[#292A34]">
-                          <div>{o.customerName}</div>
-                          <div className="text-[10px] text-slate-500 font-normal">
-                            {o.items.map(i => `${i.quantity}x ${i.service.name}`).join('، ')}
-                          </div>
-                        </td>
-                        <td className="p-3 font-mono font-black text-[#292A34]">{formatCurrency(o.total)}</td>
-                        <td className="p-3 font-mono text-[#E31C2B] font-bold">-{formatCurrency(orderBOM)}</td>
-                        <td className="p-3 text-center font-mono font-black text-emerald-600 bg-emerald-50/50">
-                          +{formatCurrency(orderProfit)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      return (
+                        <tr key={o.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-mono font-bold text-slate-700">{o.ticketNumber}</td>
+                          <td className="p-3 font-mono text-slate-500">{formatTime(o.createdAt)}</td>
+                          <td className="p-3 font-bold text-[#292A34]">
+                            <div>{o.customerName}</div>
+                            <div className="text-[10px] text-slate-500 font-normal">
+                              {o.items.map(i => `${i.quantity}x ${i.service.name}`).join('، ')}
+                            </div>
+                          </td>
+                          <td className="p-3 font-mono font-black text-[#292A34]">{formatCurrency(o.total)}</td>
+                          <td className="p-3 font-mono text-[#E31C2B] font-bold">-{formatCurrency(orderBOM)}</td>
+                          <td className="p-3 text-center font-mono font-black text-emerald-600 bg-emerald-50/50">
+                            +{formatCurrency(orderProfit)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards (No Horizontal Scroll) */}
+              <div className="md:hidden space-y-3">
+                {workerTodayOrders.map(o => {
+                  const orderBOM = o.materialsDeducted?.reduce((acc, m) => acc + m.cost, 0) || 0;
+                  const orderProfit = Math.max(0, o.total - orderBOM);
+
+                  return (
+                    <div key={o.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-black text-sm text-[#E31C2B]">{o.ticketNumber}</span>
+                          <span className="text-[11px] font-mono text-slate-400">{formatTime(o.createdAt)}</span>
+                        </div>
+                        <span className="font-mono font-black text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">
+                          صافي: +{formatCurrency(orderProfit)}
+                        </span>
+                      </div>
+
+                      <div className="text-xs font-bold text-[#292A34]">
+                        <div>{o.customerName}</div>
+                        <div className="text-[10px] text-slate-500 font-normal mt-0.5">
+                          {o.items.map(i => `${i.quantity}x ${i.service.name}`).join('، ')}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                        <span className="text-slate-500 font-mono text-[11px]">
+                          تكلفة: -{formatCurrency(orderBOM)}
+                        </span>
+                        <span className="font-mono font-black text-sm text-[#292A34]">
+                          {formatCurrency(o.total)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
 
           {/* Privacy Notice for Worker */}
@@ -1020,7 +1061,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
               </button>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-right text-xs">
                 <thead>
                   <tr className="bg-[#292A34] text-white font-bold rounded-xl">
@@ -1078,6 +1120,49 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Cards View (No Horizontal Scroll on Phones) */}
+            <div className="md:hidden space-y-3">
+              {staffFinancialSummary.map(st => (
+                <div key={st.staff.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-lg shadow-2xs">
+                        {st.staff.avatar || '👤'}
+                      </span>
+                      <div>
+                        <div className="font-black text-sm text-[#292A34]">{st.staff.name}</div>
+                        <span className="text-[10px] text-slate-500">
+                          {st.staff.role === 'manager' ? 'مدير عام (fouad)' : 'عامل استوديو'} • {st.staff.workSchedule || '08:30 - 17:00'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-left font-mono">
+                      <div className="text-[10px] text-slate-400 font-bold">صافي الربح</div>
+                      <div className="text-emerald-600 font-black text-xs">
+                        +{formatCurrency(st.netProfit)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-[11px] pt-2 border-t border-slate-200">
+                    <div className="bg-white p-2 rounded-xl border border-slate-100 text-center">
+                      <span className="text-[10px] text-slate-400 block font-bold">المبيعات</span>
+                      <span className="font-mono font-black text-[#292A34]">{formatCurrency(st.revenue)}</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-xl border border-slate-100 text-center">
+                      <span className="text-[10px] text-slate-400 block font-bold">تكلفة المواد</span>
+                      <span className="font-mono font-bold text-[#E31C2B]">-{formatCurrency(st.bomCost)}</span>
+                    </div>
+                    <div className="bg-white p-2 rounded-xl border border-slate-100 text-center">
+                      <span className="text-[10px] text-slate-400 block font-bold">الطلبات / السرعة</span>
+                      <span className="font-mono font-bold text-slate-700">{st.ordersCount} ط • {st.avgCompletionMinutes}د</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 

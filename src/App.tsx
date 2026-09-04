@@ -590,6 +590,51 @@ export function App() {
     }
   };
 
+  // Auto Attendance Handlers for Manager in Settings
+  const handleAutoClockInAll = async () => {
+    try {
+      const res = await api.autoClockInAll(currentStaff.id);
+      if (res && res.attendanceLogs) {
+        setAttendanceLogs(res.attendanceLogs);
+      }
+      return res;
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+  };
+
+  const handleAutoClockOutAll = async () => {
+    try {
+      const res = await api.autoClockOutAll();
+      if (res && res.attendanceLogs) {
+        setAttendanceLogs(res.attendanceLogs);
+      }
+      return res;
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+  };
+
+  const handleClockInStaff = async (staffId: string, staffName: string) => {
+    try {
+      const updated = await api.clockIn(staffId, staffName);
+      if (updated) setAttendanceLogs(updated);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleClockOutStaff = async (staffId: string) => {
+    try {
+      const updated = await api.clockOut(staffId);
+      if (updated) setAttendanceLogs(updated);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Reset to default data (Wipes everything on server & client, keeping only fouad manager)
   const handleResetData = async () => {
     if (window.confirm('هل أنت متأكد من تفريغ كافة البيانات وإعادة تعيين النظام بالكامل؟ سيبقى فقط حساب المدير فؤاد.')) {
@@ -827,6 +872,12 @@ export function App() {
                   {activeTab === 'settings' && (
                     <SettingsView
                       currentStaff={currentStaff}
+                      allStaff={staffList || []}
+                      attendanceLogs={attendanceLogs || []}
+                      onAutoClockInAll={handleAutoClockInAll}
+                      onAutoClockOutAll={handleAutoClockOutAll}
+                      onClockInStaff={handleClockInStaff}
+                      onClockOutStaff={handleClockOutStaff}
                       onGoToPOS={() => setActiveTab('pos')}
                     />
                   )}

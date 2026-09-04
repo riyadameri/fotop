@@ -11,6 +11,10 @@
 }
 
 @layer base {
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
   body {
     background-color: #F0F0F0;
     color: #292A34;

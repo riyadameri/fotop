@@ -598,6 +598,76 @@ async function startServer() {
     res.json(db.attendanceLogs);
   });
 
+  app.post('/api/attendance/auto-clock-in-all', (req, res) => {
+    const { managerStaffId } = req.body;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const clockedInStaffNames: string[] = [];
+
+    // Find all staff who are not currently clocked in today
+    db.staff.forEach(member => {
+      const alreadyClockedIn = db.attendanceLogs.some(
+        att => att.staffId === member.id && att.date === todayStr && att.status === 'clocked_in'
+      );
+      if (!alreadyClockedIn) {
+        const newRecord: AttendanceRecord = {
+          id: `att_${Date.now()}_${member.id}`,
+          staffId: member.id,
+          staffName: member.name,
+          clockIn: now.toISOString(),
+          date: todayStr,
+          status: 'clocked_in',
+          hourlyRateApplied: member.hourlyRate || 250,
+          notes: 'تسجيل دخول تلقائي لجميع العمال بواسطة المدير',
+        };
+        db.attendanceLogs.unshift(newRecord);
+        clockedInStaffNames.push(member.name);
+      }
+    });
+
+    saveDatabase(db);
+    res.json({
+      attendanceLogs: db.attendanceLogs,
+      clockedInCount: clockedInStaffNames.length,
+      clockedInStaffNames
+    });
+  });
+
+  app.post('/api/attendance/auto-clock-out-all', (req, res) => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    let clockedOutCount = 0;
+
+    db.attendanceLogs = db.attendanceLogs.map(att => {
+      if (att.status === 'clocked_in' && att.date === todayStr) {
+        const startTime = new Date(att.clockIn).getTime();
+        const endTime = now.getTime();
+        const totalMinutes = Math.max(1, Math.round((endTime - startTime) / (1000 * 60)));
+        const staff = db.staff.find(s => s.id === att.staffId);
+        const hourlyRateApplied = att.hourlyRateApplied || staff?.hourlyRate || 250;
+        const earnedPay = Math.round((totalMinutes / 60) * hourlyRateApplied);
+        clockedOutCount++;
+
+        return {
+          ...att,
+          clockOut: now.toISOString(),
+          status: 'clocked_out' as const,
+          totalMinutes,
+          hourlyRateApplied,
+          earnedPay,
+          notes: 'تسجيل خروج جماعي تلقائي بنهاية العمل بواسطة المدير',
+        };
+      }
+      return att;
+    });
+
+    saveDatabase(db);
+    res.json({
+      attendanceLogs: db.attendanceLogs,
+      clockedOutCount
+    });
+  });
+
   app.post('/api/attendance/clock-in', (req, res) => {
     const { staffId, staffName } = req.body;
     const now = new Date();
