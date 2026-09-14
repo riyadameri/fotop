@@ -4,6 +4,58 @@ export type PaymentMethod = 'cash' | 'card' | 'transfer' | 'credit';
 
 export type OrderStatus = 'pending' | 'processing' | 'ready' | 'delivered' | 'cancelled';
 
+export interface Store {
+  id: string; // 'store_sidiamer' | 'store_labhour'
+  name: string; // 'fotop sidiamer' | 'fotop labhour'
+  arabicName: string; // 'استوديو فوتوب - سيدي عامر' | 'استوديو فوتوب - الأبحور'
+  code: string; // 'sidiamer' | 'labhour'
+  managerName: string; // 'fouad'
+  managerId: string; // 'staff_fouad'
+  phone: string;
+  address: string;
+  currency: Currency;
+  themeColor: string; // #E31C2B (سيدي عامر) | #2563EB (الأبحور)
+  active: boolean;
+  openingCashBalance?: number; // الرصيد الافتتاحي اليومي للصندوق (Cash In Hand) المحدد من فؤاد
+  lastCashInHandUpdate?: string; // تاريخ آخر تحديث للرصيد الافتتاحي (ISO أو YYYY-MM-DD)
+  cashInHandNotes?: string; // تفاصيل الفكة وملاحظات الرصيد الافتتاحي
+}
+
+export const DEFAULT_STORES: Store[] = [
+  {
+    id: 'store_sidiamer',
+    name: 'fotop sidiamer',
+    arabicName: 'فوتوب سيدي عامر (Fotop Sidi Amer)',
+    code: 'sidiamer',
+    managerName: 'fouad',
+    managerId: 'staff_fouad',
+    phone: '05 63 89 83 95',
+    address: 'سيدي عامر (Sidi Amer)',
+    currency: 'DZD',
+    themeColor: '#E31C2B',
+    active: true,
+    openingCashBalance: 5000,
+    lastCashInHandUpdate: '2026-09-14',
+    cashInHandNotes: 'فكة نقدية معتمدة لبداية اليوم (فئات 200 دج و 500 دج و 1000 دج)'
+  },
+  {
+    id: 'store_labhour',
+    name: 'fotop labhour',
+    arabicName: 'فوتوب الأبحور (Fotop Labhour)',
+    code: 'labhour',
+    managerName: 'fouad',
+    managerId: 'staff_fouad',
+    phone: '05 63 89 83 95',
+    address: 'الأبحور (Labhour)',
+    currency: 'DZD',
+    themeColor: '#2563EB',
+    active: true,
+    openingCashBalance: 3000,
+    lastCashInHandUpdate: '2026-09-14',
+    cashInHandNotes: 'فكة نقدية معتمدة لبداية اليوم (فئات 100 دج و 200 دج و 500 دج)'
+  }
+];
+
 export interface BOMItem {
   materialId: string;
   quantity: number; // e.g. 1 sheet, 0.4 ml
@@ -30,10 +82,13 @@ export interface ServiceItem {
   minThreshold?: number;
   description: string;
   imageIcon: string;
+  imageUrl?: string; // رابط أو كود Base64 لصورة المنتج
   bom: BOMItem[]; // Raw materials consumed
   photoConfig?: PhotoLinkConfig; // إعدادات الربط الآلي بين الورق والحبر والصور
   estimatedLaborMinutes: number;
   popular?: boolean;
+  storeId?: string; // معرف المتجر: 'store_sidiamer' | 'store_labhour'
+  storeName?: string; // اسم المتجر: 'fotop sidiamer' | 'fotop labhour'
 }
 
 export interface Material {
@@ -46,6 +101,8 @@ export interface Material {
   unitCost: number; // Cost price in currency
   supplier?: string;
   sku: string;
+  storeId?: string; // معرف المتجر (اختياري، في حال تخصيص مخزون مستقل لكل متجر)
+  storeName?: string;
 }
 
 export interface CartItem {
@@ -60,6 +117,8 @@ export interface CartItem {
 export interface Order {
   id: string;
   ticketNumber: string; // e.g. FTP-1001
+  storeId?: string; // 'store_sidiamer' | 'store_labhour'
+  storeName?: string; // 'fotop sidiamer' | 'fotop labhour'
   customerName: string;
   customerPhone?: string;
   createdAt: string; // ISO
@@ -98,6 +157,8 @@ export type WasteReason =
 
 export interface WasteRecord {
   id: string;
+  storeId?: string;
+  storeName?: string;
   materialId: string;
   materialName: string;
   quantity: number;
@@ -115,6 +176,9 @@ export interface Staff {
   name: string;
   role: 'manager' | 'worker'; // عمال ومدير
   password?: string; // كلمة سر العامل أو المدير
+  storeId?: string; // معرف المتجر التابع له (store_sidiamer أو store_labhour)
+  storeName?: string; // اسم المتجر التابع له (fotop sidiamer أو fotop labhour)
+  assignedStores?: string[]; // للمدير فؤاد: صلاحية الوصول لكلا المتجرين ['store_sidiamer', 'store_labhour']
   workSchedule?: string; // مواقيت العمل (مثلاً 08:30 - 17:00)
   shiftStartTime?: string; // وقت بداية الدوام (مثلاً 08:30)
   shiftEndTime?: string; // وقت نهاية الدوام (مثلاً 17:00)
@@ -130,6 +194,8 @@ export interface Staff {
 
 export interface AttendanceRecord {
   id: string;
+  storeId?: string;
+  storeName?: string;
   staffId: string;
   staffName: string;
   clockIn: string; // ISO
@@ -145,6 +211,8 @@ export interface AttendanceRecord {
 
 export interface Shift {
   id: string;
+  storeId?: string;
+  storeName?: string;
   staffId: string;
   staffName: string;
   startTime: string;
@@ -162,6 +230,8 @@ export interface Shift {
 
 export interface Expense {
   id: string;
+  storeId?: string;
+  storeName?: string;
   title: string;
   amount: number;
   category: 'materials' | 'maintenance' | 'utilities' | 'tea_coffee' | 'salary' | 'other';
@@ -176,6 +246,8 @@ export type SalaryPaymentMethod = 'cash' | 'baridimob' | 'ccp' | 'bank';
 
 export interface SalaryPayment {
   id: string;
+  storeId?: string;
+  storeName?: string;
   staffId: string;
   staffName: string;
   paymentType: SalaryPaymentType; // دفع شهري، دفع باليوم (يومية)، تسبيق، مكافأة، مخصص

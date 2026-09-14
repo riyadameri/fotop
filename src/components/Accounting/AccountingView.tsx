@@ -52,7 +52,7 @@ import {
   Cell,
   Legend
 } from 'recharts';
-import { Order, Material, WasteRecord, Expense, Staff, Shift, AttendanceRecord, SalaryPayment } from '../../types';
+import { Order, Material, WasteRecord, Expense, Staff, Shift, AttendanceRecord, SalaryPayment, Store } from '../../types';
 import { formatCurrency, formatDate, formatTime, exportToCSV, getItemUnitCost } from '../../utils/formatters';
 
 interface AccountingViewProps {
@@ -74,6 +74,8 @@ interface AccountingViewProps {
   onAddSalaryPayment?: (payment: Partial<SalaryPayment> & { recordAsStudioExpense?: boolean }) => Promise<void>;
   onUpdateSalaryPayment?: (id: string, payment: Partial<SalaryPayment>) => Promise<void>;
   onDeleteSalaryPayment?: (id: string) => Promise<void>;
+  currentStoreId?: string;
+  stores?: Store[];
 }
 
 const getOrderTotalCost = (o: Order, mats: Material[] = []): number => {
@@ -112,6 +114,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   onAddSalaryPayment = async () => {},
   onUpdateSalaryPayment = async () => {},
   onDeleteSalaryPayment = async () => {},
+  currentStoreId,
+  stores = [],
 }) => {
   const isManager = currentStaff.role === 'manager';
 
@@ -138,7 +142,9 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   const [expenseCategory, setExpenseCategory] = useState<Expense['category']>('materials');
   const [expenseNotes, setExpenseNotes] = useState<string>('');
 
-  // New Staff form state (With rich Work Schedule & Hourly Rate Builder)
+  // New Staff form state (With rich Work Schedule, Store assignment & Hourly Rate Builder)
+  const defaultWorkerStore = (currentStoreId && currentStoreId !== 'all') ? currentStoreId : 'store_sidiamer';
+  const [newWorkerStoreId, setNewWorkerStoreId] = useState<string>(defaultWorkerStore);
   const [newWorkerName, setNewWorkerName] = useState<string>('');
   const [newWorkerPhone, setNewWorkerPhone] = useState<string>('');
   const [newWorkerHourlyRate, setNewWorkerHourlyRate] = useState<string>('250');
@@ -149,6 +155,13 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   ]);
   const [newWorkerSchedulePreset, setNewWorkerSchedulePreset] = useState<string>('full_time');
   const [newWorkerPassword, setNewWorkerPassword] = useState<string>('123');
+
+  // Sync newWorkerStoreId with currentStoreId
+  React.useEffect(() => {
+    if (currentStoreId && currentStoreId !== 'all') {
+      setNewWorkerStoreId(currentStoreId);
+    }
+  }, [currentStoreId]);
 
   // Date filters helper
   const now = new Date();
@@ -376,11 +389,15 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
     if (!newWorkerName.trim() || !onAddStaff) return;
 
     const formattedSchedule = `${newWorkerShiftStart} - ${newWorkerShiftEnd} (${newWorkerDays.length === 7 ? 'طوال أيام الأسبوع' : newWorkerDays.join('، ')})`;
+    const targetStoreId = newWorkerStoreId || ((currentStoreId && currentStoreId !== 'all') ? currentStoreId : 'store_sidiamer');
+    const targetStoreName = targetStoreId === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer';
 
     onAddStaff({
       id: `staff_${Date.now()}`,
       name: newWorkerName.trim(),
       role: 'worker',
+      storeId: targetStoreId,
+      storeName: targetStoreName,
       phone: newWorkerPhone.trim() || '05 00000000',
       workSchedule: formattedSchedule,
       shiftStartTime: newWorkerShiftStart,
@@ -415,6 +432,9 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
         ? (updatedStaff.workingDays.length === 7 ? 'طوال أيام الأسبوع' : updatedStaff.workingDays.join('، '))
         : 'السبت إلى الخميس';
       updatedStaff.workSchedule = `${updatedStaff.shiftStartTime} - ${updatedStaff.shiftEndTime} (${daysStr})`;
+    }
+    if (updatedStaff.storeId) {
+      updatedStaff.storeName = updatedStaff.storeId === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer';
     }
 
     onUpdateStaff(updatedStaff);
@@ -501,10 +521,17 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
               {currentStaff.avatar || '👤'}
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-lg font-black text-[#292A34]">{currentStaff.name}</h2>
                 <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-0.5 rounded-full font-bold">
                   عامل استوديو
+                </span>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-black ${
+                  currentStaff.storeId === 'store_labhour'
+                    ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                    : 'bg-rose-100 text-rose-800 border border-rose-200'
+                }`}>
+                  📍 {currentStaff.storeId === 'store_labhour' ? 'فرع الأبحور (fotop labhour)' : 'فرع سيدي عامر (fotop sidiamer)'}
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -1328,11 +1355,22 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                     </div>
                     <div>
                       <h4 className="text-sm font-black text-[#292A34]">{st.name}</h4>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        st.role === 'manager' ? 'bg-[#E31C2B] text-white' : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        {st.role === 'manager' ? 'المدير العام (fouad)' : 'عامل استوديو'}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          st.role === 'manager' ? 'bg-[#E31C2B] text-white' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {st.role === 'manager' ? 'المدير العام (fouad)' : 'عامل استوديو'}
+                        </span>
+                        {st.role !== 'manager' && (
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            st.storeId === 'store_labhour' 
+                              ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                              : 'bg-rose-100 text-rose-800 border border-rose-200'
+                          }`}>
+                            {st.storeId === 'store_labhour' ? 'فرع الأبحور' : 'فرع سيدي عامر'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1654,6 +1692,43 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                 </div>
               </div>
 
+              {/* Branch Assignment */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+                <label className="text-slate-800 font-bold block">
+                  الفرع المخصص لهذا العامل <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewWorkerStoreId('store_sidiamer')}
+                    className={`p-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      newWorkerStoreId === 'store_sidiamer'
+                        ? 'bg-rose-50 border-[#E31C2B] text-[#E31C2B] ring-2 ring-[#E31C2B]/20'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#E31C2B]"></span>
+                    <span>فرع سيدي عامر (fotop sidiamer)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewWorkerStoreId('store_labhour')}
+                    className={`p-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      newWorkerStoreId === 'store_labhour'
+                        ? 'bg-blue-50 border-blue-600 text-blue-600 ring-2 ring-blue-600/20'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                    <span>فرع الأبحور (fotop labhour)</span>
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500 font-medium">
+                  عند تسجيل دخول العامل، سيعرض النظام بيانات وسلع ومحاسبة هذا الفرع فقط ولن يتمكن من تغيير الفرع.
+                </p>
+              </div>
+
               {/* Schedule Section */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1942,6 +2017,50 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                   />
                 </div>
               </div>
+
+              {/* Branch Assignment for Worker */}
+              {editingStaff.role !== 'manager' && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
+                  <label className="text-slate-800 font-bold block">
+                    الفرع المعين للعامل:
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingStaff({
+                        ...editingStaff,
+                        storeId: 'store_sidiamer',
+                        storeName: 'fotop sidiamer'
+                      })}
+                      className={`p-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        editingStaff.storeId !== 'store_labhour'
+                          ? 'bg-rose-50 border-[#E31C2B] text-[#E31C2B] ring-2 ring-[#E31C2B]/20'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#E31C2B]"></span>
+                      <span>فرع سيدي عامر (fotop sidiamer)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditingStaff({
+                        ...editingStaff,
+                        storeId: 'store_labhour',
+                        storeName: 'fotop labhour'
+                      })}
+                      className={`p-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        editingStaff.storeId === 'store_labhour'
+                          ? 'bg-blue-50 border-blue-600 text-blue-600 ring-2 ring-blue-600/20'
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                      <span>فرع الأبحور (fotop labhour)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Schedule Section */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">

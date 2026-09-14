@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   Clock, 
@@ -39,7 +39,20 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({
   // Open Shift Form State
   const [showOpenModal, setShowOpenModal] = useState<boolean>(false);
   const [openStaffId, setOpenStaffId] = useState<string>(currentStaff?.id || '');
-  const [openingCashInput, setOpeningCashInput] = useState<string>('5000');
+  
+  const getStoreOpeningCash = () => {
+    const storeId = currentStaff?.storeId || 'store_sidiamer';
+    const saved = localStorage.getItem(`fotop_store_opening_cash_${storeId}`);
+    if (saved) return saved;
+    return storeId === 'store_labhour' ? '3000' : '5000';
+  };
+
+  const [openingCashInput, setOpeningCashInput] = useState<string>(getStoreOpeningCash);
+
+  // Update opening cash if staff/store changes
+  useEffect(() => {
+    setOpeningCashInput(getStoreOpeningCash());
+  }, [currentStaff?.storeId]);
 
   // Close Shift Form State
   const [showCloseModal, setShowCloseModal] = useState<boolean>(false);
@@ -398,16 +411,47 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({
               </div>
 
               <div>
-                <label className="text-slate-700 block mb-1 font-bold">رصيد الصرف الافتتاحي في الدرج (دج)</label>
-                <input
-                  type="number"
-                  min="0"
-                  required
-                  value={openingCashInput}
-                  onChange={(e) => setOpeningCashInput(e.target.value)}
-                  placeholder="5000 دج مثلاً..."
-                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono font-bold text-[#292A34] focus:outline-none focus:border-[#E31C2B]"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-700 font-bold">رصيد الصرف الافتتاحي في الدرج (Cash In Hand)</label>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
+                    معتمد من المدير فؤاد
+                  </span>
+                </div>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={openingCashInput}
+                    onChange={(e) => setOpeningCashInput(e.target.value)}
+                    placeholder="5000 دج مثلاً..."
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-sm font-mono font-black text-[#292A34] focus:outline-none focus:border-[#E31C2B]"
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-400">دج</span>
+                </div>
+
+                {/* Quick Store Preset Buttons */}
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap text-[11px]">
+                  <span className="text-slate-500 font-bold text-[10px]">الرصيد المعتمد للمتجر:</span>
+                  <button
+                    type="button"
+                    onClick={() => setOpeningCashInput('5000')}
+                    className={`px-2 py-0.5 rounded-lg border font-mono font-bold cursor-pointer transition-colors ${
+                      openingCashInput === '5000' ? 'bg-[#E31C2B] text-white border-[#E31C2B]' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    سيدي عامر (5,000 دج)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOpeningCashInput('3000')}
+                    className={`px-2 py-0.5 rounded-lg border font-mono font-bold cursor-pointer transition-colors ${
+                      openingCashInput === '3000' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    الأبحور (3,000 دج)
+                  </button>
+                </div>
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">

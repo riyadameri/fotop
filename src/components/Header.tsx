@@ -34,14 +34,16 @@ import {
   Check,
   Sliders,
   Database,
-  RefreshCw
+  RefreshCw,
+  Timer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Staff, Shift, Material, AttendanceRecord, ServiceItem } from '../types';
+import { Staff, Shift, Material, AttendanceRecord, ServiceItem, Store } from '../types';
 import { formatCurrency, formatTime, formatNumber } from '../utils/formatters';
 import { soundManager } from '../utils/audio';
 import { api } from '../api';
 import { FotopLogo } from './common/FotopLogo';
+import { StoreSelector } from './common/StoreSelector';
 
 interface HeaderProps {
   currentStaff: Staff;
@@ -67,6 +69,9 @@ interface HeaderProps {
   onNavigateToSettings?: () => void;
   studioLogo?: string | null;
   studioName?: string;
+  stores?: Store[];
+  currentStoreId?: string;
+  onSelectStore?: (storeId: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -93,6 +98,9 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateToSettings,
   studioLogo: propStudioLogo,
   studioName: propStudioName,
+  stores = [],
+  currentStoreId = 'store_sidiamer',
+  onSelectStore,
 }) => {
   const lowStockMaterials = (materials || []).filter(m => m.currentStock <= m.minThreshold);
   const lowStockProducts = (services || []).filter(
@@ -345,6 +353,28 @@ export const Header: React.FC<HeaderProps> = ({
     a => a.staffId === currentStaff.id && a.status === 'clocked_in' && a.date === todayStr
   );
 
+  // Real-time live shift/attendance timer calculation
+  const elapsedShiftTime = React.useMemo(() => {
+    // Check if staff has active attendance or active shift
+    const clockInTimeStr = activeAttendance?.clockIn || (activeShift?.status === 'open' && activeShift.staffId === currentStaff.id ? activeShift.startTime : null);
+    if (!clockInTimeStr) return null;
+
+    try {
+      const start = new Date(clockInTimeStr).getTime();
+      const now = currentDateTime.getTime();
+      const diffMs = Math.max(0, now - start);
+      const totalSec = Math.floor(diffMs / 1000);
+      const hours = Math.floor(totalSec / 3600);
+      const minutes = Math.floor((totalSec % 3600) / 60);
+      const seconds = totalSec % 60;
+
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    } catch {
+      return null;
+    }
+  }, [activeAttendance?.clockIn, activeShift?.startTime, activeShift?.status, activeShift?.staffId, currentStaff.id, currentDateTime]);
+
   const [showSwitchPassword, setShowSwitchPassword] = useState<boolean>(false);
 
   const handleSelectStaff = (staff: Staff) => {
@@ -475,12 +505,50 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* Multi-Store Switcher (fotop sidiamer / fotop labhour / all) - For Manager Only */}
+              {stores && stores.length > 0 && (
+                <div className="hidden sm:block mr-2">
+                  {currentStaff.role === 'manager' ? (
+                    <StoreSelector
+                      stores={stores}
+                      currentStoreId={currentStoreId}
+                      onSelectStore={onSelectStore || (() => {})}
+                      currentStaff={currentStaff}
+                      variant="header"
+                    />
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800/90 border border-slate-700/80 text-xs shadow-inner">
+                      <span className={`w-2 h-2 rounded-full ${currentStaff.storeId === 'store_labhour' ? 'bg-blue-400' : 'bg-[#E31C2B]'}`} />
+                      <span className="font-bold text-white text-[11px]">
+                        {currentStaff.storeId === 'store_labhour' ? 'فرع الأبحور (fotop labhour)' : 'فرع سيدي عامر (fotop sidiamer)'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Center: Live Attendance & Shift Status (Desktop & Tablet Screens) */}
           <div className="hidden sm:flex items-center gap-1.5 sm:gap-2 justify-center">
             
+            {/* Live Shift & Attendance Real-time Timer */}
+            {elapsedShiftTime ? (
+              <div 
+                className="flex items-center gap-1.5 bg-[#121319] border border-emerald-500/50 rounded-xl px-2.5 py-1 text-xs text-emerald-300 shadow-inner"
+                title={`المدة المنقضية في الدوام الفعلي للموظف (${currentStaff.name}) بدقة بالثواني`}
+              >
+                <Timer className="w-3.5 h-3.5 text-emerald-400 animate-spin" style={{ animationDuration: '6s' }} />
+                <div className="flex items-center gap-1">
+                  <span className="hidden xl:inline text-[9px] text-slate-400 font-medium">الوردية:</span>
+                  <span className="font-mono font-black text-white text-[11px] sm:text-xs tracking-wider">
+                    {elapsedShiftTime}
+                  </span>
+                </div>
+              </div>
+            ) : null}
+
             {/* Worker Instant Clock-In / Clock-Out Widget */}
             <div className="flex items-center gap-1 bg-[#171820] border border-slate-700/80 rounded-xl text-xs shadow-inner px-2 py-1">
               {activeAttendance ? (
@@ -745,10 +813,35 @@ export const Header: React.FC<HeaderProps> = ({
               <span>بدء الدوام</span>
             </button>
           )}
+
+          {/* Mobile Shift Live Timer */}
+          {elapsedShiftTime && (
+            <div className="flex items-center gap-1 bg-emerald-950/60 border border-emerald-500/50 rounded-lg px-1.5 py-0.5 text-[10px] text-emerald-300 font-mono font-bold">
+              <Timer className="w-2.5 h-2.5 text-emerald-400" />
+              <span>{elapsedShiftTime}</span>
+            </div>
+          )}
         </div>
 
-        {/* Center: Shift Cash OR Low Stock Alert */}
+        {/* Center: Store Selector & Shift Cash OR Low Stock Alert */}
         <div className="flex items-center gap-1">
+          {stores && stores.length > 0 && (
+            currentStaff.role === 'manager' ? (
+              <StoreSelector
+                stores={stores}
+                currentStoreId={currentStoreId}
+                onSelectStore={onSelectStore || (() => {})}
+                currentStaff={currentStaff}
+                variant="compact"
+              />
+            ) : (
+              <div className="flex items-center gap-1 bg-[#23242e] border border-slate-700/60 rounded-lg px-2 py-0.5 text-[10px] font-bold text-slate-200">
+                <span className={`w-1.5 h-1.5 rounded-full ${currentStaff.storeId === 'store_labhour' ? 'bg-blue-400' : 'bg-[#E31C2B]'}`} />
+                <span>{currentStaff.storeId === 'store_labhour' ? 'الأبحور' : 'سيدي عامر'}</span>
+              </div>
+            )
+          )}
+
           {totalLowStockCount > 0 ? (
             <button
               onClick={handleOpenAlerts}

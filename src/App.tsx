@@ -12,6 +12,7 @@ import { Navigation, TabType } from './components/Navigation';
 import { DashboardView } from './components/Dashboard/DashboardView';
 import { PosView } from './components/POS/PosView';
 import { ReceiptModal } from './components/POS/ReceiptModal';
+import { OrderSuccessToast } from './components/common/OrderSuccessToast';
 import { InventoryView } from './components/Inventory/InventoryView';
 import { WasteView } from './components/Waste/WasteView';
 import { ShiftsView } from './components/Shifts/ShiftsView';
@@ -31,7 +32,8 @@ import {
   INITIAL_ORDERS, 
   INITIAL_WASTE_RECORDS, 
   INITIAL_EXPENSES,
-  INITIAL_ATTENDANCE
+  INITIAL_ATTENDANCE,
+  INITIAL_STORES
 } from './data/initialData';
 
 import { 
@@ -44,7 +46,8 @@ import {
   Expense, 
   OrderStatus,
   AttendanceRecord,
-  SalaryPayment 
+  SalaryPayment,
+  Store 
 } from './types';
 
 import { api } from './api';
@@ -54,6 +57,23 @@ export function App() {
   const DB_VERSION_KEY = 'fotop_backend_clean_v1';
 
   // State
+  const [stores, setStores] = useState<Store[]>(INITIAL_STORES);
+  const [currentStoreId, setCurrentStoreId] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('fotop_active_store_id');
+      if (saved) return saved;
+    } catch {}
+    return 'store_sidiamer';
+  });
+
+  const handleSelectStore = (storeId: string) => {
+    if (currentStaff.role !== 'manager') return;
+    setCurrentStoreId(storeId);
+    try {
+      localStorage.setItem('fotop_active_store_id', storeId);
+    } catch {}
+  };
+
   const [materials, setMaterials] = useState<Material[]>(INITIAL_MATERIALS);
   const [services, setServices] = useState<ServiceItem[]>(INITIAL_SERVICES);
   const [staffList, setStaffList] = useState<Staff[]>(INITIAL_STAFF);
@@ -79,6 +99,16 @@ export function App() {
     }
     return INITIAL_STAFF[0];
   });
+
+  // Automatically lock store to worker's assigned store if they are a worker
+  useEffect(() => {
+    if (currentStaff.role === 'worker' && currentStaff.storeId) {
+      setCurrentStoreId(currentStaff.storeId);
+      try {
+        localStorage.setItem('fotop_active_store_id', currentStaff.storeId);
+      } catch {}
+    }
+  }, [currentStaff]);
 
   const [shifts, setShifts] = useState<Shift[]>(INITIAL_SHIFTS);
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
@@ -166,6 +196,7 @@ export function App() {
     setIsHeaderCompact(prev => !prev);
   };
   const [printedOrder, setPrintedOrder] = useState<Order | null>(null);
+  const [orderSuccessNotification, setOrderSuccessNotification] = useState<Order | null>(null);
   const [showQuickExpenseModal, setShowQuickExpenseModal] = useState<boolean>(false);
   const [showQuickWasteModal, setShowQuickWasteModal] = useState<boolean>(false);
   
@@ -191,11 +222,21 @@ export function App() {
 
         const data = await api.getAllData();
         if (data) {
+          if (data.stores && data.stores.length > 0) {
+            setStores(data.stores);
+          }
           setMaterials(data.materials || []);
           setServices(data.services || []);
           const staff = data.staff && data.staff.length > 0 ? data.staff : INITIAL_STAFF;
           setStaffList(staff);
-          setCurrentStaff(staff[0]);
+          const savedStaffId = sessionStorage.getItem('fotop_auth_staff_id');
+          if (savedStaffId) {
+            const found = staff.find(s => s.id === savedStaffId);
+            if (found) setCurrentStaff(found);
+            else setCurrentStaff(staff[0]);
+          } else {
+            setCurrentStaff(staff[0]);
+          }
           setShifts(data.shifts || []);
           setOrders(data.orders || []);
           setWasteRecords(data.wasteRecords || []);
@@ -212,10 +253,74 @@ export function App() {
     loadData();
   }, []);
 
-  // Active shift calculation
-  const activeShift = (shifts || []).find(s => s.status === 'open');
-  const lowStockCount = (materials || []).filter(m => m.currentStock <= m.minThreshold).length;
-  const openOrdersCount = (orders || []).filter(o => o.status !== 'delivered').length;
+  // Enforce strict store isolation:
+  // If current staff is worker, their effectiveStoreId is STRICTLY locked to their assigned storeId.
+  // If current staff is manager, they can use the global currentStoreId ('store_sidiamer', 'store_labhour', or 'all').
+  const isManager = currentStaff?.role === 'manager';
+  const effectiveStoreId = React.useMemo(() => {
+    if (!isManager && currentStaff?.storeId) {
+      return currentStaff.storeId;
+    }
+    return currentStoreId;
+  }, [isManager, currentStaff?.storeId, currentStoreId]);
+
+  // Store-filtered collections & context calculations
+  const filteredOrders = React.useMemo(() => {
+    if (effectiveStoreId === 'all') return orders;
+    return orders.filter(o => (o.storeId || 'store_sidiamer') === effectiveStoreId);
+  }, [orders, effectiveStoreId]);
+
+  const filteredExpenses = React.useMemo(() => {
+    if (effectiveStoreId === 'all') return expenses;
+    return expenses.filter(e => (e.storeId || 'store_sidiamer') === effectiveStoreId);
+  }, [expenses, effectiveStoreId]);
+
+  const filteredShifts = React.useMemo(() => {
+    if (effectiveStoreId === 'all') return shifts;
+    return shifts.filter(s => (s.storeId || 'store_sidiamer') === effectiveStoreId);
+  }, [shifts, effectiveStoreId]);
+
+  const filteredStaffList = React.useMemo(() => {
+    if (effectiveStoreId === 'all') return staffList;
+    return staffList.filter(s => s.role === 'manager' || (s.storeId || 'store_sidiamer') === effectiveStoreId);
+  }, [staffList, effectiveStoreId]);
+
+  const filteredMaterials = React.useMemo(() => {
+    if (effectiveStoreId === 'all') return materials;
+    return materials.filter(m => (m.storeId || 'store_sidiamer') === effectiveStoreId);
+  }, [materials, effectiveStoreId]);
+
+  const filteredServices = React.useMemo(() => {
+    if (effectiveStoreId === 'all') return services;
+    return services.filter(s => (s.storeId || 'store_sidiamer') === effectiveStoreId);
+  }, [services, effectiveStoreId]);
+
+  const filteredWasteRecords = React.useMemo(() => {
+    if (effectiveStoreId === 'all') return wasteRecords;
+    return wasteRecords.filter(w => (w.storeId || 'store_sidiamer') === effectiveStoreId);
+  }, [wasteRecords, effectiveStoreId]);
+
+  const filteredAttendanceLogs = React.useMemo(() => {
+    if (effectiveStoreId === 'all') return attendanceLogs;
+    const storeStaffIds = new Set(filteredStaffList.map(s => s.id));
+    return attendanceLogs.filter(a => storeStaffIds.has(a.staffId));
+  }, [attendanceLogs, filteredStaffList, effectiveStoreId]);
+
+  const filteredSalaryPayments = React.useMemo(() => {
+    if (effectiveStoreId === 'all') return salaryPayments;
+    const storeStaffIds = new Set(filteredStaffList.map(s => s.id));
+    return salaryPayments.filter(p => (p.storeId ? p.storeId === effectiveStoreId : storeStaffIds.has(p.staffId)));
+  }, [salaryPayments, filteredStaffList, effectiveStoreId]);
+
+  // Active shift calculation scoped to current active store
+  const activeShift = (shifts || []).find(s => {
+    if (s.status !== 'open') return false;
+    if (effectiveStoreId === 'all') return true;
+    return !s.storeId || s.storeId === effectiveStoreId;
+  });
+
+  const lowStockCount = (filteredMaterials || []).filter(m => m.currentStock <= m.minThreshold).length;
+  const openOrdersCount = (filteredOrders || []).filter(o => o.status !== 'delivered').length;
   const activeAttendance = (attendanceLogs || []).find(l => l.staffId === currentStaff.id && !l.clockOut);
 
   // Clock-In for worker
@@ -274,9 +379,16 @@ export function App() {
 
   // Staff Management (Manager)
   const handleAddStaff = async (newStaff: Staff) => {
-    setStaffList(prev => [...(prev || []), newStaff]);
+    const targetStoreId = newStaff.storeId || (effectiveStoreId !== 'all' ? effectiveStoreId : 'store_sidiamer');
+    const targetStoreObj = stores.find(s => s.id === targetStoreId) || stores[0];
+    const staffWithStore: Staff = {
+      ...newStaff,
+      storeId: targetStoreId,
+      storeName: newStaff.storeName || targetStoreObj?.name || (targetStoreId === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer')
+    };
+    setStaffList(prev => [...(prev || []), staffWithStore]);
     try {
-      const updated = await api.addStaff(newStaff);
+      const updated = await api.addStaff(staffWithStore);
       if (updated) setStaffList(updated);
     } catch (e) {
       console.error(e);
@@ -345,9 +457,16 @@ export function App() {
 
   // Service and Retail Item Management
   const handleAddService = async (newService: ServiceItem) => {
-    setServices(prev => [newService, ...(prev || [])]);
+    const targetStoreId = newService.storeId || (effectiveStoreId !== 'all' ? effectiveStoreId : 'store_sidiamer');
+    const targetStoreObj = stores.find(s => s.id === targetStoreId) || stores[0];
+    const serviceWithStore: ServiceItem = {
+      ...newService,
+      storeId: targetStoreId,
+      storeName: newService.storeName || targetStoreObj?.name || (targetStoreId === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer')
+    };
+    setServices(prev => [serviceWithStore, ...(prev || [])]);
     try {
-      const updated = await api.addService(newService);
+      const updated = await api.addService(serviceWithStore);
       if (updated) setServices(updated);
     } catch (e) {
       console.error(e);
@@ -381,8 +500,15 @@ export function App() {
     const ticketNumber = `FTP-${nextTicketNum}`;
     const createdAt = new Date().toISOString();
 
+    const targetStoreId = orderData.storeId || (currentStaff.role === 'worker' && currentStaff.storeId 
+      ? currentStaff.storeId 
+      : (effectiveStoreId === 'all' ? 'store_sidiamer' : effectiveStoreId));
+    const targetStoreObj = stores.find(s => s.id === targetStoreId) || stores[0];
+
     const newOrder: Order = {
       ...orderData,
+      storeId: targetStoreId,
+      storeName: orderData.storeName || targetStoreObj?.name || (targetStoreId === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer'),
       id: newId,
       ticketNumber,
       createdAt
@@ -422,12 +548,12 @@ export function App() {
       });
     }
 
-    setPrintedOrder(newOrder);
-    soundManager.playSuccessSound();
+    // Show professional Done message (no celebration confetti or sound)
+    setOrderSuccessNotification(newOrder);
 
     // Call backend API
     try {
-      const res = await api.createOrder(orderData);
+      const res = await api.createOrder(newOrder);
       if (res) {
         setOrders(res.orders);
         setMaterials(res.materials);
@@ -440,8 +566,12 @@ export function App() {
 
   // Add Waste record
   const handleAddWasteRecord = async (record: Omit<WasteRecord, 'id' | 'createdAt'>) => {
+    const targetStoreId = record.storeId || (effectiveStoreId !== 'all' ? effectiveStoreId : 'store_sidiamer');
+    const targetStoreObj = stores.find(s => s.id === targetStoreId) || stores[0];
     const newWaste: WasteRecord = {
       ...record,
+      storeId: targetStoreId,
+      storeName: record.storeName || targetStoreObj?.name || (targetStoreId === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer'),
       id: `wst_${Date.now()}`,
       createdAt: new Date().toISOString()
     };
@@ -461,7 +591,7 @@ export function App() {
     });
 
     try {
-      const res = await api.addWasteRecord(record);
+      const res = await api.addWasteRecord(newWaste);
       if (res) {
         setWasteRecords(res.wasteRecords);
         setMaterials(res.materials);
@@ -496,8 +626,12 @@ export function App() {
 
   // Add Material
   const handleAddMaterial = async (newMat: Omit<Material, 'id'>) => {
+    const targetStoreId = newMat.storeId || (effectiveStoreId !== 'all' ? effectiveStoreId : 'store_sidiamer');
+    const targetStoreObj = stores.find(s => s.id === targetStoreId) || stores[0];
     const mat: Material = {
       ...newMat,
+      storeId: targetStoreId,
+      storeName: newMat.storeName || targetStoreObj?.name || (targetStoreId === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer'),
       id: `mat_${Date.now()}`
     };
     setMaterials(prev => [...(prev || []), mat]);
@@ -521,11 +655,19 @@ export function App() {
   };
 
   // Shifts Operations
-  const handleOpenShift = async (staffId: string, staffName: string, openingCash: number) => {
+  const handleOpenShift = async (staffId: string, staffName: string, openingCash: number, optStoreId?: string, optStoreName?: string) => {
+    const targetStoreId = optStoreId || (currentStaff.role === 'worker' && currentStaff.storeId 
+      ? currentStaff.storeId 
+      : (effectiveStoreId === 'all' ? 'store_sidiamer' : effectiveStoreId));
+    const targetStoreObj = stores.find(s => s.id === targetStoreId) || stores[0];
+    const targetStoreName = optStoreName || targetStoreObj?.name || (targetStoreId === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer');
+
     const newShift: Shift = {
       id: `shf_${Date.now()}`,
       staffId,
       staffName,
+      storeId: targetStoreId,
+      storeName: targetStoreName,
       startTime: new Date().toISOString(),
       openingCash,
       cashSales: 0,
@@ -537,7 +679,7 @@ export function App() {
     setShifts(prev => [newShift, ...(prev || [])]);
 
     try {
-      const updated = await api.openShift(staffId, staffName, openingCash);
+      const updated = await api.openShift(staffId, staffName, openingCash, targetStoreId, targetStoreName);
       if (updated) setShifts(updated);
     } catch (e) {
       console.error(e);
@@ -572,8 +714,15 @@ export function App() {
 
   // Add Expense
   const handleAddExpense = async (exp: Omit<Expense, 'id' | 'createdAt'>) => {
+    const targetStoreId = exp.storeId || (currentStaff.role === 'worker' && currentStaff.storeId 
+      ? currentStaff.storeId 
+      : (effectiveStoreId === 'all' ? 'store_sidiamer' : effectiveStoreId));
+    const targetStoreObj = stores.find(s => s.id === targetStoreId) || stores[0];
+
     const newExp: Expense = {
       ...exp,
+      storeId: targetStoreId,
+      storeName: exp.storeName || targetStoreObj?.name || (targetStoreId === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer'),
       id: `exp_${Date.now()}`,
       createdAt: new Date().toISOString()
     };
@@ -595,7 +744,7 @@ export function App() {
     }
 
     try {
-      const res = await api.addExpense(exp);
+      const res = await api.addExpense(newExp);
       if (res) {
         setExpenses(res.expenses);
         setShifts(res.shifts);
@@ -815,6 +964,9 @@ export function App() {
         onOpenWaste={() => setShowQuickWasteModal(true)}
         onLogout={handleLogout}
         activeAttendance={activeAttendance}
+        stores={stores}
+        currentStoreId={effectiveStoreId}
+        onSelectStore={handleSelectStore}
       />
 
       {/* Main Responsive Body Layout (Header + Scrollable Workspace) */}
@@ -823,7 +975,7 @@ export function App() {
         {/* Top Global Header (Slim & Professional) */}
         <Header
           currentStaff={currentStaff}
-          allStaff={staffList}
+          allStaff={filteredStaffList}
           onSwitchStaff={(staff) => {
             setCurrentStaff(staff);
             try {
@@ -841,8 +993,8 @@ export function App() {
           onOpenExpenseModal={() => setShowQuickExpenseModal(true)}
           onOpenSpecsModal={() => handleTabChange('specs')}
           onResetData={handleResetData}
-          materials={materials}
-          services={services}
+          materials={filteredMaterials}
+          services={filteredServices}
           onNavigateToInventory={() => handleTabChange('inventory')}
           onToggleMobileMenu={() => setIsMobileNavOpen(!isMobileNavOpen)}
           isMobileMenuOpen={isMobileNavOpen}
@@ -850,6 +1002,9 @@ export function App() {
           onToggleCompact={toggleHeaderCompact}
           onNavigateToHome={() => handleTabChange('pos')}
           onNavigateToSettings={() => handleTabChange('settings')}
+          stores={stores}
+          currentStoreId={effectiveStoreId}
+          onSelectStore={handleSelectStore}
         />
 
         {/* Dynamic Main Workspace with Motion Transitions */}
@@ -874,14 +1029,14 @@ export function App() {
                 >
                   {activeTab === 'dashboard' && (
                     <DashboardView
-                      orders={orders || []}
-                      materials={materials || []}
-                      wasteRecords={wasteRecords || []}
-                      expenses={expenses || []}
-                      shifts={shifts || []}
+                      orders={filteredOrders || []}
+                      materials={filteredMaterials || []}
+                      wasteRecords={filteredWasteRecords || []}
+                      expenses={filteredExpenses || []}
+                      shifts={filteredShifts || []}
                       currentStaff={currentStaff}
-                      allStaff={staffList || []}
-                      attendanceLogs={attendanceLogs || []}
+                      allStaff={filteredStaffList || []}
+                      attendanceLogs={filteredAttendanceLogs || []}
                       onNavigateTab={handleTabChange}
                       onOpenQuickExpense={() => setShowQuickExpenseModal(true)}
                       onOpenQuickWaste={() => setShowQuickWasteModal(true)}
@@ -890,18 +1045,24 @@ export function App() {
 
                   {activeTab === 'pos' && (
                     <PosView
-                      services={services || []}
-                      materials={materials || []}
+                      services={filteredServices || []}
+                      materials={filteredMaterials || []}
                       currentStaff={currentStaff}
                       activeShift={activeShift}
+                      orders={filteredOrders || []}
                       onCheckoutOrder={handleCheckoutOrder}
+                      onPrintLastReceipt={() => {
+                        if (filteredOrders.length > 0) {
+                          setPrintedOrder(filteredOrders[0]);
+                        }
+                      }}
                     />
                   )}
 
                   {activeTab === 'inventory' && (
                     <InventoryView
-                      materials={materials || []}
-                      services={services || []}
+                      materials={filteredMaterials || []}
+                      services={filteredServices || []}
                       currentStaff={currentStaff}
                       onUpdateMaterial={handleUpdateMaterial}
                       onAddMaterial={handleAddMaterial}
@@ -915,9 +1076,9 @@ export function App() {
 
                   {activeTab === 'waste' && (
                     <WasteView
-                      wasteRecords={wasteRecords || []}
-                      materials={materials || []}
-                      staffList={staffList || []}
+                      wasteRecords={filteredWasteRecords || []}
+                      materials={filteredMaterials || []}
+                      staffList={filteredStaffList || []}
                       currentStaff={currentStaff}
                       onAddWasteRecord={handleAddWasteRecord}
                     />
@@ -925,9 +1086,9 @@ export function App() {
 
                   {activeTab === 'shifts' && (
                     <ShiftsView
-                      shifts={shifts || []}
+                      shifts={filteredShifts || []}
                       activeShift={activeShift}
-                      allStaff={staffList || []}
+                      allStaff={filteredStaffList || []}
                       currentStaff={currentStaff}
                       onOpenShift={handleOpenShift}
                       onCloseShift={handleCloseShift}
@@ -937,9 +1098,9 @@ export function App() {
 
                   {activeTab === 'hr' && (
                     <HumanResourcesView
-                      allStaff={staffList || []}
-                      salaryPayments={salaryPayments || []}
-                      attendanceLogs={attendanceLogs || []}
+                      allStaff={filteredStaffList || []}
+                      salaryPayments={filteredSalaryPayments || []}
+                      attendanceLogs={filteredAttendanceLogs || []}
                       currentStaff={currentStaff}
                       onUpdateStaff={handleUpdateStaff}
                       onAddSalaryPayment={handleAddSalaryPayment}
@@ -953,15 +1114,15 @@ export function App() {
 
                   {activeTab === 'accounting' && (
                     <AccountingView
-                      orders={orders || []}
-                      materials={materials || []}
-                      wasteRecords={wasteRecords || []}
-                      expenses={expenses || []}
-                      shifts={shifts || []}
+                      orders={filteredOrders || []}
+                      materials={filteredMaterials || []}
+                      wasteRecords={filteredWasteRecords || []}
+                      expenses={filteredExpenses || []}
+                      shifts={filteredShifts || []}
                       currentStaff={currentStaff}
-                      allStaff={staffList || []}
-                      attendanceLogs={attendanceLogs || []}
-                      salaryPayments={salaryPayments || []}
+                      allStaff={filteredStaffList || []}
+                      attendanceLogs={filteredAttendanceLogs || []}
+                      salaryPayments={filteredSalaryPayments || []}
                       onAddExpense={handleAddExpense}
                       onAddStaff={handleAddStaff}
                       onUpdateStaff={handleUpdateStaff}
@@ -971,17 +1132,19 @@ export function App() {
                       onAddSalaryPayment={handleAddSalaryPayment}
                       onUpdateSalaryPayment={handleUpdateSalaryPayment}
                       onDeleteSalaryPayment={handleDeleteSalaryPayment}
+                      currentStoreId={effectiveStoreId}
+                      stores={stores}
                     />
                   )}
 
                   {activeTab === 'orders' && (
                     <OrdersView
-                      orders={orders || []}
-                      allStaff={staffList || []}
+                      orders={filteredOrders || []}
+                      allStaff={filteredStaffList || []}
                       currentStaff={currentStaff}
-                      materials={materials || []}
-                      expenses={expenses || []}
-                      wasteRecords={wasteRecords || []}
+                      materials={filteredMaterials || []}
+                      expenses={filteredExpenses || []}
+                      wasteRecords={filteredWasteRecords || []}
                       onSelectOrderForPrint={setPrintedOrder}
                       onUpdateOrderStatus={handleUpdateOrderStatus}
                     />
@@ -1124,6 +1287,13 @@ export function App() {
       </nav>
 
 
+      {/* Professional Order Success Notification (تم) */}
+      <OrderSuccessToast
+        order={orderSuccessNotification}
+        onClose={() => setOrderSuccessNotification(null)}
+        onPrintReceipt={(ord) => setPrintedOrder(ord)}
+      />
+
       {/* Printable Receipt Modal */}
       <ReceiptModal
         order={printedOrder}
@@ -1209,7 +1379,7 @@ export function App() {
             </div>
             <form onSubmit={(e) => {
               e.preventDefault();
-              const m = (materials || []).find(mat => mat.id === (quickWasteMatId || materials[0]?.id));
+              const m = (filteredMaterials || []).find(mat => mat.id === (quickWasteMatId || filteredMaterials[0]?.id));
               if (!m) return;
               const qty = Number(quickWasteQty) || 1;
               handleAddWasteRecord({
@@ -1227,11 +1397,11 @@ export function App() {
               <div>
                 <label className="text-slate-700 block mb-1 font-bold">المادة التالفة</label>
                 <select
-                  value={quickWasteMatId || materials[0]?.id}
+                  value={quickWasteMatId || filteredMaterials[0]?.id}
                   onChange={(e) => setQuickWasteMatId(e.target.value)}
                   className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B]"
                 >
-                  {(materials || []).map(m => (
+                  {(filteredMaterials || []).map(m => (
                     <option key={m.id} value={m.id}>{m.name} (متوفر: {m.currentStock})</option>
                   ))}
                 </select>

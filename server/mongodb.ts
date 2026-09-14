@@ -53,6 +53,7 @@ let isConnecting = false;
 let lastError: string | null = null;
 
 export const COLLECTIONS = [
+  'stores',
   'materials',
   'services',
   'staff',
@@ -159,6 +160,7 @@ export async function loadAllFromMongo(): Promise<Record<CollectionName, any[]> 
 
   try {
     const result: Record<CollectionName, any[]> = {
+      stores: [],
       materials: [],
       services: [],
       staff: [],

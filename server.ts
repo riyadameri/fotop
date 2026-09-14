@@ -42,10 +42,30 @@ interface ServiceItem {
   minThreshold?: number;
   description: string;
   imageIcon: string;
+  imageUrl?: string;
   bom: BOMItem[];
   photoConfig?: PhotoLinkConfig;
   estimatedLaborMinutes: number;
   popular?: boolean;
+  storeId?: string;
+  storeName?: string;
+}
+
+interface Store {
+  id: string;
+  name: string;
+  arabicName: string;
+  code: string;
+  managerName: string;
+  managerId: string;
+  phone: string;
+  address: string;
+  currency: string;
+  themeColor: string;
+  active: boolean;
+  openingCashBalance?: number;
+  lastCashInHandUpdate?: string;
+  cashInHandNotes?: string;
 }
 
 interface Material {
@@ -58,6 +78,8 @@ interface Material {
   unitCost: number;
   supplier?: string;
   sku: string;
+  storeId?: string;
+  storeName?: string;
 }
 
 interface CartItem {
@@ -72,6 +94,8 @@ interface CartItem {
 interface Order {
   id: string;
   ticketNumber: string;
+  storeId?: string;
+  storeName?: string;
   customerName: string;
   customerPhone?: string;
   createdAt: string;
@@ -100,6 +124,8 @@ interface Order {
 
 interface WasteRecord {
   id: string;
+  storeId?: string;
+  storeName?: string;
   materialId: string;
   materialName: string;
   quantity: number;
@@ -117,6 +143,9 @@ interface Staff {
   name: string;
   role: 'manager' | 'worker';
   password?: string;
+  storeId?: string;
+  storeName?: string;
+  assignedStores?: string[];
   workSchedule?: string;
   shiftStartTime?: string;
   shiftEndTime?: string;
@@ -132,6 +161,8 @@ interface Staff {
 
 interface AttendanceRecord {
   id: string;
+  storeId?: string;
+  storeName?: string;
   staffId: string;
   staffName: string;
   clockIn: string;
@@ -147,6 +178,8 @@ interface AttendanceRecord {
 
 interface Shift {
   id: string;
+  storeId?: string;
+  storeName?: string;
   staffId: string;
   staffName: string;
   startTime: string;
@@ -164,6 +197,8 @@ interface Shift {
 
 interface Expense {
   id: string;
+  storeId?: string;
+  storeName?: string;
   title: string;
   amount: number;
   category: string;
@@ -175,6 +210,8 @@ interface Expense {
 
 interface SalaryPayment {
   id: string;
+  storeId?: string;
+  storeName?: string;
   staffId: string;
   staffName: string;
   paymentType: 'monthly' | 'daily' | 'advance' | 'bonus' | 'custom';
@@ -193,6 +230,7 @@ interface SalaryPayment {
 }
 
 interface DatabaseSchema {
+  stores: Store[];
   materials: Material[];
   services: ServiceItem[];
   staff: Staff[];
@@ -205,6 +243,40 @@ interface DatabaseSchema {
 }
 
 const DEFAULT_DB_DATA: DatabaseSchema = {
+  stores: [
+    {
+      id: 'store_sidiamer',
+      name: 'fotop sidiamer',
+      arabicName: 'فوتوب سيدي عامر (Fotop Sidi Amer)',
+      code: 'sidiamer',
+      managerName: 'fouad',
+      managerId: 'staff_fouad',
+      phone: '05 63 89 83 95',
+      address: 'سيدي عامر (Sidi Amer)',
+      currency: 'DZD',
+      themeColor: '#E31C2B',
+      active: true,
+      openingCashBalance: 5000,
+      lastCashInHandUpdate: '2026-09-14',
+      cashInHandNotes: 'فكة نقدية معتمدة لبداية اليوم (فئات 200 دج و 500 دج و 1000 دج)',
+    },
+    {
+      id: 'store_labhour',
+      name: 'fotop labhour',
+      arabicName: 'فوتوب الأبحور (Fotop Labhour)',
+      code: 'labhour',
+      managerName: 'fouad',
+      managerId: 'staff_fouad',
+      phone: '05 63 89 83 95',
+      address: 'الأبحور (Labhour)',
+      currency: 'DZD',
+      themeColor: '#2563EB',
+      active: true,
+      openingCashBalance: 3000,
+      lastCashInHandUpdate: '2026-09-14',
+      cashInHandNotes: 'فكة نقدية معتمدة لبداية اليوم (فئات 100 دج و 200 دج و 500 دج)',
+    },
+  ],
   materials: [],
   services: [],
   staff: [
@@ -213,7 +285,8 @@ const DEFAULT_DB_DATA: DatabaseSchema = {
       name: 'فؤاد (fouad)',
       role: 'manager',
       password: 'fouad26911',
-      workSchedule: '08:30 - 18:00 (السبت إلى الخميس)',
+      assignedStores: ['store_sidiamer', 'store_labhour'],
+      workSchedule: 'إدارة عامة وإشراف على كلا المتجرين (دوام مرن)',
       shiftStartTime: '08:30',
       shiftEndTime: '18:00',
       workingDays: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
@@ -222,6 +295,80 @@ const DEFAULT_DB_DATA: DatabaseSchema = {
       monthlySalaryBase: 75000,
       phone: '05 63 89 83 95',
       avatar: '👔',
+      active: true,
+    },
+    // عمال متجر fotop sidiamer (سيدي عامر)
+    {
+      id: 'staff_amine',
+      name: 'أمين (Amine - سيدي عامر)',
+      role: 'worker',
+      password: '123',
+      storeId: 'store_sidiamer',
+      storeName: 'fotop sidiamer',
+      workSchedule: '08:30 - 17:00 (سيدي عامر)',
+      shiftStartTime: '08:30',
+      shiftEndTime: '17:00',
+      workingDays: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
+      hourlyRate: 250,
+      dailyRate: 2000,
+      monthlySalaryBase: 45000,
+      phone: '05 50 11 22 33',
+      avatar: '📸',
+      active: true,
+    },
+    {
+      id: 'staff_karim',
+      name: 'كريم (Karim - سيدي عامر)',
+      role: 'worker',
+      password: '123',
+      storeId: 'store_sidiamer',
+      storeName: 'fotop sidiamer',
+      workSchedule: '09:00 - 18:00 (سيدي عامر)',
+      shiftStartTime: '09:00',
+      shiftEndTime: '18:00',
+      workingDays: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
+      hourlyRate: 250,
+      dailyRate: 2000,
+      monthlySalaryBase: 45000,
+      phone: '05 50 22 33 44',
+      avatar: '🖨️',
+      active: true,
+    },
+    // عمال متجر fotop labhour (الأبحور)
+    {
+      id: 'staff_yassine',
+      name: 'ياسين (Yassine - الأبحور)',
+      role: 'worker',
+      password: '123',
+      storeId: 'store_labhour',
+      storeName: 'fotop labhour',
+      workSchedule: '08:30 - 17:00 (الأبحور)',
+      shiftStartTime: '08:30',
+      shiftEndTime: '17:00',
+      workingDays: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
+      hourlyRate: 250,
+      dailyRate: 2000,
+      monthlySalaryBase: 45000,
+      phone: '06 60 44 55 66',
+      avatar: '📷',
+      active: true,
+    },
+    {
+      id: 'staff_souhaib',
+      name: 'صهيب (Souhaib - الأبحور)',
+      role: 'worker',
+      password: '123',
+      storeId: 'store_labhour',
+      storeName: 'fotop labhour',
+      workSchedule: '09:00 - 18:00 (الأبحور)',
+      shiftStartTime: '09:00',
+      shiftEndTime: '18:00',
+      workingDays: ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'],
+      hourlyRate: 250,
+      dailyRate: 2000,
+      monthlySalaryBase: 45000,
+      phone: '06 60 77 88 99',
+      avatar: '💻',
       active: true,
     },
   ],
@@ -246,10 +393,19 @@ function loadDatabase(): DatabaseSchema {
     if (fs.existsSync(DB_FILE)) {
       const content = fs.readFileSync(DB_FILE, 'utf-8');
       const parsed = JSON.parse(content);
+
+      // Merge default staff if missing workers
+      let loadedStaff = parsed.staff && parsed.staff.length > 0 ? parsed.staff : DEFAULT_DB_DATA.staff;
+      if (loadedStaff.length <= 1) {
+        // Upgrade single-user to multi-store staff
+        loadedStaff = DEFAULT_DB_DATA.staff;
+      }
+
       return {
+        stores: parsed.stores && parsed.stores.length > 0 ? parsed.stores : DEFAULT_DB_DATA.stores,
         materials: parsed.materials || [],
         services: parsed.services || [],
-        staff: parsed.staff && parsed.staff.length > 0 ? parsed.staff : DEFAULT_DB_DATA.staff,
+        staff: loadedStaff,
         shifts: parsed.shifts || [],
         orders: parsed.orders || [],
         wasteRecords: parsed.wasteRecords || [],
@@ -302,9 +458,10 @@ async function startServer() {
       if (cloudData) {
         // Merge cloud data into active db state
         db = {
+          stores: (cloudData.stores && cloudData.stores.length > 0) ? cloudData.stores : (db.stores && db.stores.length > 0 ? db.stores : DEFAULT_DB_DATA.stores),
           materials: (cloudData.materials && cloudData.materials.length > 0) ? cloudData.materials : db.materials,
           services: (cloudData.services && cloudData.services.length > 0) ? cloudData.services : db.services,
-          staff: (cloudData.staff && cloudData.staff.length > 0) ? cloudData.staff : db.staff,
+          staff: (cloudData.staff && cloudData.staff.length > 1) ? cloudData.staff : db.staff,
           shifts: cloudData.shifts || db.shifts,
           orders: cloudData.orders || db.orders,
           wasteRecords: cloudData.wasteRecords || db.wasteRecords,
@@ -377,9 +534,10 @@ async function startServer() {
         const cloudData = await loadAllFromMongo();
         if (cloudData) {
           db = {
+            stores: (cloudData.stores && cloudData.stores.length > 0) ? cloudData.stores : (db.stores && db.stores.length > 0 ? db.stores : DEFAULT_DB_DATA.stores),
             materials: (cloudData.materials && cloudData.materials.length > 0) ? cloudData.materials : db.materials,
             services: (cloudData.services && cloudData.services.length > 0) ? cloudData.services : db.services,
-            staff: (cloudData.staff && cloudData.staff.length > 0) ? cloudData.staff : db.staff,
+            staff: (cloudData.staff && cloudData.staff.length > 1) ? cloudData.staff : db.staff,
             shifts: cloudData.shifts || db.shifts,
             orders: cloudData.orders || db.orders,
             wasteRecords: cloudData.wasteRecords || db.wasteRecords,
@@ -393,6 +551,35 @@ async function startServer() {
       }
     }
     res.json(db);
+  });
+
+  // === Stores API ===
+  app.get('/api/stores', (req, res) => {
+    res.json(db.stores || DEFAULT_DB_DATA.stores);
+  });
+
+  app.post('/api/stores', (req, res) => {
+    const newStore: Store = {
+      ...req.body,
+      id: req.body.id || `store_${Date.now()}`,
+    };
+    db.stores = db.stores || [];
+    const existingIndex = db.stores.findIndex(s => s.id === newStore.id);
+    if (existingIndex >= 0) {
+      db.stores[existingIndex] = newStore;
+    } else {
+      db.stores.push(newStore);
+    }
+    saveDatabase(db, 'stores');
+    res.json(db.stores);
+  });
+
+  app.put('/api/stores/:id', (req, res) => {
+    const { id } = req.params;
+    const updated = req.body as Partial<Store>;
+    db.stores = (db.stores || []).map(s => (s.id === id ? { ...s, ...updated } : s));
+    saveDatabase(db, 'stores');
+    res.json(db.stores);
   });
 
   // Reset database completely (wipe all data and keep only fouad manager)
@@ -517,11 +704,13 @@ async function startServer() {
   });
 
   app.post('/api/shifts/open', (req, res) => {
-    const { staffId, staffName, openingCash } = req.body;
+    const { staffId, staffName, openingCash, storeId, storeName } = req.body;
     const newShift: Shift = {
       id: `shf_${Date.now()}`,
       staffId,
       staffName,
+      storeId: storeId || 'store_sidiamer',
+      storeName: storeName || 'fotop sidiamer',
       startTime: new Date().toISOString(),
       openingCash: Number(openingCash) || 0,
       cashSales: 0,
@@ -604,8 +793,11 @@ async function startServer() {
       });
     }
 
-    // 3. Update active shift finances
-    const activeShift = db.shifts.find(s => s.status === 'open');
+    // 3. Update active shift finances for this specific store
+    const activeShift = db.shifts.find(s => 
+      s.status === 'open' && 
+      (!newOrder.storeId || !s.storeId || s.storeId === newOrder.storeId)
+    );
     if (activeShift) {
       db.shifts = db.shifts.map(s => {
         if (s.id === activeShift.id) {
@@ -684,8 +876,11 @@ async function startServer() {
     };
     db.expenses.unshift(newExp);
 
-    // Deduct from active shift if open
-    const activeShift = db.shifts.find(s => s.status === 'open');
+    // Deduct from active shift if open for this specific store
+    const activeShift = db.shifts.find(s => 
+      s.status === 'open' && 
+      (!newExp.storeId || !s.storeId || s.storeId === newExp.storeId)
+    );
     if (activeShift) {
       db.shifts = db.shifts.map(s => {
         if (s.id === activeShift.id) {

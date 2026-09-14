@@ -33,10 +33,22 @@ import {
   FileSpreadsheet,
   RefreshCw,
   LogOut,
-  LogIn
+  LogIn,
+  Coins,
+  Wallet,
+  Banknote,
+  Building2,
+  ShieldAlert,
+  ArrowLeftRight,
+  TrendingUp,
+  TrendingDown,
+  Scale,
+  DollarSign,
+  Calculator
 } from 'lucide-react';
 import { soundManager } from '../../utils/audio';
-import { Staff, AttendanceRecord } from '../../types';
+import { Staff, AttendanceRecord, Store, Shift, Order, Expense } from '../../types';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 import { api } from '../../api';
 import { FotopLogo } from '../common/FotopLogo';
 
@@ -44,6 +56,11 @@ interface SettingsViewProps {
   currentStaff: Staff;
   allStaff?: Staff[];
   attendanceLogs?: AttendanceRecord[];
+  stores?: Store[];
+  onUpdateStore?: (storeId: string, storeData: Partial<Store>) => Promise<void> | void;
+  shifts?: Shift[];
+  orders?: Order[];
+  expenses?: Expense[];
   onUpdateStudioProfile?: (logo: string | null, name: string) => void;
   onGoToPOS?: () => void;
   onAutoClockInAll?: () => Promise<{ clockedInCount: number; clockedInStaffNames?: string[] } | any>;
@@ -56,6 +73,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   currentStaff,
   allStaff = [],
   attendanceLogs = [],
+  stores = [],
+  onUpdateStore,
+  shifts = [],
+  orders = [],
+  expenses = [],
   onUpdateStudioProfile,
   onGoToPOS,
   onAutoClockInAll,
@@ -64,6 +86,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onClockOutStaff
 }) => {
   const isManager = currentStaff?.role === 'manager';
+  const isFouad = currentStaff?.id === 'staff_fouad' || currentStaff?.name?.toLowerCase().includes('fouad') || isManager;
 
   // State for Studio Logo
   const [studioLogo, setStudioLogo] = useState<string | null>(() => {
@@ -222,12 +245,159 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   // URL input state
   const [imageUrlInput, setImageUrlInput] = useState<string>('');
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
-  const [activeTabSection, setActiveTabSection] = useState<'branding' | 'receipt' | 'attendance' | 'system'>('branding');
+  const [activeTabSection, setActiveTabSection] = useState<'branding' | 'receipt' | 'attendance' | 'cash_in_hand' | 'system'>('cash_in_hand');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Date today string (YYYY-MM-DD)
   const todayStr = new Date().toISOString().split('T')[0];
+
+  // Cash In Hand (الرصيد الافتتاحي للخزينة) Settings State
+  const sidiStore = (stores || []).find(s => s.id === 'store_sidiamer');
+  const labhourStore = (stores || []).find(s => s.id === 'store_labhour');
+
+  const [sidiCashInHand, setSidiCashInHand] = useState<string>(() => {
+    return String(sidiStore?.openingCashBalance ?? 5000);
+  });
+  const [sidiCashNotes, setSidiCashNotes] = useState<string>(() => {
+    return sidiStore?.cashInHandNotes || 'فكة نقدية معتمدة لبداية اليوم (فئات 200 دج و 500 دج و 1000 دج)';
+  });
+  const [sidiLastUpdated, setSidiLastUpdated] = useState<string>(() => {
+    return sidiStore?.lastCashInHandUpdate || todayStr;
+  });
+
+  const [labhourCashInHand, setLabhourCashInHand] = useState<string>(() => {
+    return String(labhourStore?.openingCashBalance ?? 3000);
+  });
+  const [labhourCashNotes, setLabhourCashNotes] = useState<string>(() => {
+    return labhourStore?.cashInHandNotes || 'فكة نقدية معتمدة لبداية اليوم (فئات 100 دج و 200 دج و 500 دج)';
+  });
+  const [labhourLastUpdated, setLabhourLastUpdated] = useState<string>(() => {
+    return labhourStore?.lastCashInHandUpdate || todayStr;
+  });
+
+  const [cashInHandMessage, setCashInHandMessage] = useState<string | null>(null);
+
+  // Sync state if stores prop updates from backend
+  useEffect(() => {
+    if (sidiStore?.openingCashBalance !== undefined) {
+      setSidiCashInHand(String(sidiStore.openingCashBalance));
+    }
+    if (sidiStore?.cashInHandNotes) {
+      setSidiCashNotes(sidiStore.cashInHandNotes);
+    }
+    if (sidiStore?.lastCashInHandUpdate) {
+      setSidiLastUpdated(sidiStore.lastCashInHandUpdate);
+    }
+  }, [sidiStore?.openingCashBalance, sidiStore?.cashInHandNotes, sidiStore?.lastCashInHandUpdate]);
+
+  useEffect(() => {
+    if (labhourStore?.openingCashBalance !== undefined) {
+      setLabhourCashInHand(String(labhourStore.openingCashBalance));
+    }
+    if (labhourStore?.cashInHandNotes) {
+      setLabhourCashNotes(labhourStore.cashInHandNotes);
+    }
+    if (labhourStore?.lastCashInHandUpdate) {
+      setLabhourLastUpdated(labhourStore.lastCashInHandUpdate);
+    }
+  }, [labhourStore?.openingCashBalance, labhourStore?.cashInHandNotes, labhourStore?.lastCashInHandUpdate]);
+
+  // Real-time Reconciliation Calculations per Store for Today
+  const sidiOrdersToday = (orders || []).filter(o => 
+    (o.storeId === 'store_sidiamer' || o.storeName?.toLowerCase().includes('sidiamer') || o.storeName?.includes('سيدي عامر')) &&
+    o.createdAt?.startsWith(todayStr)
+  );
+  const sidiCashSales = sidiOrdersToday
+    .filter(o => o.paymentMethod === 'cash')
+    .reduce((sum, o) => sum + (o.paidAmount || 0), 0);
+  
+  const sidiExpensesToday = (expenses || []).filter(e => 
+    (e.storeId === 'store_sidiamer' || e.storeName?.toLowerCase().includes('sidiamer') || e.storeName?.includes('سيدي عامر')) &&
+    e.createdAt?.startsWith(todayStr)
+  );
+  const sidiCashExpenses = sidiExpensesToday.reduce((sum, e) => sum + (e.amount || 0), 0);
+  const sidiExpectedCash = (Number(sidiCashInHand) || 0) + sidiCashSales - sidiCashExpenses;
+
+  const sidiShiftsToday = (shifts || []).filter(s => 
+    (s.storeId === 'store_sidiamer' || s.storeName?.toLowerCase().includes('sidiamer') || s.storeName?.includes('سيدي عامر')) &&
+    s.startTime?.startsWith(todayStr)
+  );
+  const sidiClosedShifts = sidiShiftsToday.filter(s => s.endTime);
+  const sidiTotalDifference = sidiClosedShifts.reduce((sum, s) => sum + (s.difference || 0), 0);
+
+  // Labhour calculations
+  const labhourOrdersToday = (orders || []).filter(o => 
+    (o.storeId === 'store_labhour' || o.storeName?.toLowerCase().includes('labhour') || o.storeName?.includes('الأبحور')) &&
+    o.createdAt?.startsWith(todayStr)
+  );
+  const labhourCashSales = labhourOrdersToday
+    .filter(o => o.paymentMethod === 'cash')
+    .reduce((sum, o) => sum + (o.paidAmount || 0), 0);
+  
+  const labhourExpensesToday = (expenses || []).filter(e => 
+    (e.storeId === 'store_labhour' || e.storeName?.toLowerCase().includes('labhour') || e.storeName?.includes('الأبحور')) &&
+    e.createdAt?.startsWith(todayStr)
+  );
+  const labhourCashExpenses = labhourExpensesToday.reduce((sum, e) => sum + (e.amount || 0), 0);
+  const labhourExpectedCash = (Number(labhourCashInHand) || 0) + labhourCashSales - labhourCashExpenses;
+
+  const labhourShiftsToday = (shifts || []).filter(s => 
+    (s.storeId === 'store_labhour' || s.storeName?.toLowerCase().includes('labhour') || s.storeName?.includes('الأبحور')) &&
+    s.startTime?.startsWith(todayStr)
+  );
+  const labhourClosedShifts = labhourShiftsToday.filter(s => s.endTime);
+  const labhourTotalDifference = labhourClosedShifts.reduce((sum, s) => sum + (s.difference || 0), 0);
+
+  // Handlers for Cash In Hand
+  const handleSaveSidiCashInHand = async () => {
+    const val = Number(sidiCashInHand) || 0;
+    const now = new Date().toISOString().split('T')[0];
+    setSidiLastUpdated(now);
+    try {
+      localStorage.setItem('fotop_store_opening_cash_store_sidiamer', String(val));
+      if (onUpdateStore) {
+        await onUpdateStore('store_sidiamer', {
+          openingCashBalance: val,
+          lastCashInHandUpdate: now,
+          cashInHandNotes: sidiCashNotes
+        });
+      }
+      soundManager.playSuccess();
+      setCashInHandMessage('تم اعتماد وتثبيت الرصيد الافتتاحي (5,000 دج) لمتجر سيدي عامر بنجاح!');
+      setTimeout(() => setCashInHandMessage(null), 4000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSaveLabhourCashInHand = async () => {
+    const val = Number(labhourCashInHand) || 0;
+    const now = new Date().toISOString().split('T')[0];
+    setLabhourLastUpdated(now);
+    try {
+      localStorage.setItem('fotop_store_opening_cash_store_labhour', String(val));
+      if (onUpdateStore) {
+        await onUpdateStore('store_labhour', {
+          openingCashBalance: val,
+          lastCashInHandUpdate: now,
+          cashInHandNotes: labhourCashNotes
+        });
+      }
+      soundManager.playSuccess();
+      setCashInHandMessage('تم اعتماد وتثبيت الرصيد الافتتاحي (3,000 دج) لمتجر الأبحور بنجاح!');
+      setTimeout(() => setCashInHandMessage(null), 4000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSaveAllStoresCashInHand = async () => {
+    await handleSaveSidiCashInHand();
+    await handleSaveLabhourCashInHand();
+    setCashInHandMessage('تم اعتماد وتثبيت الرصيد الافتتاحي لكلا المتجرين (سيدي عامر والأبحور) بنجاح!');
+    setTimeout(() => setCashInHandMessage(null), 4000);
+  };
 
   // Helper to determine currently active clocked-in staff
   const activeClockedInStaffIds = new Set(
@@ -504,6 +674,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
 
           <button
+            onClick={() => setActiveTabSection('cash_in_hand')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              activeTabSection === 'cash_in_hand'
+                ? 'bg-white text-[#292A34] shadow-md font-black'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Coins className="w-4 h-4 text-emerald-400" />
+            <span>الرصيد الافتتاحي للخزينة (Cash In Hand)</span>
+            <span className="bg-emerald-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">المدير فؤاد</span>
+          </button>
+
+          <button
             onClick={() => setActiveTabSection('attendance')}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
               activeTabSection === 'attendance'
@@ -530,6 +713,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
+      {/* Cash In Hand Success Toast */}
+      {cashInHandMessage && (
+        <div className="bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-lg flex items-center justify-between text-xs font-bold animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-white" />
+            <span className="text-sm font-black">{cashInHandMessage}</span>
+          </div>
+          <button 
+            onClick={() => setCashInHandMessage(null)}
+            className="text-white/80 hover:text-white text-xs px-2 py-1 rounded-lg bg-emerald-700/50"
+          >
+            إغلاق
+          </button>
+        </div>
+      )}
+
       {/* Action Notification Toast if trigger happened */}
       {attendanceActionMessage && (
         <div className="bg-emerald-600 text-white px-5 py-3 rounded-2xl shadow-lg flex items-center justify-between text-xs font-bold animate-in slide-in-from-top duration-300">
@@ -551,6 +750,388 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* Left Side: Form Controls (8 Columns on Large Screens) */}
         <div className="lg:col-span-8 space-y-6">
+
+          {/* ========================================================================= */}
+          {/* SECTION: STORE CASH IN HAND (الرصيد الافتتاحي للخزينة لكل متجر)            */}
+          {/* ========================================================================= */}
+          {activeTabSection === 'cash_in_hand' && (
+            <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 space-y-6 animate-in fade-in duration-200">
+              
+              {/* Header Title */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-5 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl font-bold shadow-xs">
+                    <Coins className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base sm:text-lg font-black text-[#292A34]">
+                        تحديد الرصيد الافتتاحي للخزينة (Cash In Hand)
+                      </h2>
+                      <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                        المدير العام: فؤاد
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      تحديد رصيد العهدة والصرف النقدي في الدرج لكل متجر على حدة في بداية اليوم، لاحتساب فروقات الخزينة ومطابقة الجرد
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveAllStoresCashInHand}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition-colors cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>اعتماد رصيد المتجرين معاً</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Accounting Formula Banner */}
+              <div className="bg-gradient-to-br from-slate-900 via-[#1E1F27] to-slate-900 text-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
+                    <Calculator className="w-4 h-4" />
+                    <span>المعادلة المحاسبية المعتمدة لمطابقة الخزينة وحساب الفروقات:</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">نظام فوتوب المحاسبي الموحد</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700/80">
+                    <div className="text-[10px] text-slate-400 font-bold mb-1">1. الرصيد المتوقع بالخزينة (Expected Cash)</div>
+                    <div className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
+                      الرصيد الافتتاحي (Cash In Hand) + المبيعات النقدية - المصروفات النقدية
+                    </div>
+                  </div>
+                  <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700/80">
+                    <div className="text-[10px] text-slate-400 font-bold mb-1">2. فارق الخزينة عند إغلاق الوردية (Difference)</div>
+                    <div className="font-mono font-bold text-amber-300 text-xs sm:text-sm">
+                      النقد الفعلي في الدرج - الرصيد المتوقع (عجز ــ / فائض +)
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TWO STORES CASH IN HAND CARDS */}
+              <div className="grid grid-cols-1 gap-6">
+
+                {/* STORE 1: FOTOP SIDI AMER */}
+                <div className="border-2 border-[#E31C2B]/30 rounded-3xl p-5 bg-[#FAFAFA] hover:border-[#E31C2B] transition-all space-y-4">
+                  {/* Store Header */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-[#E31C2B] text-white flex items-center justify-center font-black shadow-sm">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-black text-[#292A34]">متجر فوتوب سيدي عامر (Fotop Sidi Amer)</h3>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-[#E31C2B] border border-red-200">
+                            الفرع الرئيسي
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          المدير: <strong className="text-slate-700">فؤاد (fouad)</strong> • العمال: أحمد، بلال، فؤاد • العملة: دينار جزائري (DZD)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] font-mono text-slate-500 bg-white px-2.5 py-1 rounded-xl border border-slate-200">
+                      آخر تحديث: <strong className="text-slate-700">{sidiLastUpdated}</strong>
+                    </div>
+                  </div>
+
+                  {/* Cash In Hand Input & Chips */}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                    <div className="md:col-span-6 space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 block">
+                        الرصيد الافتتاحي اليومي للصندوق (Cash In Hand):
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          step="100"
+                          value={sidiCashInHand}
+                          onChange={(e) => setSidiCashInHand(e.target.value)}
+                          placeholder="5000"
+                          className="w-full bg-white border-2 border-slate-300 rounded-2xl px-4 py-3 text-lg font-mono font-black text-[#E31C2B] focus:outline-none focus:border-[#E31C2B] shadow-inner"
+                        />
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 font-mono">
+                          دج (DZD)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-6 space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 block">
+                        ملاحظات الفكة والفئات النقدية المعتمدة:
+                      </label>
+                      <input
+                        type="text"
+                        value={sidiCashNotes}
+                        onChange={(e) => setSidiCashNotes(e.target.value)}
+                        placeholder="فئات 200 دج و 500 دج و 1000 دج..."
+                        className="w-full bg-white border border-slate-300 rounded-2xl px-4 py-3 text-xs text-slate-700 font-bold focus:outline-none focus:border-[#E31C2B]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Value Presets Chips */}
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <span className="text-[11px] font-bold text-slate-500">مبالغ شائعة:</span>
+                    {[2000, 3000, 5000, 8000, 10000, 15000].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => {
+                          setSidiCashInHand(String(amt));
+                          soundManager.playClickSound();
+                        }}
+                        className={`px-2.5 py-1 rounded-xl font-mono text-xs font-bold transition-colors cursor-pointer ${
+                          sidiCashInHand === String(amt)
+                            ? 'bg-[#E31C2B] text-white shadow-xs'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:border-[#E31C2B]'
+                        }`}
+                      >
+                        {formatCurrency(amt)}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Live Treasury Status for Sidi Amer */}
+                  <div className="bg-white rounded-2xl p-4 border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                    <div className="p-2 rounded-xl bg-slate-50">
+                      <span className="text-[10px] text-slate-500 font-bold block">الافتتاحي المعتمد</span>
+                      <span className="text-sm font-black font-mono text-[#E31C2B]">
+                        {formatCurrency(Number(sidiCashInHand) || 0)}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-emerald-50">
+                      <span className="text-[10px] text-emerald-800 font-bold block">+ مبيعات نقدية لليوم</span>
+                      <span className="text-sm font-black font-mono text-emerald-700">
+                        +{formatCurrency(sidiCashSales)}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-rose-50">
+                      <span className="text-[10px] text-rose-800 font-bold block">- مصاريف نقدية لليوم</span>
+                      <span className="text-sm font-black font-mono text-rose-600">
+                        -{formatCurrency(sidiCashExpenses)}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-slate-900 text-white">
+                      <span className="text-[10px] text-slate-400 font-bold block">= المتوقع بالدرج حالياً</span>
+                      <span className="text-sm font-black font-mono text-emerald-400">
+                        {formatCurrency(sidiExpectedCash)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Sidi Amer Save Action */}
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="text-[11px] text-slate-500">
+                      {sidiClosedShifts.length > 0 ? (
+                        <span>
+                          أغلقت اليوم {sidiClosedShifts.length} وردية • صافي الفروقات: {' '}
+                          <strong className={sidiTotalDifference === 0 ? 'text-emerald-600' : sidiTotalDifference > 0 ? 'text-blue-600' : 'text-rose-600'}>
+                            {sidiTotalDifference > 0 ? `+${formatCurrency(sidiTotalDifference)} (فائض)` : sidiTotalDifference < 0 ? `${formatCurrency(sidiTotalDifference)} (عجز)` : 'متطابق تماماً (0 دج)'}
+                          </strong>
+                        </span>
+                      ) : (
+                        <span>لا توجد ورديات مغلقة اليوم بعد في فرع سيدي عامر</span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveSidiCashInHand}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-[#E31C2B] hover:bg-[#c91422] text-white text-xs font-black rounded-xl shadow-md shadow-[#E31C2B]/20 transition-all cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>حفظ واعتماد رصيد سيدي عامر</span>
+                    </button>
+                  </div>
+                </div>
+
+
+                {/* STORE 2: FOTOP LABHOUR */}
+                <div className="border-2 border-blue-600/30 rounded-3xl p-5 bg-[#FAFAFA] hover:border-blue-600 transition-all space-y-4">
+                  {/* Store Header */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black shadow-sm">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-black text-[#292A34]">متجر فوتوب الأبحور (Fotop Labhour)</h3>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                            فرع الأبحور
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          المدير: <strong className="text-slate-700">فؤاد (fouad)</strong> • العمال: ياسين، صهيب • العملة: دينار جزائري (DZD)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] font-mono text-slate-500 bg-white px-2.5 py-1 rounded-xl border border-slate-200">
+                      آخر تحديث: <strong className="text-slate-700">{labhourLastUpdated}</strong>
+                    </div>
+                  </div>
+
+                  {/* Cash In Hand Input & Chips */}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                    <div className="md:col-span-6 space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 block">
+                        الرصيد الافتتاحي اليومي للصندوق (Cash In Hand):
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          step="100"
+                          value={labhourCashInHand}
+                          onChange={(e) => setLabhourCashInHand(e.target.value)}
+                          placeholder="3000"
+                          className="w-full bg-white border-2 border-slate-300 rounded-2xl px-4 py-3 text-lg font-mono font-black text-blue-600 focus:outline-none focus:border-blue-600 shadow-inner"
+                        />
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 font-mono">
+                          دج (DZD)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-6 space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700 block">
+                        ملاحظات الفكة والفئات النقدية المعتمدة:
+                      </label>
+                      <input
+                        type="text"
+                        value={labhourCashNotes}
+                        onChange={(e) => setLabhourCashNotes(e.target.value)}
+                        placeholder="فئات 100 دج و 200 دج و 500 دج..."
+                        className="w-full bg-white border border-slate-300 rounded-2xl px-4 py-3 text-xs text-slate-700 font-bold focus:outline-none focus:border-blue-600"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Value Presets Chips */}
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <span className="text-[11px] font-bold text-slate-500">مبالغ شائعة:</span>
+                    {[1000, 2000, 3000, 5000, 8000, 10000].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => {
+                          setLabhourCashInHand(String(amt));
+                          soundManager.playClickSound();
+                        }}
+                        className={`px-2.5 py-1 rounded-xl font-mono text-xs font-bold transition-colors cursor-pointer ${
+                          labhourCashInHand === String(amt)
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:border-blue-600'
+                        }`}
+                      >
+                        {formatCurrency(amt)}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Live Treasury Status for Labhour */}
+                  <div className="bg-white rounded-2xl p-4 border border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                    <div className="p-2 rounded-xl bg-slate-50">
+                      <span className="text-[10px] text-slate-500 font-bold block">الافتتاحي المعتمد</span>
+                      <span className="text-sm font-black font-mono text-blue-600">
+                        {formatCurrency(Number(labhourCashInHand) || 0)}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-emerald-50">
+                      <span className="text-[10px] text-emerald-800 font-bold block">+ مبيعات نقدية لليوم</span>
+                      <span className="text-sm font-black font-mono text-emerald-700">
+                        +{formatCurrency(labhourCashSales)}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-rose-50">
+                      <span className="text-[10px] text-rose-800 font-bold block">- مصاريف نقدية لليوم</span>
+                      <span className="text-sm font-black font-mono text-rose-600">
+                        -{formatCurrency(labhourCashExpenses)}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-slate-900 text-white">
+                      <span className="text-[10px] text-slate-400 font-bold block">= المتوقع بالدرج حالياً</span>
+                      <span className="text-sm font-black font-mono text-emerald-400">
+                        {formatCurrency(labhourExpectedCash)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Labhour Save Action */}
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="text-[11px] text-slate-500">
+                      {labhourClosedShifts.length > 0 ? (
+                        <span>
+                          أغلقت اليوم {labhourClosedShifts.length} وردية • صافي الفروقات: {' '}
+                          <strong className={labhourTotalDifference === 0 ? 'text-emerald-600' : labhourTotalDifference > 0 ? 'text-blue-600' : 'text-rose-600'}>
+                            {labhourTotalDifference > 0 ? `+${formatCurrency(labhourTotalDifference)} (فائض)` : labhourTotalDifference < 0 ? `${formatCurrency(labhourTotalDifference)} (عجز)` : 'متطابق تماماً (0 دج)'}
+                          </strong>
+                        </span>
+                      ) : (
+                        <span>لا توجد ورديات مغلقة اليوم بعد في فرع الأبحور</span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveLabhourCashInHand}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>حفظ واعتماد رصيد الأبحور</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Total Combined Float Card */}
+              <div className="bg-slate-900 text-white p-5 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400">
+                    <Wallet className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400 block">إجمالي العهدة النقدية الافتتاحية للمتجرين (سيدي عامر + الأبحور):</span>
+                    <span className="text-xl font-black font-mono text-white">
+                      {formatCurrency((Number(sidiCashInHand) || 0) + (Number(labhourCashInHand) || 0))}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveAllStoresCashInHand}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-600/30 transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>تطبيق واعتماد رصيد المتجرين الآن</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          )}
 
           {/* ========================================================================= */}
           {/* SECTION 1: STUDIO LOGO & BRANDING                                         */}
@@ -1242,71 +1823,160 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         </div>
 
-        {/* Right Side: Live Interactive Receipt Mockup (4 Columns on Large Screens) */}
+        {/* Right Side: Dynamic Context (Cash In Hand Summary or Receipt Mockup) */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="bg-slate-900 text-white p-4 rounded-3xl shadow-md border border-slate-800">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Printer className="w-4 h-4 text-[#E31C2B]" />
-                <span className="font-bold text-xs">معاينة الوصل المطبوع (Live Ticket)</span>
-              </div>
-              <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">{receiptWidth}</span>
-            </div>
+          {activeTabSection === 'cash_in_hand' ? (
+            <div className="space-y-4">
+              {/* Executive Summary Card */}
+              <div className="bg-slate-900 text-white p-5 rounded-3xl shadow-lg border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-emerald-400" />
+                    <span className="font-black text-sm">موقف الخزينة اللحظي للمتجرين</span>
+                  </div>
+                  <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                    مباشر (Live)
+                  </span>
+                </div>
 
-            {/* Thermal Ticket Replica */}
-            <div className="bg-white text-[#292A34] p-4 rounded-2xl border border-slate-300 font-sans shadow-inner text-xs space-y-3">
-              {/* Header with Logo */}
-              <div className="text-center pb-2.5 border-b border-dashed border-slate-300">
-                {showLogoOnReceipt && (
-                  <div className="flex justify-center mb-1.5">
-                    {studioLogo ? (
-                      <div className="w-12 h-12 rounded-xl overflow-hidden shadow-xs border border-slate-200">
-                        <img src={studioLogo} alt="Receipt Logo" className="w-full h-full object-cover" />
-                      </div>
-                    ) : (
-                      <FotopLogo className="w-12 h-12" />
-                    )}
+                {/* Sidi Amer Widget */}
+                <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#E31C2B]"></span>
+                      سيدي عامر (الفرع الرئيسي)
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">الافتتاحي: {formatCurrency(Number(sidiCashInHand) || 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-700/60">
+                    <span className="text-slate-400">المتوقع بالدرج:</span>
+                    <span className="font-mono font-black text-emerald-400">{formatCurrency(sidiExpectedCash)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400">فروقات الجرد:</span>
+                    <span className={`font-mono font-bold ${sidiTotalDifference === 0 ? 'text-slate-300' : sidiTotalDifference > 0 ? 'text-blue-400' : 'text-rose-400'}`}>
+                      {sidiTotalDifference === 0 ? '0 دج (مطابق)' : sidiTotalDifference > 0 ? `+${formatCurrency(sidiTotalDifference)} (فائض)` : `${formatCurrency(sidiTotalDifference)} (عجز)`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Labhour Widget */}
+                <div className="bg-slate-800/80 p-3.5 rounded-2xl border border-slate-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      الأبحور (فرع الأبحور)
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">الافتتاحي: {formatCurrency(Number(labhourCashInHand) || 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-700/60">
+                    <span className="text-slate-400">المتوقع بالدرج:</span>
+                    <span className="font-mono font-black text-emerald-400">{formatCurrency(labhourExpectedCash)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-400">فروقات الجرد:</span>
+                    <span className={`font-mono font-bold ${labhourTotalDifference === 0 ? 'text-slate-300' : labhourTotalDifference > 0 ? 'text-blue-400' : 'text-rose-400'}`}>
+                      {labhourTotalDifference === 0 ? '0 دج (مطابق)' : labhourTotalDifference > 0 ? `+${formatCurrency(labhourTotalDifference)} (فائض)` : `${formatCurrency(labhourTotalDifference)} (عجز)`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Combined Total */}
+                <div className="p-3 bg-emerald-950/40 rounded-2xl border border-emerald-500/30 text-center">
+                  <span className="text-[11px] text-emerald-300 block font-bold">إجمالي النقد المتوقع في كلا المتجرين:</span>
+                  <span className="text-xl font-black font-mono text-emerald-400 mt-1 block">
+                    {formatCurrency(sidiExpectedCash + labhourExpectedCash)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Cashier Control & Guidelines Card */}
+              <div className="bg-white rounded-3xl border border-slate-200/80 p-5 space-y-3 shadow-sm">
+                <div className="flex items-center gap-2 text-slate-800 font-bold text-xs">
+                  <ShieldCheck className="w-4 h-4 text-[#E31C2B]" />
+                  <span>إجراءات الرقابة المالية للمدير فؤاد</span>
+                </div>
+                <ul className="text-xs text-slate-600 space-y-2 leading-relaxed">
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0"></span>
+                    <span><strong>عد الفكة:</strong> يُلزم الكاشير بعد الفكة النقدية عند فتح الوردية ومطابقتها مع الرصيد الافتتاحي المحدد أعلاه.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0"></span>
+                    <span><strong>إغلاق الصندوق:</strong> يُحسب الفارق آلياً فور إدخال النقد الفعلي عند نهاية الوردية ويوثق بالسجلات.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0"></span>
+                    <span><strong>ترحيل الفروقات:</strong> أي عجز أو زيادة تُسجل في تقرير الأرباح اليومي مع ذكر اسم العامل المسؤول.</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-slate-900 text-white p-4 rounded-3xl shadow-md border border-slate-800">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Printer className="w-4 h-4 text-[#E31C2B]" />
+                  <span className="font-bold text-xs">معاينة الوصل المطبوع (Live Ticket)</span>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">{receiptWidth}</span>
+              </div>
+
+              {/* Thermal Ticket Replica */}
+              <div className="bg-white text-[#292A34] p-4 rounded-2xl border border-slate-300 font-sans shadow-inner text-xs space-y-3">
+                {/* Header with Logo */}
+                <div className="text-center pb-2.5 border-b border-dashed border-slate-300">
+                  {showLogoOnReceipt && (
+                    <div className="flex justify-center mb-1.5">
+                      {studioLogo ? (
+                        <div className="w-12 h-12 rounded-xl overflow-hidden shadow-xs border border-slate-200">
+                          <img src={studioLogo} alt="Receipt Logo" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <FotopLogo className="w-12 h-12" />
+                      )}
+                    </div>
+                  )}
+                  <div className="font-black text-sm text-[#292A34]">{studioName}</div>
+                  <div className="text-[10px] text-slate-500 font-medium">{studioTagline}</div>
+                  <div className="text-[9px] text-slate-600 font-mono mt-0.5">هاتف: {studioPhone}</div>
+                  <div className="text-[9px] text-slate-400 font-mono">{studioAddress}</div>
+                </div>
+
+                {/* Sample Ticket Number */}
+                <div className="bg-slate-100 p-2 rounded-xl text-center border border-slate-200">
+                  <div className="text-[9px] text-slate-500 font-bold">تذكرة تسليم الصور</div>
+                  <div className="text-lg font-black text-[#E31C2B] font-mono">FTP-1088</div>
+                  <div className="text-[10px] text-emerald-800 font-bold">استلام فوري (15 دقيقة)</div>
+                </div>
+
+                {/* Customer Sample */}
+                <div className="text-[11px] space-y-1 py-1 border-b border-dashed border-slate-300 text-slate-600">
+                  <div className="flex justify-between">
+                    <span>الزبون:</span>
+                    <span className="font-bold text-[#292A34]">سفيان علام</span>
+                  </div>
+                  <div className="flex justify-between font-mono">
+                    <span>المجموع:</span>
+                    <span className="font-bold text-slate-900">800 د.ج</span>
+                  </div>
+                </div>
+
+                {/* QR Code */}
+                {showQrOnReceipt && (
+                  <div className="flex items-center justify-center gap-2 p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                    <QrCode className="w-6 h-6 text-[#292A34]" />
+                    <span className="text-[9px] font-mono font-bold text-slate-600">FOTOP VERIFIED</span>
                   </div>
                 )}
-                <div className="font-black text-sm text-[#292A34]">{studioName}</div>
-                <div className="text-[10px] text-slate-500 font-medium">{studioTagline}</div>
-                <div className="text-[9px] text-slate-600 font-mono mt-0.5">هاتف: {studioPhone}</div>
-                <div className="text-[9px] text-slate-400 font-mono">{studioAddress}</div>
-              </div>
 
-              {/* Sample Ticket Number */}
-              <div className="bg-slate-100 p-2 rounded-xl text-center border border-slate-200">
-                <div className="text-[9px] text-slate-500 font-bold">تذكرة تسليم الصور</div>
-                <div className="text-lg font-black text-[#E31C2B] font-mono">FTP-1088</div>
-                <div className="text-[10px] text-emerald-800 font-bold">استلام فوري (15 دقيقة)</div>
-              </div>
-
-              {/* Customer Sample */}
-              <div className="text-[11px] space-y-1 py-1 border-b border-dashed border-slate-300 text-slate-600">
-                <div className="flex justify-between">
-                  <span>الزبون:</span>
-                  <span className="font-bold text-[#292A34]">سفيان علام</span>
+                {/* Footer */}
+                <div className="text-center pt-1 text-[9px] text-slate-500 leading-tight">
+                  {receiptFooter}
                 </div>
-                <div className="flex justify-between font-mono">
-                  <span>المجموع:</span>
-                  <span className="font-bold text-slate-900">800 د.ج</span>
-                </div>
-              </div>
-
-              {/* QR Code */}
-              {showQrOnReceipt && (
-                <div className="flex items-center justify-center gap-2 p-1.5 bg-slate-50 rounded-lg border border-slate-200">
-                  <QrCode className="w-6 h-6 text-[#292A34]" />
-                  <span className="text-[9px] font-mono font-bold text-slate-600">FOTOP VERIFIED</span>
-                </div>
-              )}
-
-              {/* Footer */}
-              <div className="text-center pt-1 text-[9px] text-slate-500 leading-tight">
-                {receiptFooter}
               </div>
             </div>
-          </div>
+          )}
 
           {/* Quick POS Shortcut */}
           {onGoToPOS && (

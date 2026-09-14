@@ -23,15 +23,23 @@ import {
   TrendingDown,
   RefreshCw,
   Zap,
-  ArrowRight
+  ArrowRight,
+  Upload,
+  Camera,
+  Check,
+  Edit3,
+  ImagePlus,
+  X
 } from 'lucide-react';
-import { Material, ServiceItem, PhotoLinkConfig, Staff, Expense } from '../../types';
+import { Material, ServiceItem, PhotoLinkConfig, Staff, Expense, Store } from '../../types';
 import { formatCurrency, formatNumber, exportToCSV, calculateServiceBOMCost } from '../../utils/formatters';
 
 interface InventoryViewProps {
   materials: Material[];
   services: ServiceItem[];
   currentStaff?: Staff;
+  currentStoreId?: string;
+  stores?: Store[];
   onUpdateMaterial: (updated: Material) => void;
   onAddMaterial: (newMat: Omit<Material, 'id'>) => void;
   onRestock: (materialId: string, quantityToAdd: number, newUnitCost?: number) => void;
@@ -45,6 +53,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   materials = [],
   services = [],
   currentStaff,
+  currentStoreId,
+  stores = [],
   onUpdateMaterial,
   onAddMaterial,
   onRestock,
@@ -53,11 +63,17 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   onDeleteService,
   onAddExpense
 }) => {
+  const isManager = currentStaff?.role === 'manager';
+  const defaultBranch = (currentStoreId && currentStoreId !== 'all') ? currentStoreId : 'store_sidiamer';
   const [activeSubTab, setActiveSubTab] = useState<'materials' | 'products'>('materials');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [onlyLowStockFilter, setOnlyLowStockFilter] = useState<boolean>(false);
   const [isAlertBannerCollapsed, setIsAlertBannerCollapsed] = useState<boolean>(false);
+  
+  // Branch assignment state for new materials and retail goods
+  const [newMatStoreId, setNewMatStoreId] = useState<string>(defaultBranch);
+  const [directStoreId, setDirectStoreId] = useState<string>(defaultBranch);
   
   // Restock material modal state
   const [restockMat, setRestockMat] = useState<Material | null>(null);
@@ -88,6 +104,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [directSalePrice, setDirectSalePrice] = useState<string>('900');
   const [directStock, setDirectStock] = useState<string>('20');
   const [directDescription, setDirectDescription] = useState<string>('');
+  const [directImageUrl, setDirectImageUrl] = useState<string>('');
 
   // Add Associative Photo Item Modal State (BOM Photo & Ink Builder)
   const [showAddPhotoLinkModal, setShowAddPhotoLinkModal] = useState<boolean>(false);
@@ -98,6 +115,91 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [photoInkMatId, setPhotoInkMatId] = useState<string>((materials || []).find(m => m.category === 'ink')?.id || '');
   const [photoInkYield, setPhotoInkYield] = useState<string>('150');
   const [photoPrice, setPhotoPrice] = useState<string>('450');
+  const [photoImageUrl, setPhotoImageUrl] = useState<string>('');
+
+  // Edit Product / Update Image Modal State
+  const [editingProduct, setEditingProduct] = useState<ServiceItem | null>(null);
+  const [editProductName, setEditProductName] = useState<string>('');
+  const [editProductPrice, setEditProductPrice] = useState<string>('');
+  const [editProductBuyCost, setEditProductBuyCost] = useState<string>('');
+  const [editProductStock, setEditProductStock] = useState<string>('');
+  const [editProductDescription, setEditProductDescription] = useState<string>('');
+  const [editProductImageUrl, setEditProductImageUrl] = useState<string>('');
+
+  // Preset studio product images for fast 1-click selection
+  const PRODUCT_IMAGE_PRESETS = [
+    {
+      name: 'إطار صور أسود فاخر',
+      url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=400&auto=format&fit=crop&q=80'
+    },
+    {
+      name: 'ألبوم صور كلاسيكي',
+      url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&auto=format&fit=crop&q=80'
+    },
+    {
+      name: 'فلاش ديسك USB صور',
+      url: 'https://images.unsplash.com/photo-1622954989659-52e69fce092e?w=400&auto=format&fit=crop&q=80'
+    },
+    {
+      name: 'كوب مطبوع بصورة شخصية',
+      url: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&auto=format&fit=crop&q=80'
+    },
+    {
+      name: 'طباعة وتكبير صور فوتوغرافية',
+      url: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&auto=format&fit=crop&q=80'
+    },
+    {
+      name: 'لوحة كانفاس جدارية معلقة',
+      url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&auto=format&fit=crop&q=80'
+    }
+  ];
+
+  const handleImageFileUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    setter: (val: string) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      alert('حجم الصورة كبير، يرجى اختيار صورة أقل من 3 ميغابايت');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        setter(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const openEditProduct = (prod: ServiceItem) => {
+    setEditingProduct(prod);
+    setEditProductName(prod.name);
+    setEditProductPrice(String(prod.price));
+    setEditProductBuyCost(String(prod.buyCost ?? 0));
+    setEditProductStock(String(prod.currentStock ?? 0));
+    setEditProductDescription(prod.description || '');
+    setEditProductImageUrl(prod.imageUrl || '');
+  };
+
+  const handleSaveProductEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    const updated: ServiceItem = {
+      ...editingProduct,
+      name: editProductName.trim() || editingProduct.name,
+      price: Number(editProductPrice) || editingProduct.price,
+      buyCost: Number(editProductBuyCost) >= 0 ? Number(editProductBuyCost) : editingProduct.buyCost,
+      currentStock: Number(editProductStock) >= 0 ? Number(editProductStock) : editingProduct.currentStock,
+      description: editProductDescription.trim() || editingProduct.description,
+      imageUrl: editProductImageUrl.trim() || undefined
+    };
+    if (onUpdateService) {
+      onUpdateService(updated);
+    }
+    setEditingProduct(null);
+  };
 
   const categories = [
     { id: 'all', label: 'جميع المواد' },
@@ -206,6 +308,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
     const stock = Number(newMatStock) || 0;
     const unitCost = Number(newMatUnitCost) || 0;
+    const targetStore = newMatStoreId || defaultBranch;
+    const storeObj = stores?.find(s => s.id === targetStore);
 
     onAddMaterial({
       name: newMatName.trim(),
@@ -215,7 +319,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       minThreshold: Number(newMatThreshold) || 10,
       unitCost,
       sku: newMatSku.trim() || `SKU-${Date.now().toString().slice(-4)}`,
-      supplier: newMatSupplier.trim() || 'مورد محلي'
+      supplier: newMatSupplier.trim() || 'مورد محلي',
+      storeId: targetStore,
+      storeName: storeObj?.name || (targetStore === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer')
     });
 
     // Automatically record purchase expense if unitCost > 0 and stock > 0
@@ -228,7 +334,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         category: 'materials',
         staffId: currentStaff?.id || 'staff_fouad',
         staffName: currentStaff?.name || 'فؤاد (fouad)',
-        notes: `تم قيد المصروف آلياً عند إضافة المادة إلى المخزن (تكلفة إجمالية: ${formatCurrency(totalExpenseAmount)})`
+        notes: `تم قيد المصروف آلياً عند إضافة المادة إلى المخزن (تكلفة إجمالية: ${formatCurrency(totalExpenseAmount)})`,
+        storeId: targetStore,
+        storeName: storeObj?.name || (targetStore === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer')
       });
     }
 
@@ -243,6 +351,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     const buyCost = Number(directBuyCost) || 0;
     const salePrice = Number(directSalePrice) || 0;
     const stock = Number(directStock) || 0;
+    const targetStore = directStoreId || defaultBranch;
+    const storeObj = stores?.find(s => s.id === targetStore);
 
     const newService: ServiceItem = {
       id: `retail_${Date.now()}`,
@@ -255,9 +365,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       minThreshold: 3,
       description: directDescription.trim() || 'سلعة بيع مباشر متوفرة بالمحل',
       imageIcon: 'ShoppingBag',
+      imageUrl: directImageUrl.trim() || undefined,
       bom: [],
       estimatedLaborMinutes: 1,
-      popular: true
+      popular: true,
+      storeId: targetStore,
+      storeName: storeObj?.name || (targetStore === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer')
     };
 
     onAddService(newService);
@@ -271,13 +384,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         category: 'materials',
         staffId: currentStaff?.id || 'staff_fouad',
         staffName: currentStaff?.name || 'فؤاد (fouad)',
-        notes: `تم قيد المصروف آلياً عند إضافة السلعة إلى المخزن (تكلفة إجمالية: ${formatCurrency(totalExpenseAmount)})`
+        notes: `تم قيد المصروف آلياً عند إضافة السلعة إلى المخزن (تكلفة إجمالية: ${formatCurrency(totalExpenseAmount)})`,
+        storeId: targetStore,
+        storeName: storeObj?.name || (targetStore === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer')
       });
     }
 
     setShowAddDirectSaleModal(false);
     setDirectName('');
     setDirectDescription('');
+    setDirectImageUrl('');
   };
 
   const handleCreatePhotoLinkService = (e: React.FormEvent) => {
@@ -285,6 +401,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     const paperId = photoPaperMatId || (materials || []).find(m => m.category === 'paper')?.id;
     const inkId = photoInkMatId || (materials || []).find(m => m.category === 'ink')?.id;
     if (!photoServiceName.trim() || !paperId || !inkId) return;
+
+    const targetStore = defaultBranch;
+    const storeObj = stores?.find(s => s.id === targetStore);
 
     const bomList = [
       { materialId: paperId, quantity: Number((1 / numPhotosPerSheet).toFixed(2)) },
@@ -310,15 +429,19 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       price: sellingPricePerPhoto,
       description: `طباعة مقاس ${photoPaperSize} مع خصم تلقائي للورق والحبر (${numPhotosPerSheet} صورة/ورقة)`,
       imageIcon: 'Image',
+      imageUrl: photoImageUrl.trim() || undefined,
       bom: bomList,
       photoConfig,
       estimatedLaborMinutes: 5,
-      popular: true
+      popular: true,
+      storeId: targetStore,
+      storeName: storeObj?.name || (targetStore === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer')
     };
 
     onAddService(newService);
     setShowAddPhotoLinkModal(false);
     setPhotoServiceName('');
+    setPhotoImageUrl('');
   };
 
   const handleExportCSV = () => {
@@ -713,11 +836,20 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     <tr key={m.id} className="hover:bg-slate-50 transition-colors">
                       <td className="p-3 font-mono text-[11px] text-slate-500 font-bold">{m.sku}</td>
                       <td className="p-3 font-bold text-[#292A34]">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span>{m.name}</span>
                           {isLow && (
                             <span className="bg-[#E31C2B] text-white text-[10px] px-1.5 py-0.5 rounded font-black animate-pulse">
                               منخفض
+                            </span>
+                          )}
+                          {m.storeId && (
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${
+                              m.storeId === 'store_labhour' 
+                                ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                                : 'bg-rose-100 text-rose-800 border border-rose-200'
+                            }`}>
+                              {m.storeId === 'store_labhour' ? 'الأبحور' : 'سيدي عامر'}
                             </span>
                           )}
                         </div>
@@ -866,32 +998,88 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               const margin = s.price > 0 ? ((profit / s.price) * 100).toFixed(0) : '0';
 
               return (
-                <div key={s.id} className="bg-[#F9FAFB] border border-slate-200 rounded-2xl p-4 space-y-3 relative hover:border-[#E31C2B] transition-all">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`p-2.5 rounded-xl ${s.itemType === 'direct_sale' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-900 text-white'}`}>
-                        {s.itemType === 'direct_sale' ? <ShoppingBag className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
+                <div key={s.id} className="bg-[#F9FAFB] border border-slate-200 rounded-2xl p-4 space-y-3 relative hover:border-[#E31C2B] transition-all flex flex-col justify-between">
+                  <div>
+                    {/* Product Image Banner if available, or image adder */}
+                    {s.imageUrl ? (
+                      <div className="w-full h-36 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 mb-3 relative group">
+                        <img 
+                          src={s.imageUrl} 
+                          alt={s.name} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          referrerPolicy="no-referrer"
+                        />
+                        <button
+                          onClick={() => openEditProduct(s)}
+                          className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/75 hover:bg-black text-white text-[10px] font-bold flex items-center gap-1.5 backdrop-blur-xs transition-colors shadow-sm"
+                          title="تغيير صورة المنتج"
+                        >
+                          <Camera className="w-3.5 h-3.5 text-amber-400" />
+                          <span>تغيير الصورة</span>
+                        </button>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-black text-[#292A34]">{s.name}</h4>
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          {s.itemType === 'direct_sale' ? 'سلعة بيع مباشر' : s.photoConfig ? `طباعة صور ارتباطية (${s.photoConfig.paperSize})` : 'خدمة مخصصة'}
-                        </span>
+                    ) : (
+                      <div className="w-full py-2.5 px-3 rounded-xl border border-dashed border-slate-300 bg-white/70 hover:bg-white flex items-center justify-between mb-3 transition-colors">
+                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
+                          <ImageIcon className="w-4 h-4 text-slate-400" />
+                          <span>لا توجد صورة لهذا المنتج</span>
+                        </div>
+                        <button
+                          onClick={() => openEditProduct(s)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 text-slate-600 text-[11px] font-bold flex items-center gap-1 border border-slate-200 transition-colors"
+                        >
+                          <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>+ إضافة صورة</span>
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`p-2.5 rounded-xl ${s.itemType === 'direct_sale' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-900 text-white'}`}>
+                          {s.itemType === 'direct_sale' ? <ShoppingBag className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h4 className="text-sm font-black text-[#292A34]">{s.name}</h4>
+                            {s.storeId && (
+                              <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                                s.storeId === 'store_labhour' 
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                                  : 'bg-rose-100 text-rose-800 border border-rose-200'
+                              }`}>
+                                {s.storeId === 'store_labhour' ? 'الأبحور' : 'سيدي عامر'}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            {s.itemType === 'direct_sale' ? 'سلعة بيع مباشر' : s.photoConfig ? `طباعة صور ارتباطية (${s.photoConfig.paperSize})` : 'خدمة مخصصة'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openEditProduct(s)}
+                          className="text-slate-400 hover:text-[#292A34] p-1.5 rounded-lg hover:bg-slate-100"
+                          title="تعديل بيانات وصورة المنتج"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        {onDeleteService && s.id.startsWith('retail_') && (
+                          <button
+                            onClick={() => onDeleteService(s.id)}
+                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50"
+                            title="حذف السلعة"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    {onDeleteService && s.id.startsWith('retail_') && (
-                      <button
-                        onClick={() => onDeleteService(s.id)}
-                        className="text-slate-400 hover:text-rose-600 p-1"
-                        title="حذف السلعة"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
+                    <p className="text-xs text-slate-600 line-clamp-2 mt-2">{s.description}</p>
                   </div>
-
-                  <p className="text-xs text-slate-600 line-clamp-2">{s.description}</p>
 
                   {/* Financial Breakdown per item */}
                   <div className="bg-white p-3 rounded-xl border border-slate-200 grid grid-cols-3 gap-2 text-center">
@@ -922,19 +1110,30 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       )}
                     </div>
 
-                    {s.itemType === 'direct_sale' && (
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => {
-                          setRestockProduct(s);
-                          setRestockProductQty('10');
-                          setRestockProductBuyCost(String(s.buyCost || 0));
-                        }}
-                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                        onClick={() => openEditProduct(s)}
+                        className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors border border-slate-200"
+                        title="تعديل صورة أو سعر السلعة"
                       >
-                        <PackagePlus className="w-3 h-3" />
-                        <span>تزويد مخزون</span>
+                        <Camera className="w-3 h-3 text-slate-500" />
+                        <span>الصورة / السعر</span>
                       </button>
-                    )}
+
+                      {s.itemType === 'direct_sale' && (
+                        <button
+                          onClick={() => {
+                            setRestockProduct(s);
+                            setRestockProductQty('10');
+                            setRestockProductBuyCost(String(s.buyCost || 0));
+                          }}
+                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <PackagePlus className="w-3 h-3" />
+                          <span>تزويد</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                 </div>
@@ -963,6 +1162,20 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </div>
 
             <form onSubmit={handleCreateDirectSale} className="p-5 space-y-4 text-xs font-medium">
+              {isManager && (
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                  <label className="text-slate-700 block mb-1 font-bold">الفرع المخصص لهذه السلعة</label>
+                  <select
+                    value={directStoreId}
+                    onChange={(e) => setDirectStoreId(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-emerald-600"
+                  >
+                    <option value="store_sidiamer">🏢 استوديو فوتوب - سيدي عامر (fotop sidiamer)</option>
+                    <option value="store_labhour">🏢 استوديو فوتوب - الأبحور (fotop labhour)</option>
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="text-slate-700 block mb-1 font-bold">اسم السلعة المعروضة للبيع</label>
                 <input
@@ -1013,6 +1226,88 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   onChange={(e) => setDirectStock(e.target.value)}
                   className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-emerald-600"
                 />
+              </div>
+
+              {/* Product Image Section */}
+              <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-emerald-600" />
+                    <span>صورة المنتج (اختياري)</span>
+                  </label>
+                  {directImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setDirectImageUrl('')}
+                      className="text-[10px] text-rose-600 hover:underline flex items-center gap-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                      <span>إلغاء الصورة</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-3 items-start">
+                  {/* Image preview box */}
+                  <div className="w-20 h-20 rounded-xl bg-white border border-slate-300 overflow-hidden shrink-0 flex items-center justify-center relative shadow-xs">
+                    {directImageUrl ? (
+                      <img 
+                        src={directImageUrl} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="text-center p-1 text-slate-400">
+                        <ImageIcon className="w-6 h-6 mx-auto mb-0.5 text-slate-300" />
+                        <span className="text-[9px] block font-bold">بدون صورة</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions: File upload & URL input */}
+                  <div className="flex-1 space-y-2">
+                    <label className="w-full px-3 py-1.5 bg-white border border-slate-300 hover:border-emerald-500 rounded-xl cursor-pointer text-[11px] font-bold text-slate-700 hover:text-emerald-700 flex items-center justify-center gap-1.5 shadow-2xs transition-colors">
+                      <Upload className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>رفع صورة من الجهاز</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleImageFileUpload(e, setDirectImageUrl)}
+                      />
+                    </label>
+
+                    <input
+                      type="url"
+                      value={directImageUrl}
+                      onChange={(e) => setDirectImageUrl(e.target.value)}
+                      placeholder="أو الصق رابط صورة ويب (https://...)"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-[#292A34] focus:outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Studio Presets */}
+                <div className="pt-1">
+                  <span className="text-[10px] text-slate-500 font-bold block mb-1">نماذج سريعة لمنتجات الاستوديو:</span>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                    {PRODUCT_IMAGE_PRESETS.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setDirectImageUrl(preset.url)}
+                        className={`relative rounded-lg overflow-hidden border p-0.5 group text-left cursor-pointer transition-all ${
+                          directImageUrl === preset.url ? 'border-emerald-600 ring-2 ring-emerald-500' : 'border-slate-200 hover:border-slate-400'
+                        }`}
+                        title={preset.name}
+                      >
+                        <img src={preset.url} alt={preset.name} className="w-full h-10 object-cover rounded" referrerPolicy="no-referrer" />
+                        <span className="text-[8px] line-clamp-1 text-slate-700 font-medium px-0.5 mt-0.5 block">{preset.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Dynamic Live Profit Preview */}
@@ -1144,6 +1439,86 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   onChange={(e) => setPhotoPrice(e.target.value)}
                   className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-black text-sm focus:outline-none focus:border-[#E31C2B]"
                 />
+              </div>
+
+              {/* Product Image Section */}
+              <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-[#E31C2B]" />
+                    <span>صورة توضيحية لخدمة الطباعة (اختياري)</span>
+                  </label>
+                  {photoImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoImageUrl('')}
+                      className="text-[10px] text-rose-600 hover:underline flex items-center gap-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                      <span>إلغاء الصورة</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-3 items-start">
+                  <div className="w-20 h-20 rounded-xl bg-white border border-slate-300 overflow-hidden shrink-0 flex items-center justify-center relative shadow-xs">
+                    {photoImageUrl ? (
+                      <img 
+                        src={photoImageUrl} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="text-center p-1 text-slate-400">
+                        <ImageIcon className="w-6 h-6 mx-auto mb-0.5 text-slate-300" />
+                        <span className="text-[9px] block font-bold">بدون صورة</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    <label className="w-full px-3 py-1.5 bg-white border border-slate-300 hover:border-[#E31C2B] rounded-xl cursor-pointer text-[11px] font-bold text-slate-700 hover:text-[#E31C2B] flex items-center justify-center gap-1.5 shadow-2xs transition-colors">
+                      <Upload className="w-3.5 h-3.5 text-[#E31C2B]" />
+                      <span>رفع صورة من الجهاز</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleImageFileUpload(e, setPhotoImageUrl)}
+                      />
+                    </label>
+
+                    <input
+                      type="url"
+                      value={photoImageUrl}
+                      onChange={(e) => setPhotoImageUrl(e.target.value)}
+                      placeholder="أو الصق رابط صورة ويب (https://...)"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-[#292A34] focus:outline-none focus:border-[#E31C2B]"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="pt-1">
+                  <span className="text-[10px] text-slate-500 font-bold block mb-1">نماذج مقترحة:</span>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                    {PRODUCT_IMAGE_PRESETS.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setPhotoImageUrl(preset.url)}
+                        className={`relative rounded-lg overflow-hidden border p-0.5 group text-left cursor-pointer transition-all ${
+                          photoImageUrl === preset.url ? 'border-[#E31C2B] ring-2 ring-red-500' : 'border-slate-200 hover:border-slate-400'
+                        }`}
+                        title={preset.name}
+                      >
+                        <img src={preset.url} alt={preset.name} className="w-full h-10 object-cover rounded" referrerPolicy="no-referrer" />
+                        <span className="text-[8px] line-clamp-1 text-slate-700 font-medium px-0.5 mt-0.5 block">{preset.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Dynamic Formula Calculation Box */}
@@ -1361,6 +1736,20 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </div>
 
             <form onSubmit={handleCreateMaterial} className="p-5 space-y-3.5 text-xs font-medium">
+              {isManager && (
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                  <label className="text-slate-700 block mb-1 font-bold">الفرع المخصص لهذه المادة</label>
+                  <select
+                    value={newMatStoreId}
+                    onChange={(e) => setNewMatStoreId(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B]"
+                  >
+                    <option value="store_sidiamer">🏢 استوديو فوتوب - سيدي عامر (fotop sidiamer)</option>
+                    <option value="store_labhour">🏢 استوديو فوتوب - الأبحور (fotop labhour)</option>
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="text-slate-700 block mb-1 font-bold">اسم المادة والمقاس / الموديل</label>
                 <input
@@ -1471,6 +1860,190 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   className="px-5 py-2 rounded-xl bg-[#E31C2B] hover:bg-[#c91422] text-white font-black shadow-md shadow-[#E31C2B]/30 cursor-pointer"
                 >
                   حفظ المادة في المخزن
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT PRODUCT & IMAGE */}
+      {editingProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
+          <div className="bg-white border border-slate-300 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="bg-[#292A34] text-white px-5 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2 font-black text-sm">
+                <Camera className="w-5 h-5 text-amber-400" />
+                <span>تعديل بيانات وصورة المنتج: {editingProduct.name}</span>
+              </div>
+              <button 
+                onClick={() => setEditingProduct(null)}
+                className="text-slate-400 hover:text-white font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProductEdit} className="p-5 space-y-4 text-xs font-medium max-h-[85vh] overflow-y-auto">
+              {/* Image Editor */}
+              <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-800 font-bold text-xs flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-amber-500" />
+                    <span>صورة المنتج</span>
+                  </label>
+                  {editProductImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditProductImageUrl('')}
+                      className="text-[11px] text-rose-600 hover:underline flex items-center gap-1 font-bold cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>حذف الصورة</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-3 items-start">
+                  <div className="w-24 h-24 rounded-xl bg-white border border-slate-300 overflow-hidden shrink-0 flex items-center justify-center relative shadow-xs">
+                    {editProductImageUrl ? (
+                      <img 
+                        src={editProductImageUrl} 
+                        alt="Product Preview" 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="text-center p-2 text-slate-400">
+                        <ImageIcon className="w-8 h-8 mx-auto mb-1 text-slate-300" />
+                        <span className="text-[10px] block font-bold">بدون صورة</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    <label className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-amber-500 rounded-xl cursor-pointer text-xs font-bold text-slate-700 hover:text-amber-700 flex items-center justify-center gap-1.5 shadow-2xs transition-colors">
+                      <Upload className="w-4 h-4 text-amber-600" />
+                      <span>رفع صورة جديدة من الجهاز</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => handleImageFileUpload(e, setEditProductImageUrl)}
+                      />
+                    </label>
+
+                    <div>
+                      <label className="text-[10px] text-slate-500 font-bold block mb-0.5">أو رابط صورة إنترنت:</label>
+                      <input
+                        type="url"
+                        value={editProductImageUrl}
+                        onChange={(e) => setEditProductImageUrl(e.target.value)}
+                        placeholder="https://..."
+                        className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-mono text-[#292A34] focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="pt-2 border-t border-slate-200">
+                  <span className="text-[10px] text-slate-500 font-bold block mb-1.5">أو اختر صورة جاهزة من تصنيفات الاستوديو:</span>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                    {PRODUCT_IMAGE_PRESETS.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setEditProductImageUrl(preset.url)}
+                        className={`relative rounded-lg overflow-hidden border p-0.5 group text-left cursor-pointer transition-all ${
+                          editProductImageUrl === preset.url ? 'border-amber-500 ring-2 ring-amber-400' : 'border-slate-200 hover:border-slate-400'
+                        }`}
+                        title={preset.name}
+                      >
+                        <img src={preset.url} alt={preset.name} className="w-full h-10 object-cover rounded" referrerPolicy="no-referrer" />
+                        <span className="text-[8px] line-clamp-1 text-slate-700 font-medium px-0.5 mt-0.5 block">{preset.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Info Inputs */}
+              <div>
+                <label className="text-slate-700 block mb-1 font-bold">اسم المنتج / الخدمة</label>
+                <input
+                  type="text"
+                  required
+                  value={editProductName}
+                  onChange={(e) => setEditProductName(e.target.value)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 block mb-1 font-bold">سعر الشراء / التكلفة (دج)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={editProductBuyCost}
+                    onChange={(e) => setEditProductBuyCost(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-700 block mb-1 font-bold">سعر البيع النهائي (دج)</label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="1"
+                    value={editProductPrice}
+                    onChange={(e) => setEditProductPrice(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-black text-emerald-700 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {editingProduct.itemType === 'direct_sale' && (
+                <div>
+                  <label className="text-slate-700 block mb-1 font-bold">الكمية المتوفرة بالمخزن</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editProductStock}
+                    onChange={(e) => setEditProductStock(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="text-slate-700 block mb-1 font-bold">الوصف والتفاصيل</label>
+                <textarea
+                  rows={2}
+                  value={editProductDescription}
+                  onChange={(e) => setEditProductDescription(e.target.value)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingProduct(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-[#292A34] font-black shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>حفظ التعديلات والصورة</span>
                 </button>
               </div>
             </form>

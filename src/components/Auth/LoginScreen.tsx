@@ -94,10 +94,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
 
     // Verify Password
-    const expectedPassword = matchedStaff.password || (matchedStaff.role === 'manager' ? 'fouad26911' : '123');
-    const isMasterPassword = password === 'fouad26911' || password === 'admin' || password === '26911';
+    const expectedPassword = matchedStaff.password || (matchedStaff.role === 'manager' ? 'fouad26911' : '');
+    const isMasterPassword = password === 'fouad26911';
 
-    if (password === expectedPassword || isMasterPassword) {
+    if ((expectedPassword && password === expectedPassword) || isMasterPassword) {
       setTimeout(() => {
         setIsSubmitting(false);
         onLogin(matchedStaff, autoClockIn);

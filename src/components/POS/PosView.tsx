@@ -36,7 +36,6 @@ import {
   HelpCircle,
   Zap
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import { ServiceItem, CartItem, Material, Order, PaymentMethod, Shift, Staff } from '../../types';
 import { 
   formatCurrency, 
@@ -278,14 +277,6 @@ export const PosView: React.FC<PosViewProps> = ({
       materialsDeducted: deductionsList
     });
 
-    // Trigger celebration effect
-    confetti({
-      particleCount: 60,
-      spread: 70,
-      origin: { y: 0.75 },
-      colors: ['#E31C2B', '#292A34', '#ffffff', '#fbbf24']
-    });
-
     clearCart();
   };
 
@@ -399,6 +390,18 @@ export const PosView: React.FC<PosViewProps> = ({
                   }`}
                 >
                   <div>
+                    {/* Product Image if available */}
+                    {service.imageUrl && (
+                      <div className="w-full h-28 rounded-xl overflow-hidden mb-2.5 bg-slate-100 border border-slate-200 group-hover:opacity-95 transition-all">
+                        <img 
+                          src={service.imageUrl} 
+                          alt={service.name} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    )}
+
                     {/* Top Bar: Icon + Price */}
                     <div className="flex items-start justify-between gap-2 mb-2.5">
                       <div className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all shadow-inner ${
@@ -538,10 +541,20 @@ export const PosView: React.FC<PosViewProps> = ({
                 key={item.service.id}
                 className="bg-[#F0F0F0] border border-slate-200 rounded-xl p-2.5 flex items-center justify-between gap-3"
               >
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-bold text-[#292A34] truncate">{item.service.name}</h4>
-                  <div className="text-[11px] text-[#E31C2B] font-mono font-bold mt-0.5">
-                    {formatCurrency(item.service.price)} × {item.quantity} = {formatCurrency(item.service.price * item.quantity)}
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  {item.service.imageUrl ? (
+                    <img 
+                      src={item.service.imageUrl} 
+                      alt={item.service.name} 
+                      className="w-9 h-9 rounded-lg object-cover shrink-0 border border-slate-300"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-xs font-bold text-[#292A34] truncate">{item.service.name}</h4>
+                    <div className="text-[11px] text-[#E31C2B] font-mono font-bold mt-0.5">
+                      {formatCurrency(item.service.price)} × {item.quantity} = {formatCurrency(item.service.price * item.quantity)}
+                    </div>
                   </div>
                 </div>
 
@@ -750,8 +763,8 @@ export const PosView: React.FC<PosViewProps> = ({
                 : 'bg-slate-200 text-slate-400 cursor-not-allowed'
             }`}
           >
-            <Sparkles className="w-4 h-4 fill-current" />
-            <span>تسجيل الطلب وطباعة التذكرة</span>
+            <CheckCircle2 className="w-4 h-4" />
+            <span>تسجيل وإتمام الطلب (تَـمّ)</span>
           </button>
 
         </form>

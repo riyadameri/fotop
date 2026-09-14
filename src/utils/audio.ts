@@ -167,6 +167,10 @@ class SoundManager {
     }
   }
 
+  public playSuccess() {
+    this.playSuccessSound();
+  }
+
   /**
    * Attendance & Arrival chime (Warm welcoming 3-step melodic chime for clock-in and attendance)
    */

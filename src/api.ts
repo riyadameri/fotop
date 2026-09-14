@@ -8,10 +8,13 @@ import {
   Expense, 
   AttendanceRecord,
   SalaryPayment,
-  OrderStatus 
+  OrderStatus,
+  Store,
+  DEFAULT_STORES
 } from './types';
 
 export interface AppStateData {
+  stores?: Store[];
   materials: Material[];
   services: ServiceItem[];
   staff: Staff[];
@@ -33,6 +36,33 @@ export const api = {
   async resetAllData(): Promise<AppStateData> {
     const res = await fetch('/api/reset', { method: 'POST' });
     if (!res.ok) throw new Error('Failed to reset data on backend');
+    return res.json();
+  },
+
+  // Stores
+  async getStores(): Promise<Store[]> {
+    const res = await fetch('/api/stores');
+    if (!res.ok) return DEFAULT_STORES;
+    return res.json();
+  },
+
+  async createStore(store: Partial<Store>): Promise<Store[]> {
+    const res = await fetch('/api/stores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(store),
+    });
+    if (!res.ok) throw new Error('Failed to create store');
+    return res.json();
+  },
+
+  async updateStore(id: string, store: Partial<Store>): Promise<Store[]> {
+    const res = await fetch(`/api/stores/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(store),
+    });
+    if (!res.ok) throw new Error('Failed to update store');
     return res.json();
   },
 
@@ -160,11 +190,11 @@ export const api = {
   },
 
   // Shifts
-  async openShift(staffId: string, staffName: string, openingCash: number): Promise<Shift[]> {
+  async openShift(staffId: string, staffName: string, openingCash: number, storeId?: string, storeName?: string): Promise<Shift[]> {
     const res = await fetch('/api/shifts/open', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ staffId, staffName, openingCash }),
+      body: JSON.stringify({ staffId, staffName, openingCash, storeId, storeName }),
     });
     if (!res.ok) throw new Error('Failed to open shift');
     return res.json();

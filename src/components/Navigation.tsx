@@ -22,10 +22,11 @@ import {
   Sparkles,
   ChevronDown,
   Sliders,
-  LayoutDashboard
+  LayoutDashboard,
+  Store as StoreIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Staff, AttendanceRecord } from '../types';
+import { Staff, AttendanceRecord, Store } from '../types';
 import { soundManager } from '../utils/audio';
 import { FotopLogo } from './common/FotopLogo';
 
@@ -46,6 +47,9 @@ interface NavigationProps {
   onOpenWaste?: () => void;
   onLogout?: () => void;
   activeAttendance?: AttendanceRecord;
+  stores?: Store[];
+  currentStoreId?: string;
+  onSelectStore?: (storeId: string) => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -62,7 +66,10 @@ export const Navigation: React.FC<NavigationProps> = ({
   onOpenExpense,
   onOpenWaste,
   onLogout,
-  activeAttendance
+  activeAttendance,
+  stores = [],
+  currentStoreId = 'store_sidiamer',
+  onSelectStore,
 }) => {
   const isManager = currentStaff?.role === 'manager';
 
@@ -339,6 +346,22 @@ export const Navigation: React.FC<NavigationProps> = ({
                   <Clock className="w-3 h-3 text-slate-500" />
                   <span>{activeAttendance ? 'مسجل حضور' : 'تسجيل الدوام اختياري'}</span>
                 </div>
+                {stores.length > 0 && (
+                  <div className={`text-[10px] font-bold truncate flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-md ${
+                    (currentStaff.role === 'worker' ? currentStaff.storeId : currentStoreId) === 'store_labhour'
+                      ? 'text-blue-400 bg-blue-950/40 border border-blue-800/40'
+                      : 'text-amber-400 bg-amber-950/40 border border-amber-800/40'
+                  }`}>
+                    <StoreIcon className="w-3 h-3 shrink-0" />
+                    <span className="truncate">
+                      {currentStaff.role === 'worker'
+                        ? (currentStaff.storeId === 'store_labhour' ? 'فرع الأبحور (fotop labhour)' : 'فرع سيدي عامر (fotop sidiamer)')
+                        : (currentStoreId === 'all' 
+                            ? 'كافة الفروع (مجمع)' 
+                            : (stores.find(s => s.id === currentStoreId)?.name || 'متجر'))}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -479,6 +502,22 @@ export const Navigation: React.FC<NavigationProps> = ({
                     <div className="text-[11px] text-slate-400 truncate mt-0.5">
                       {activeAttendance ? '🟢 دوام مسجل ونشط' : '⚪ تسجيل الدوام اختياري'}
                     </div>
+                    {stores.length > 0 && (
+                      <div className={`text-[10px] font-bold truncate flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded-md ${
+                        (currentStaff.role === 'worker' ? currentStaff.storeId : currentStoreId) === 'store_labhour'
+                          ? 'text-blue-400 bg-blue-950/40 border border-blue-800/40'
+                          : 'text-amber-400 bg-amber-950/40 border border-amber-800/40'
+                      }`}>
+                        <StoreIcon className="w-3 h-3 shrink-0" />
+                        <span>
+                          {currentStaff.role === 'worker'
+                            ? (currentStaff.storeId === 'store_labhour' ? 'فرع الأبحور (fotop labhour)' : 'فرع سيدي عامر (fotop sidiamer)')
+                            : (currentStoreId === 'all' 
+                                ? 'كافة الفروع (مجمع)' 
+                                : (stores.find(s => s.id === currentStoreId)?.name || 'متجر'))}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
