@@ -446,9 +446,19 @@ let db: DatabaseSchema = loadDatabase();
 
 async function startServer() {
   const app = express();
-  const PORT = 5000;
+  const PORT = 3000;
 
   app.use(express.json());
+
+  // Static assets serving so user can place logo.png in either /assets or /public/assets
+  const rootAssetsPath = path.join(process.cwd(), 'assets');
+  const publicAssetsPath = path.join(process.cwd(), 'public', 'assets');
+  if (fs.existsSync(rootAssetsPath)) {
+    app.use('/assets', express.static(rootAssetsPath));
+  }
+  if (fs.existsSync(publicAssetsPath)) {
+    app.use('/assets', express.static(publicAssetsPath));
+  }
 
   // Initialize MongoDB Atlas connection & sync
   connectToMongoDB().then(async (connected) => {
