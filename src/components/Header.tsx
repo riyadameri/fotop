@@ -43,6 +43,7 @@ import { formatCurrency, formatTime, formatNumber } from '../utils/formatters';
 import { soundManager } from '../utils/audio';
 import { api } from '../api';
 import { FotopLogo } from './common/FotopLogo';
+import { StudioLogo } from './common/StudioLogo';
 import { StoreSelector } from './common/StoreSelector';
 
 interface HeaderProps {
@@ -438,27 +439,27 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="w-full bg-[#1f2029] text-white border-b border-slate-700/80 sticky top-0 z-30 transition-all duration-200 shadow-md backdrop-blur-md">
+    <header className="w-full bg-[#181920] text-white border-b border-slate-800 sticky top-0 z-30 transition-all duration-200 shadow-md backdrop-blur-md">
       {/* ========================================================================= */}
-      {/* 1. PRIMARY TOP NAVIGATION BAR (Clean & Adaptive across Mobile & Desktop)   */}
+      {/* 1. PRIMARY TOP NAVIGATION BAR (Clean, Harmonized & Adaptive)               */}
       {/* ========================================================================= */}
-      <div className="w-full mx-auto flex items-center justify-between gap-1.5 sm:gap-3 py-2 sm:py-2.5 px-3 sm:px-6 lg:px-8">
+      <div className="w-full mx-auto flex items-center justify-between gap-2 sm:gap-3 py-2 px-3 sm:px-5 lg:px-6">
           
-          {/* Right / Start: Burger (Mobile) + Logo & Branding */}
-          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 min-w-0">
+          {/* Right / Start: Burger (Mobile) + Logo & Branding + Store Selector */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 min-w-0">
             
             {/* Mobile Burger Menu Button */}
             {onToggleMobileMenu && (
               <motion.button
                 whileTap={{ scale: 0.92 }}
                 onClick={onToggleMobileMenu}
-                className="lg:hidden p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white flex items-center justify-center cursor-pointer transition-colors shadow-sm shrink-0"
+                className="lg:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 text-white flex items-center justify-center cursor-pointer transition-colors shadow-xs shrink-0"
                 title="فتح القائمة الرئيسية"
               >
                 {isMobileMenuOpen ? (
-                  <X className="w-4 h-4 sm:w-5 sm:h-5 text-rose-400" />
+                  <X className="w-4 h-4 text-rose-400" />
                 ) : (
-                  <Menu className="w-4 h-4 sm:w-5 sm:h-5 text-slate-200" />
+                  <Menu className="w-4 h-4 text-slate-200" />
                 )}
               </motion.button>
             )}
@@ -466,24 +467,20 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Logo & Branding */}
             <div className="flex items-center gap-2 min-w-0">
               <div 
-                className="relative flex items-center justify-center rounded-xl bg-[#292A34] border border-slate-700/80 p-0.5 text-white font-black shadow-md shrink-0 cursor-pointer w-8 h-8 sm:w-9 sm:h-9 overflow-hidden transition-transform active:scale-95"
+                className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#23242e] border border-slate-700/80 p-0.5 text-white font-black shadow-xs shrink-0 cursor-pointer overflow-hidden transition-transform active:scale-95 flex items-center justify-center"
                 onClick={() => {
                   soundManager.playClickSound();
                   if (onNavigateToHome) onNavigateToHome();
                 }}
                 title="الواجهة الرئيسية (نقطة البيع)"
               >
-                {customStudioLogo ? (
-                  <img src={customStudioLogo} alt={customStudioName || "شعار الاستوديو"} className="w-full h-full object-contain rounded-lg" />
-                ) : (
-                  <FotopLogo className="w-full h-full" showGlow />
-                )}
-                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-emerald-400 border-2 border-[#1f2029] rounded-full" title="متصل بالسيرفر السحابي Redox" />
+                <StudioLogo className="w-full h-full" alt={customStudioName || "شعار الاستوديو"} showGlow />
+                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-emerald-400 border-2 border-[#181920] rounded-full" title="متصل بالسيرفر السحابي Redox" />
               </div>
 
               {/* Branding Text */}
               <div 
-                className="flex flex-col cursor-pointer transition-opacity hover:opacity-90 min-w-0" 
+                className="h-8 sm:h-9 flex flex-col justify-center cursor-pointer transition-opacity hover:opacity-90 min-w-0" 
                 onClick={() => {
                   soundManager.playClickSound();
                   if (onNavigateToHome) onNavigateToHome();
@@ -491,14 +488,14 @@ export const Header: React.FC<HeaderProps> = ({
                 title="الواجهة الرئيسية (نقطة البيع)"
               >
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <h1 className="text-sm sm:text-base font-black tracking-tight text-white flex items-center gap-1 min-w-0">
-                    <span className="truncate max-w-[85px] xs:max-w-[130px] sm:max-w-[200px]">{customStudioName}</span>
-                    <span className="bg-[#E31C2B] text-white text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded font-black tracking-normal shrink-0">ERP</span>
+                  <h1 className="text-xs sm:text-sm font-black tracking-tight text-white flex items-center gap-1 min-w-0 leading-none">
+                    <span className="truncate max-w-[85px] xs:max-w-[120px] sm:max-w-[180px]">{customStudioName}</span>
+                    <span className="bg-[#E31C2B] text-white text-[9px] px-1.5 py-0.5 rounded-md font-black tracking-normal shrink-0">ERP</span>
                   </h1>
-                  <span className="text-[11px] text-slate-400 font-medium hidden md:inline-block truncate">| {studioTagline}</span>
+                  <span className="text-[11px] text-slate-400 font-medium hidden md:inline-block truncate leading-none">| {studioTagline}</span>
                 </div>
-                <div className="hidden sm:flex items-center gap-1.5 text-[9px] text-slate-400">
-                  <span className="text-slate-300">Redox Cloud Solutions</span>
+                <div className="hidden sm:flex items-center gap-1.5 text-[9px] text-slate-400 mt-1 leading-none">
+                  <span className="text-slate-300">Redox Cloud</span>
                   <span>•</span>
                   <span className="font-mono text-slate-400 dir-ltr flex items-center gap-0.5">
                     <Phone className="w-2.5 h-2.5 text-[#E31C2B]" /> 05 63898395
@@ -506,25 +503,17 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               </div>
 
-              {/* Multi-Store Switcher (fotop sidiamer / fotop labhour / all) - For Manager Only */}
+              {/* Multi-Store Switcher */}
               {stores && stores.length > 0 && (
-                <div className="hidden sm:block mr-2">
-                  {currentStaff.role === 'manager' ? (
-                    <StoreSelector
-                      stores={stores}
-                      currentStoreId={currentStoreId}
-                      onSelectStore={onSelectStore || (() => {})}
-                      currentStaff={currentStaff}
-                      variant="header"
-                    />
-                  ) : (
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800/90 border border-slate-700/80 text-xs shadow-inner">
-                      <span className={`w-2 h-2 rounded-full ${currentStaff.storeId === 'store_labhour' ? 'bg-blue-400' : 'bg-[#E31C2B]'}`} />
-                      <span className="font-bold text-white text-[11px]">
-                        {currentStaff.storeId === 'store_labhour' ? 'فرع الأبحور (fotop labhour)' : 'فرع سيدي عامر (fotop sidiamer)'}
-                      </span>
-                    </div>
-                  )}
+                <div className="hidden sm:flex items-center mr-1">
+                  <div className="h-5 w-px bg-slate-700/60 ml-2 mr-1" />
+                  <StoreSelector
+                    stores={stores}
+                    currentStoreId={currentStoreId}
+                    onSelectStore={onSelectStore || (() => {})}
+                    currentStaff={currentStaff}
+                    variant="header"
+                  />
                 </div>
               )}
             </div>
@@ -536,7 +525,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Live Shift & Attendance Real-time Timer */}
             {elapsedShiftTime ? (
               <div 
-                className="flex items-center gap-1.5 bg-[#121319] border border-emerald-500/50 rounded-xl px-2.5 py-1 text-xs text-emerald-300 shadow-inner"
+                className="h-9 flex items-center gap-1.5 bg-[#171820] border border-emerald-500/40 rounded-xl px-2.5 text-emerald-300 shadow-xs"
                 title={`المدة المنقضية في الدوام الفعلي للموظف (${currentStaff.name}) بدقة بالثواني`}
               >
                 <Timer className="w-3.5 h-3.5 text-emerald-400 animate-spin" style={{ animationDuration: '6s' }} />
@@ -550,27 +539,27 @@ export const Header: React.FC<HeaderProps> = ({
             ) : null}
 
             {/* Worker Instant Clock-In / Clock-Out Widget */}
-            <div className="flex items-center gap-1 bg-[#171820] border border-slate-700/80 rounded-xl text-xs shadow-inner px-2 py-1">
+            <div className="h-9 flex items-center gap-1.5 bg-[#171820] border border-slate-700/80 rounded-xl text-xs shadow-xs px-2.5">
               {activeAttendance ? (
-                <div className="flex items-center gap-1">
-                  <div className="flex items-center gap-1 text-emerald-400 font-bold text-[10px] sm:text-xs">
+                <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1 text-emerald-400 font-bold text-[11px]">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    <span className="hidden md:inline">دوام:</span>
-                    <span>{formatTime(activeAttendance.clockIn)}</span>
+                    <span className="hidden md:inline text-slate-400 font-normal">دوام:</span>
+                    <span className="font-mono font-bold text-white">{formatTime(activeAttendance.clockIn)}</span>
                   </div>
                   <button
                     onClick={handleClockOutClick}
-                    className="bg-rose-950 hover:bg-rose-900 text-rose-200 border border-rose-700/80 px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                    className="h-6 bg-rose-950 hover:bg-rose-900 text-rose-200 border border-rose-700/80 px-2 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
                     title="تسجيل نهاية الدوام اليومي (خروج)"
                   >
                     <StopCircle className="w-3 h-3 text-rose-400" />
-                    <span className="hidden lg:inline">نهاية الدوام</span>
+                    <span className="hidden lg:inline">خروج</span>
                   </button>
                 </div>
               ) : (
                 <button
                   onClick={handleClockInClick}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-black flex items-center gap-1 cursor-pointer transition-all shadow-sm"
+                  className="h-6 bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer transition-all shadow-xs"
                   title="تسجيل بدء الدوام والعمل الفعلي"
                 >
                   <PlayCircle className="w-3.5 h-3.5" />
@@ -581,7 +570,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Active Shift Cash Indicator */}
             {activeShift && (
-              <div className="flex items-center gap-1 bg-[#171820] border border-slate-700/80 rounded-xl text-xs px-2.5 py-1">
+              <div className="h-9 flex items-center gap-1.5 bg-[#171820] border border-slate-700/80 rounded-xl text-xs px-2.5 shadow-xs">
                 <Wallet className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span className="font-mono text-amber-300 font-bold text-[11px]">
                   {formatCurrency(activeShift.expectedCash)}
@@ -590,7 +579,7 @@ export const Header: React.FC<HeaderProps> = ({
             )}
 
             {/* Live Clock & Calendar Indicator for Desktop / Computer Screens */}
-            <div className="hidden lg:flex items-center gap-2 bg-[#171820] border border-slate-700/80 rounded-xl px-2.5 py-1 text-xs text-slate-300 shadow-inner">
+            <div className="h-9 hidden lg:flex items-center gap-2 bg-[#171820] border border-slate-700/80 rounded-xl px-2.5 text-xs text-slate-300 shadow-xs">
               <Clock className="w-3.5 h-3.5 text-[#E31C2B] animate-pulse" />
               <span className="font-mono font-bold text-white text-[11px] tracking-wide">
                 {formattedTimeStr}
@@ -604,7 +593,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* MongoDB Cloud Database Status Indicator */}
             <div 
               onClick={handleManualMongoSync}
-              className={`hidden md:flex items-center gap-1.5 border rounded-xl px-2.5 py-1 text-xs cursor-pointer transition-all shadow-inner ${
+              className={`h-9 hidden md:flex items-center gap-1.5 border rounded-xl px-2.5 text-xs cursor-pointer transition-all shadow-xs ${
                 mongoStatus.connected
                   ? 'bg-emerald-950/60 border-emerald-600/60 text-emerald-300 hover:bg-emerald-900/60'
                   : 'bg-amber-950/50 border-amber-600/50 text-amber-300 hover:bg-amber-900/50'
@@ -617,7 +606,7 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Database className={`w-3.5 h-3.5 ${mongoStatus.connected ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}`} />
               <span className="font-bold text-[10px]">
-                {mongoStatus.connected ? 'MongoDB متصل' : 'MongoDB'}
+                {mongoStatus.connected ? 'MongoDB' : 'مزامنة'}
               </span>
               <RefreshCw className={`w-2.5 h-2.5 ${isSyncingMongo ? 'animate-spin text-white' : 'opacity-60'}`} />
             </div>
@@ -626,33 +615,33 @@ export const Header: React.FC<HeaderProps> = ({
             {totalLowStockCount > 0 && (
               <button
                 onClick={handleOpenAlerts}
-                className="bg-[#E31C2B] hover:bg-[#c91422] text-white px-2 py-0.5 sm:py-1 rounded-xl text-[10px] sm:text-xs flex items-center gap-1 font-bold shadow-md shadow-[#E31C2B]/30 animate-pulse cursor-pointer transition-colors"
+                className="h-9 bg-[#E31C2B] hover:bg-[#c91422] text-white px-2.5 rounded-xl text-xs flex items-center gap-1.5 font-bold shadow-md shadow-[#E31C2B]/30 animate-pulse cursor-pointer transition-colors"
                 title="انقر لعرض تفاصيل المواد التي وصلت لحد الأمان"
               >
-                <AlertTriangle className="w-3 h-3" />
+                <AlertTriangle className="w-3.5 h-3.5" />
                 <span>{totalLowStockCount} نواقص</span>
               </button>
             )}
           </div>
 
           {/* Left / End: Audio Sound Toggle, Notification Bell, Action Shortcuts, Profile Switcher */}
-          <div className="flex items-center gap-1 sm:gap-1.5 justify-end shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 justify-end shrink-0">
             
             {/* Sound Mute / Unmute Button */}
             <motion.button
               whileTap={{ scale: 0.92 }}
               onClick={handleToggleMute}
-              className={`p-1.5 sm:p-2 rounded-xl border text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl border text-xs font-bold flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 ${
                 isMuted 
-                  ? 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200' 
-                  : 'bg-emerald-950/70 border-emerald-700/80 text-emerald-300 hover:bg-emerald-900 shadow-sm'
+                  ? 'bg-slate-800/80 border-slate-700/80 text-slate-400 hover:text-slate-200' 
+                  : 'bg-emerald-950/70 border-emerald-700/80 text-emerald-300 hover:bg-emerald-900'
               }`}
               title={isMuted ? 'الصوت مكتوم - انقر لتفعيل أصوات الأشعارات والتنبيهات' : 'الأصوات مفعلة - انقر لكتم الصوت'}
             >
               {isMuted ? (
-                <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" />
+                <VolumeX className="w-4 h-4 text-slate-400" />
               ) : (
-                <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
+                <Volume2 className="w-4 h-4 text-emerald-400" />
               )}
             </motion.button>
 
@@ -661,10 +650,10 @@ export const Header: React.FC<HeaderProps> = ({
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={handleOpenAlerts}
-                className={`relative p-1.5 sm:p-2 rounded-xl border text-xs font-bold flex items-center justify-center transition-all cursor-pointer ${
+                className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl border text-xs font-bold flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 ${
                   totalLowStockCount > 0
                     ? 'bg-[#E31C2B]/20 hover:bg-[#E31C2B]/30 border-[#E31C2B] text-white shadow-lg shadow-[#E31C2B]/20'
-                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                    : 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-700/80 text-slate-300'
                 }`}
                 title={
                   totalLowStockCount > 0 
@@ -673,14 +662,14 @@ export const Header: React.FC<HeaderProps> = ({
                 }
               >
                 {totalLowStockCount > 0 ? (
-                  <BellRing className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ff6b6b] animate-bounce" />
+                  <BellRing className="w-4 h-4 text-[#ff6b6b] animate-bounce" />
                 ) : (
-                  <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300" />
+                  <Bell className="w-4 h-4 text-slate-300" />
                 )}
 
                 {/* Notification Badge */}
                 {totalLowStockCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] px-1 bg-[#E31C2B] text-white text-[9px] sm:text-[10px] font-black rounded-full flex items-center justify-center border-2 border-[#1f2029] shadow-md animate-pulse">
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-[#E31C2B] text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[#181920] shadow-md animate-pulse">
                     {totalLowStockCount}
                   </span>
                 )}
@@ -693,11 +682,11 @@ export const Header: React.FC<HeaderProps> = ({
                 soundManager.playClickSound();
                 onOpenExpenseModal();
               }}
-              className="hidden sm:flex text-xs bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 rounded-xl items-center gap-1 px-2.5 py-1.5 transition-colors cursor-pointer"
+              className="hidden sm:flex h-9 text-xs bg-slate-800/80 hover:bg-slate-700/80 text-white border border-slate-700/80 rounded-xl items-center gap-1.5 px-2.5 transition-colors cursor-pointer shadow-xs shrink-0"
               title="تسجيل مصروف نثري من الدرج"
             >
               <Wallet className="w-3.5 h-3.5 text-amber-400" />
-              <span className="font-medium">مصروف</span>
+              <span className="font-bold">مصروف</span>
             </button>
 
             {/* Quick Waste Shortcut (Desktop) */}
@@ -706,11 +695,11 @@ export const Header: React.FC<HeaderProps> = ({
                 soundManager.playClickSound();
                 onOpenLogWaste();
               }}
-              className="hidden lg:flex text-xs bg-slate-800 hover:bg-slate-700 text-rose-300 hover:text-rose-200 border border-slate-700 rounded-xl items-center gap-1 px-2.5 py-1.5 transition-colors cursor-pointer"
+              className="hidden lg:flex h-9 text-xs bg-slate-800/80 hover:bg-slate-700/80 text-rose-300 hover:text-rose-200 border border-slate-700/80 rounded-xl items-center gap-1.5 px-2.5 transition-colors cursor-pointer shadow-xs shrink-0"
               title="تسجيل تالف ورق أو حبر"
             >
               <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-              <span className="font-medium">تالف</span>
+              <span className="font-bold">تالف</span>
             </button>
 
             {/* Direct Settings Shortcut (Desktop) */}
@@ -720,11 +709,11 @@ export const Header: React.FC<HeaderProps> = ({
                   soundManager.playClickSound();
                   onNavigateToSettings();
                 }}
-                className="hidden xl:flex text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded-xl items-center gap-1.5 px-2.5 py-1.5 transition-colors cursor-pointer"
+                className="hidden xl:flex h-9 text-xs bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl items-center gap-1.5 px-2.5 transition-colors cursor-pointer shadow-xs shrink-0"
                 title="إعدادات النظام وهوية الاستوديو"
               >
                 <Sliders className="w-3.5 h-3.5 text-slate-300" />
-                <span className="font-medium">الإعدادات</span>
+                <span className="font-bold">الإعدادات</span>
               </button>
             )}
 
@@ -736,30 +725,30 @@ export const Header: React.FC<HeaderProps> = ({
                   soundManager.playClickSound();
                   setShowProfileDropdown(!showProfileDropdown);
                 }}
-                className={`flex items-center gap-1 sm:gap-1.5 border rounded-xl cursor-pointer transition-all px-2 sm:px-2.5 py-1.5 ${
+                className={`h-8 sm:h-9 flex items-center gap-1.5 border rounded-xl cursor-pointer transition-all px-2 sm:px-2.5 shadow-xs shrink-0 ${
                   currentStaff.role === 'manager' 
-                    ? 'bg-gradient-to-r from-amber-600/90 to-amber-700/90 border-amber-500/80 text-white shadow-sm' 
-                    : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-white'
+                    ? 'bg-gradient-to-r from-amber-600/90 to-amber-700/90 border-amber-500/80 text-white' 
+                    : 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-700/80 text-white'
                 }`}
                 title={`${currentStaff.name} (${currentStaff.role === 'manager' ? 'مدير' : 'عامل'})`}
               >
                 {customStaffPhoto ? (
                   <img src={customStaffPhoto} alt={currentStaff.name} className="w-5 h-5 rounded-lg object-cover shrink-0" />
                 ) : (
-                  <span className="text-sm sm:text-base">{currentStaff.avatar}</span>
+                  <span className="text-sm sm:text-base leading-none">{currentStaff.avatar}</span>
                 )}
                 <div className="text-right hidden sm:block">
-                  <div className="text-xs font-bold text-white leading-tight flex items-center gap-1">
-                    <span className="truncate max-w-[90px]">{currentStaff.name}</span>
+                  <div className="text-xs font-bold text-white leading-none flex items-center gap-1">
+                    <span className="truncate max-w-[85px]">{currentStaff.name}</span>
                     {currentStaff.role === 'manager' && (
                       <ShieldCheck className="w-3 h-3 text-amber-200 shrink-0" />
                     )}
                   </div>
-                  <div className="text-[9px] text-slate-300 leading-none">
+                  <div className="text-[9px] text-slate-300 mt-0.5 leading-none">
                     {currentStaff.role === 'manager' ? 'مدير' : 'عامل'}
                   </div>
                 </div>
-                <ChevronDown className="w-3 h-3 text-slate-300 shrink-0" />
+                <ChevronDown className="w-3.5 h-3.5 text-slate-300 shrink-0 opacity-80" />
               </motion.button>
             </div>
 
@@ -771,10 +760,10 @@ export const Header: React.FC<HeaderProps> = ({
                   soundManager.playClickSound();
                   onLogout();
                 }}
-                className="hidden sm:flex text-xs bg-rose-950/70 hover:bg-rose-900 border border-rose-700/60 text-rose-200 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl items-center gap-1 transition-colors cursor-pointer"
+                className="hidden sm:flex w-9 h-9 xl:w-auto xl:px-2.5 rounded-xl text-xs bg-rose-950/70 hover:bg-rose-900 border border-rose-700/60 text-rose-200 items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
                 title="تسجيل الخروج"
               >
-                <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400 shrink-0" />
+                <LogOut className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                 <span className="hidden xl:inline font-bold">خروج</span>
               </motion.button>
             )}
@@ -785,19 +774,19 @@ export const Header: React.FC<HeaderProps> = ({
       {/* ========================================================================= */}
       {/* 2. MOBILE CONTEXTUAL STATUS & ACTION STRIP (Exclusively for Mobile Phones) */}
       {/* ========================================================================= */}
-      <div className="sm:hidden flex items-center justify-between gap-1.5 px-3 py-1.5 bg-[#171820]/95 border-t border-slate-800/80 text-xs">
+      <div className="sm:hidden flex items-center justify-between gap-1.5 px-3 py-1.5 bg-[#14151b] border-t border-slate-800/80 text-xs">
         
         {/* Mobile Clock-In/Out Quick Control */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 shrink-0">
           {activeAttendance ? (
-            <div className="flex items-center gap-1 bg-[#23242e] border border-emerald-700/50 rounded-lg px-2 py-0.5">
+            <div className="h-8 flex items-center gap-1.5 bg-[#23242e] border border-emerald-700/50 rounded-lg px-2 shadow-inner">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
               <span className="text-emerald-400 font-mono font-bold text-[10px]">
                 {formatTime(activeAttendance.clockIn)}
               </span>
               <button
                 onClick={handleClockOutClick}
-                className="bg-rose-950/90 text-rose-300 hover:bg-rose-900 px-1.5 py-0.2 rounded text-[9px] font-bold border border-rose-800/80 flex items-center gap-0.5 ml-0.5 cursor-pointer"
+                className="h-5 bg-rose-950 text-rose-300 hover:bg-rose-900 px-1.5 rounded text-[9px] font-bold border border-rose-800/80 flex items-center gap-0.5 cursor-pointer"
                 title="خروج من الدوام"
               >
                 <StopCircle className="w-2.5 h-2.5 text-rose-400" />
@@ -807,7 +796,7 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <button
               onClick={handleClockInClick}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 shadow-xs cursor-pointer"
+              className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 rounded-lg text-[10px] font-black flex items-center gap-1 shadow-xs cursor-pointer"
             >
               <PlayCircle className="w-3 h-3" />
               <span>بدء الدوام</span>
@@ -816,7 +805,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Mobile Shift Live Timer */}
           {elapsedShiftTime && (
-            <div className="flex items-center gap-1 bg-emerald-950/60 border border-emerald-500/50 rounded-lg px-1.5 py-0.5 text-[10px] text-emerald-300 font-mono font-bold">
+            <div className="h-8 flex items-center gap-1 bg-emerald-950/60 border border-emerald-500/50 rounded-lg px-2 text-[10px] text-emerald-300 font-mono font-bold shadow-inner">
               <Timer className="w-2.5 h-2.5 text-emerald-400" />
               <span>{elapsedShiftTime}</span>
             </div>
@@ -824,40 +813,33 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Center: Store Selector & Shift Cash OR Low Stock Alert */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {stores && stores.length > 0 && (
-            currentStaff.role === 'manager' ? (
-              <StoreSelector
-                stores={stores}
-                currentStoreId={currentStoreId}
-                onSelectStore={onSelectStore || (() => {})}
-                currentStaff={currentStaff}
-                variant="compact"
-              />
-            ) : (
-              <div className="flex items-center gap-1 bg-[#23242e] border border-slate-700/60 rounded-lg px-2 py-0.5 text-[10px] font-bold text-slate-200">
-                <span className={`w-1.5 h-1.5 rounded-full ${currentStaff.storeId === 'store_labhour' ? 'bg-blue-400' : 'bg-[#E31C2B]'}`} />
-                <span>{currentStaff.storeId === 'store_labhour' ? 'الأبحور' : 'سيدي عامر'}</span>
-              </div>
-            )
+            <StoreSelector
+              stores={stores}
+              currentStoreId={currentStoreId}
+              onSelectStore={onSelectStore || (() => {})}
+              currentStaff={currentStaff}
+              variant="compact"
+            />
           )}
 
           {totalLowStockCount > 0 ? (
             <button
               onClick={handleOpenAlerts}
-              className="bg-[#E31C2B] text-white px-2 py-0.5 rounded-lg text-[9px] font-black flex items-center gap-1 animate-pulse cursor-pointer shadow-xs"
+              className="h-8 bg-[#E31C2B] text-white px-2 rounded-lg text-[9px] font-black flex items-center gap-1 animate-pulse cursor-pointer shadow-xs"
               title="عرض نواقص المخزون"
             >
               <AlertTriangle className="w-2.5 h-2.5" />
               <span>{totalLowStockCount} نواقص</span>
             </button>
           ) : activeShift ? (
-            <div className="flex items-center gap-1 bg-[#23242e] border border-slate-700/60 rounded-lg px-2 py-0.5 text-[10px] text-amber-400 font-mono font-bold" title="رصيد الصندوق المتوقع">
+            <div className="h-8 flex items-center gap-1 bg-[#23242e] border border-slate-700/60 rounded-lg px-2 text-[10px] text-amber-400 font-mono font-bold shadow-inner" title="رصيد الصندوق المتوقع">
               <Wallet className="w-3 h-3 text-amber-400" />
               <span>{formatCurrency(activeShift.expectedCash)}</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+            <div className="h-8 flex items-center gap-1 text-[10px] text-slate-400 font-mono bg-[#23242e] border border-slate-700/60 rounded-lg px-2 shadow-inner">
               <Clock className="w-2.5 h-2.5 text-slate-400" />
               <span>{formattedTimeStr}</span>
             </div>
@@ -865,13 +847,13 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* End: Quick Expense Shortcut on Mobile */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center shrink-0">
           <button
             onClick={() => {
               soundManager.playClickSound();
               onOpenExpenseModal();
             }}
-            className="bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+            className="h-8 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-2.5 rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
             title="تسجيل مصروف سريع من الدرج"
           >
             <Wallet className="w-3 h-3" />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FotopLogo } from '../Branding/FotopLogo';
+import { FotopLogo } from './FotopLogo';
 import { getStudioLogo } from '../../utils/logo';
 
 interface StudioLogoProps {

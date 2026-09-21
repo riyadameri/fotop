@@ -32,28 +32,28 @@ export const FotopLogo: React.FC<FotopLogoProps> = ({
         <defs>
           {/* Outer Red Ring Gradient */}
           <linearGradient id="fotopRingGrad" x1="15%" y1="10%" x2="85%" y2="90%">
-            <stop offset="0%" stop-color="#F02432" />
-            <stop offset="50%" stop-color="#E31C2B" />
-            <stop offset="100%" stop-color="#B3121E" />
+            <stop offset="0%" stopColor="#F02432" />
+            <stop offset="50%" stopColor="#E31C2B" />
+            <stop offset="100%" stopColor="#B3121E" />
           </linearGradient>
 
           {/* Lens Dark Sphere Gradient */}
           <radialGradient id="fotopLensPupil" cx="40%" cy="38%" r="62%">
-            <stop offset="0%" stop-color="#3A3F4E" />
-            <stop offset="25%" stop-color="#1A1C24" />
-            <stop offset="85%" stop-color="#08090C" />
-            <stop offset="100%" stop-color="#000000" />
+            <stop offset="0%" stopColor="#3A3F4E" />
+            <stop offset="25%" stopColor="#1A1C24" />
+            <stop offset="85%" stopColor="#08090C" />
+            <stop offset="100%" stopColor="#000000" />
           </radialGradient>
 
           {/* Camera Body Charcoal Gradient */}
           <linearGradient id="fotopBodyDark" x1="20%" y1="20%" x2="80%" y2="80%">
-            <stop offset="0%" stop-color="#2D323E" />
-            <stop offset="100%" stop-color="#1C1F27" />
+            <stop offset="0%" stopColor="#2D323E" />
+            <stop offset="100%" stopColor="#1C1F27" />
           </linearGradient>
 
           {/* Subtle Outer Drop Shadow */}
           <filter id="fotopSoftShadow" x="-10%" y="-10%" width="120%" height="120%">
-            <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#000000" flood-opacity="0.14" />
+            <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#000000" floodOpacity="0.14" />
           </filter>
         </defs>
 

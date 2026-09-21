@@ -83,18 +83,34 @@ export const StoreSelector: React.FC<StoreSelectorProps> = ({
     const workerStore = stores.find(s => s.id === currentStaff.storeId) || stores[0];
     const theme = getStoreTheme(workerStore?.id || 'store_sidiamer');
 
+    if (variant === 'compact') {
+      return (
+        <div className="h-8 flex items-center gap-1.5 px-2 rounded-lg bg-slate-800/90 border border-slate-700/80 text-[10px] shadow-inner shrink-0">
+          <StoreIcon className="w-3 h-3 text-amber-400 shrink-0" />
+          <span className="font-bold text-white truncate max-w-[90px]">
+            {workerStore?.arabicName || workerStore?.name || 'فوتوب'}
+          </span>
+          <span className={`text-[9px] px-1 py-0.2 rounded font-bold border ${theme.badgeBg}`}>
+            {theme.label}
+          </span>
+        </div>
+      );
+    }
+
     return (
-      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-800/90 border border-slate-700/80 text-xs shadow-inner">
+      <div className="h-9 flex items-center gap-1.5 px-2.5 rounded-xl bg-slate-800/90 border border-slate-700/80 text-xs shadow-inner shrink-0">
         <StoreIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
         <span className="font-bold text-white text-[11px] truncate max-w-[130px]">
           {workerStore?.arabicName || workerStore?.name || 'استوديو فوتوب'}
         </span>
-        <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold border ${theme.badgeBg}`}>
+        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${theme.badgeBg}`}>
           {theme.label}
         </span>
       </div>
     );
   }
+
+  const isCompactVariant = variant === 'compact';
 
   // Manager View: Interactive Dropdown / Switcher
   return (
@@ -106,7 +122,9 @@ export const StoreSelector: React.FC<StoreSelectorProps> = ({
           soundManager.playClickSound();
           setIsOpen(!isOpen);
         }}
-        className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-sm ${
+        className={`${
+          isCompactVariant ? 'h-8 px-2 rounded-lg text-[10px]' : 'h-9 px-2.5 sm:px-3 rounded-xl text-xs'
+        } flex items-center gap-1.5 border font-bold transition-all cursor-pointer shadow-xs shrink-0 ${
           isAllStores
             ? 'bg-purple-950/80 hover:bg-purple-900/90 border-purple-600/60 text-purple-200'
             : currentStoreId === 'store_sidiamer'
@@ -116,21 +134,23 @@ export const StoreSelector: React.FC<StoreSelectorProps> = ({
         title="تبديل المتجر أو عرض الحسابات المشتركة"
       >
         <div className="flex items-center gap-1">
-          <StoreIcon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${
+          <StoreIcon className={`${
+            isCompactVariant ? 'w-3 h-3' : 'w-3.5 h-3.5 sm:w-4 sm:h-4'
+          } ${
             isAllStores ? 'text-purple-400' : currentStoreId === 'store_sidiamer' ? 'text-[#E31C2B]' : 'text-blue-400'
           }`} />
-          <span className="truncate max-w-[110px] sm:max-w-[140px] text-[11px] sm:text-xs">
+          <span className={`truncate ${isCompactVariant ? 'max-w-[85px]' : 'max-w-[110px] sm:max-w-[140px]'}`}>
             {isAllStores 
-              ? 'كافة المتاجر (موحد)' 
+              ? (isCompactVariant ? 'شامل' : 'كافة المتاجر (موحد)') 
               : activeStore?.arabicName || activeStore?.name || 'اختر المتجر'}
           </span>
         </div>
 
-        <span className={`hidden sm:inline text-[9px] px-1.5 py-0.5 rounded font-black border ${currentTheme.badgeBg}`}>
+        <span className={`${isCompactVariant ? 'hidden' : 'hidden sm:inline'} text-[9px] px-1.5 py-0.5 rounded font-black border ${currentTheme.badgeBg}`}>
           {isAllStores ? 'شامل' : currentTheme.label}
         </span>
 
-        <ChevronDown className={`w-3 h-3 transition-transform duration-200 opacity-70 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`${isCompactVariant ? 'w-2.5 h-2.5' : 'w-3 h-3'} transition-transform duration-200 opacity-70 ${isOpen ? 'rotate-180' : ''}`} />
       </motion.button>
 
       {/* Dropdown Menu */}
