@@ -1,0 +1,18 @@
+{
+  "short_name": "Fotop ERP",
+  "name": "Fotop Studio ERP ─ نظام إدارة استوديو التصوير",
+  "icons": [
+    {
+      "src": "/fotop-logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512 any"
+    }
+  ],
+  "start_url": "/",
+  "scope": "/",
+  "background_color": "#181920",
+  "theme_color": "#E31C2B",
+  "display": "standalone",
+  "orientation": "any",
+  "description": "نظام إدارة رقمي متكامل لاستوديو التصوير والمخزون من تطوير Redox Cloud Solutions: نقطة بيع سريعة، خصم آلي للمخزون (BOM)، تتبع التالف، وإدارة الورديات."
+}

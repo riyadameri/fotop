@@ -578,39 +578,6 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             )}
 
-            {/* Live Clock & Calendar Indicator for Desktop / Computer Screens */}
-            <div className="h-9 hidden lg:flex items-center gap-2 bg-[#171820] border border-slate-700/80 rounded-xl px-2.5 text-xs text-slate-300 shadow-xs">
-              <Clock className="w-3.5 h-3.5 text-[#E31C2B] animate-pulse" />
-              <span className="font-mono font-bold text-white text-[11px] tracking-wide">
-                {formattedTimeStr}
-              </span>
-              <span className="text-slate-600">•</span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                {formattedDateStr}
-              </span>
-            </div>
-
-            {/* MongoDB Cloud Database Status Indicator */}
-            <div 
-              onClick={handleManualMongoSync}
-              className={`h-9 hidden md:flex items-center gap-1.5 border rounded-xl px-2.5 text-xs cursor-pointer transition-all shadow-xs ${
-                mongoStatus.connected
-                  ? 'bg-emerald-950/60 border-emerald-600/60 text-emerald-300 hover:bg-emerald-900/60'
-                  : 'bg-amber-950/50 border-amber-600/50 text-amber-300 hover:bg-amber-900/50'
-              }`}
-              title={
-                mongoStatus.connected 
-                  ? `قاعدة بيانات MongoDB Atlas متصلة بنجاح (${mongoStatus.database || 'fotop_studio'}). انقر للمزامنة الفورية.`
-                  : 'قاعدة بيانات MongoDB Atlas: جاري الاتصال أو تعمل في النمط المحلي الاحتياطي. انقر لإعادة المحاولة والمزامنة.'
-              }
-            >
-              <Database className={`w-3.5 h-3.5 ${mongoStatus.connected ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}`} />
-              <span className="font-bold text-[10px]">
-                {mongoStatus.connected ? 'MongoDB' : 'مزامنة'}
-              </span>
-              <RefreshCw className={`w-2.5 h-2.5 ${isSyncingMongo ? 'animate-spin text-white' : 'opacity-60'}`} />
-            </div>
-
             {/* Low Stock Quick Alert Trigger */}
             {totalLowStockCount > 0 && (
               <button

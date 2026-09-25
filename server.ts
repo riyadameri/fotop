@@ -448,6 +448,30 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Enable trust proxy for custom domains like fotop.online behind Cloudflare, Nginx, or Cloud Run
+  app.set('trust proxy', true);
+
+  // CORS, Security & Frame Embedding Headers for fotop.online
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    
+    // Allow iframe framing on fotop.online, subdomains, Google AI Studio preview, and Cloud Run
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https://fotop.online https://*.fotop.online http://localhost:* https://*.run.app https://*.google.com;");
+
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(204);
+    }
+    next();
+  });
+
   app.use(express.json());
 
   // Static assets serving so user can place logo.png in either /assets or /public/assets
@@ -1205,10 +1229,21 @@ async function startServer() {
     res.json({ salaryPayments: db.salaryPayments, expenses: db.expenses });
   });
 
+  app.get('/api/domain-info', (req, res) => {
+    res.json({
+      domain: 'fotop.online',
+      status: 'ready',
+      timestamp: new Date().toISOString(),
+      mongoConnected: isMongoConnected(),
+      app: 'Fotop Studio ERP',
+      company: 'Redox Cloud Solutions'
+    });
+  });
+
   // === Vite Middleware Integration ===
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, allowedHosts: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
