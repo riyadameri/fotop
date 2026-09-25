@@ -446,7 +446,12 @@ let db: DatabaseSchema = loadDatabase();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+
+  // Dynamic port resolution:
+  // Inside Google AI Studio preview environment, port 3000 is required because port 8000 is reserved by internal control plane.
+  // On external VPS, Docker, or production deployment, it defaults to port 8000 (or process.env.PORT).
+  const isAIStudio = Boolean(process.env.APPLET_ID || process.env.CONTROL_PLANE_PORT);
+  const PORT = isAIStudio ? 3000 : (process.env.PORT ? parseInt(process.env.PORT, 10) : 8000);
 
   // Enable trust proxy for custom domains like fotop.online behind Cloudflare, Nginx, or Cloud Run
   app.set('trust proxy', true);

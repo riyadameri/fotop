@@ -12,13 +12,15 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV PORT=8000
 
 COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/assets ./assets
 
-EXPOSE 3000
+EXPOSE 8000
 
 CMD ["node", "dist/server.cjs"]
