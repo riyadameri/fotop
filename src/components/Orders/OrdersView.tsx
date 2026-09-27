@@ -22,9 +22,15 @@ import {
   ShoppingBag,
   DollarSign,
   ArrowUpDown,
-  RotateCcw
+  RotateCcw,
+  Edit3,
+  Trash2,
+  KeyRound,
+  AlertTriangle,
+  X,
+  Check
 } from 'lucide-react';
-import { Order, OrderStatus, Staff, Material, Expense, WasteRecord } from '../../types';
+import { Order, OrderStatus, Staff, Material, Expense, WasteRecord, PaymentMethod, checkStaffPermission } from '../../types';
 import { formatCurrency, formatDate, formatTime, exportToCSV, getItemUnitCost } from '../../utils/formatters';
 import { StaffActivityJournal } from './StaffActivityJournal';
 import { OrdersReportPDFModal } from './OrdersReportPDFModal';
@@ -38,6 +44,8 @@ interface OrdersViewProps {
   wasteRecords?: WasteRecord[];
   onSelectOrderForPrint: (order: Order) => void;
   onUpdateOrderStatus: (orderId: string, newStatus: OrderStatus) => void;
+  onUpdateOrder?: (orderId: string, updatedFields: Partial<Order>) => Promise<void>;
+  onDeleteOrder?: (orderId: string) => Promise<void>;
 }
 
 type PeriodFilterPreset = 'today' | 'yesterday' | 'week' | 'month' | 'custom' | 'all';
@@ -51,7 +59,9 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   expenses = [],
   wasteRecords = [],
   onSelectOrderForPrint,
-  onUpdateOrderStatus
+  onUpdateOrderStatus,
+  onUpdateOrder,
+  onDeleteOrder
 }) => {
   const isManager = currentStaff?.role === 'manager';
 
@@ -72,6 +82,125 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   // Selected Order Modal
   const [selectedOrderDetails, setSelectedOrderDetails] = useState<Order | null>(null);
   const [showPDFReportModal, setShowPDFReportModal] = useState<boolean>(false);
+
+  // Edit Order State
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editCustomerName, setEditCustomerName] = useState<string>('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState<string>('');
+  const [editStatus, setEditStatus] = useState<OrderStatus>('pending');
+  const [editPaymentMethod, setEditPaymentMethod] = useState<PaymentMethod>('cash');
+  const [editPaidAmount, setEditPaidAmount] = useState<string>('');
+  const [editDiscount, setEditDiscount] = useState<string>('');
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [isSubmittingOrderEdit, setIsSubmittingOrderEdit] = useState<boolean>(false);
+
+  // Delete Order State
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [isDeletingOrder, setIsDeletingOrder] = useState<boolean>(false);
+
+  // Manager Password Prompt for protected actions if worker doesn't have permission
+  const [managerPrompt, setManagerPrompt] = useState<{
+    isOpen: boolean;
+    actionTitle: string;
+    onAuthorize: () => void;
+  }>({ isOpen: false, actionTitle: '', onAuthorize: () => {} });
+  const [managerPinInput, setManagerPinInput] = useState<string>('');
+  const [managerPinError, setManagerPinError] = useState<string>('');
+
+  const openEditModal = (order: Order) => {
+    setEditingOrder(order);
+    setEditCustomerName(order.customerName || '');
+    setEditCustomerPhone(order.customerPhone || '');
+    setEditStatus(order.status);
+    setEditPaymentMethod(order.paymentMethod);
+    setEditPaidAmount(String(order.paidAmount || 0));
+    setEditDiscount(String(order.discount || 0));
+    setEditNotes(order.notes || '');
+  };
+
+  const handleAttemptEdit = (order: Order) => {
+    const hasPerm = checkStaffPermission(currentStaff, 'canEditOrders');
+    if (hasPerm) {
+      openEditModal(order);
+    } else {
+      setManagerPinInput('');
+      setManagerPinError('');
+      setManagerPrompt({
+        isOpen: true,
+        actionTitle: `تعديل تفاصيل الطلب رقم ${order.ticketNumber}`,
+        onAuthorize: () => openEditModal(order)
+      });
+    }
+  };
+
+  const handleAttemptDelete = (order: Order) => {
+    const hasPerm = checkStaffPermission(currentStaff, 'canDeleteOrders');
+    if (hasPerm) {
+      setOrderToDelete(order);
+    } else {
+      setManagerPinInput('');
+      setManagerPinError('');
+      setManagerPrompt({
+        isOpen: true,
+        actionTitle: `حذف الطلب رقم ${order.ticketNumber} نهائياً`,
+        onAuthorize: () => setOrderToDelete(order)
+      });
+    }
+  };
+
+  const handleVerifyManagerPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (managerPinInput === 'fouad26911' || managerPinInput === 'admin') {
+      const authAction = managerPrompt.onAuthorize;
+      setManagerPrompt({ isOpen: false, actionTitle: '', onAuthorize: () => {} });
+      authAction();
+    } else {
+      setManagerPinError('كلمة مرور المدير غير صحيحة! يرجى التحقق وإعادة المحاولة.');
+    }
+  };
+
+  const handleSaveOrderEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOrder || !onUpdateOrder) return;
+    setIsSubmittingOrderEdit(true);
+    try {
+      const disc = Math.max(0, Number(editDiscount) || 0);
+      const newTotal = Math.max(0, editingOrder.subtotal - disc);
+      const paid = Math.min(newTotal, Math.max(0, Number(editPaidAmount) || 0));
+
+      await onUpdateOrder(editingOrder.id, {
+        customerName: editCustomerName.trim() || 'زبون عام',
+        customerPhone: editCustomerPhone.trim(),
+        status: editStatus,
+        paymentMethod: editPaymentMethod,
+        discount: disc,
+        total: newTotal,
+        paidAmount: paid,
+        notes: editNotes.trim(),
+      });
+      setEditingOrder(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmittingOrderEdit(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!orderToDelete || !onDeleteOrder) return;
+    setIsDeletingOrder(true);
+    try {
+      await onDeleteOrder(orderToDelete.id);
+      if (selectedOrderDetails?.id === orderToDelete.id) {
+        setSelectedOrderDetails(null);
+      }
+      setOrderToDelete(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeletingOrder(false);
+    }
+  };
 
   // Status Filter Options
   const statusOptions: { id: string; label: string }[] = [
@@ -858,7 +987,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                               <button
                                 onClick={() => setSelectedOrderDetails(order)}
                                 className="p-1.5 rounded-lg bg-[#F0F0F0] hover:bg-slate-200 text-[#292A34] transition-colors cursor-pointer"
-                                title="تفاصيل الطلب"
+                                title="عرض تفاصيل الطلب"
                               >
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
@@ -869,6 +998,24 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                               >
                                 <Printer className="w-3.5 h-3.5" />
                               </button>
+                              {onUpdateOrder && (
+                                <button
+                                  onClick={() => handleAttemptEdit(order)}
+                                  className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer"
+                                  title="تعديل بيانات وأسعار الطلب"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {onDeleteOrder && (
+                                <button
+                                  onClick={() => handleAttemptDelete(order)}
+                                  className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer"
+                                  title="حذف الطلب نهائياً"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           </td>
 
@@ -995,21 +1142,41 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
                           <button
                             onClick={() => setSelectedOrderDetails(order)}
-                            className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-[#292A34] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                            className="px-2 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-[#292A34] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                            title="تفاصيل"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            <span>تفاصيل</span>
+                            <span className="hidden xs:inline">تفاصيل</span>
                           </button>
                           <button
                             onClick={() => onSelectOrderForPrint(order)}
-                            className="px-2.5 py-1.5 rounded-xl bg-[#E31C2B] hover:bg-[#c91422] text-white text-xs font-bold transition-colors shadow-xs cursor-pointer flex items-center gap-1"
+                            className="px-2 py-1.5 rounded-xl bg-[#E31C2B] hover:bg-[#c91422] text-white text-xs font-bold transition-colors shadow-xs cursor-pointer flex items-center gap-1"
+                            title="طباعة"
                           >
                             <Printer className="w-3.5 h-3.5" />
-                            <span>طباعة</span>
+                            <span className="hidden xs:inline">طباعة</span>
                           </button>
+                          {onUpdateOrder && (
+                            <button
+                              onClick={() => handleAttemptEdit(order)}
+                              className="p-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition-colors cursor-pointer"
+                              title="تعديل الطلب"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {onDeleteOrder && (
+                            <button
+                              onClick={() => handleAttemptDelete(order)}
+                              className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer"
+                              title="حذف الطلب"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -1131,26 +1298,300 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                 </div>
               )}
 
-              <div className="pt-3 flex items-center justify-between border-t border-slate-200">
-                <button
-                  onClick={() => {
-                    onSelectOrderForPrint(selectedOrderDetails);
-                    setSelectedOrderDetails(null);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-[#E31C2B] hover:bg-[#c91422] text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-md"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>طباعة الوصل</span>
-                </button>
+              <div className="pt-3 flex items-center justify-between border-t border-slate-200 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      onSelectOrderForPrint(selectedOrderDetails);
+                      setSelectedOrderDetails(null);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-[#E31C2B] hover:bg-[#c91422] text-white font-bold flex items-center gap-1.5 cursor-pointer shadow-md text-xs"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>طباعة الوصل</span>
+                  </button>
+
+                  {onUpdateOrder && (
+                    <button
+                      onClick={() => {
+                        const ord = selectedOrderDetails;
+                        setSelectedOrderDetails(null);
+                        handleAttemptEdit(ord);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 cursor-pointer text-xs"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      <span>تعديل الطلب</span>
+                    </button>
+                  )}
+
+                  {onDeleteOrder && (
+                    <button
+                      onClick={() => {
+                        const ord = selectedOrderDetails;
+                        setSelectedOrderDetails(null);
+                        handleAttemptDelete(ord);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold flex items-center gap-1.5 cursor-pointer text-xs"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>حذف الطلب</span>
+                    </button>
+                  )}
+                </div>
+
                 <button
                   onClick={() => setSelectedOrderDetails(null)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer text-xs"
                 >
                   إغلاق
                 </button>
               </div>
 
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Order Modal */}
+      {editingOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in" dir="rtl">
+          <div className="bg-white border border-slate-300 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="bg-[#292A34] text-white px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-[#E31C2B]" />
+                <div>
+                  <h3 className="text-sm font-black">تعديل بيانات الطلب ({editingOrder.ticketNumber})</h3>
+                  <p className="text-[11px] text-slate-400">تحديث الزبون، الأسعار، الدفع، والحالة مباشرة</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setEditingOrder(null)}
+                className="text-slate-400 hover:text-white font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveOrderEdit} className="p-5 space-y-3.5 text-xs font-medium max-h-[80vh] overflow-y-auto">
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 block mb-1 font-bold">اسم الزبون</label>
+                  <input
+                    type="text"
+                    required
+                    value={editCustomerName}
+                    onChange={(e) => setEditCustomerName(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-700 block mb-1 font-bold">رقم الهاتف</label>
+                  <input
+                    type="tel"
+                    value={editCustomerPhone}
+                    onChange={(e) => setEditCustomerPhone(e.target.value)}
+                    placeholder="05XXXXXXXX"
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono focus:outline-none focus:border-[#E31C2B]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 block mb-1 font-bold">حالة الطلب</label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as OrderStatus)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B]"
+                  >
+                    <option value="pending">قيد الانتظار</option>
+                    <option value="processing">قيد التجهيز</option>
+                    <option value="ready">جاهز للاستلام</option>
+                    <option value="delivered">تم التسليم</option>
+                    <option value="cancelled">ملغي</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-700 block mb-1 font-bold">طريقة الدفع</label>
+                  <select
+                    value={editPaymentMethod}
+                    onChange={(e) => setEditPaymentMethod(e.target.value as PaymentMethod)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B]"
+                  >
+                    <option value="cash">نقداً (كاش)</option>
+                    <option value="card">بطاقة بنكية / CIB</option>
+                    <option value="transfer">تحويل بريدي / بريدي موب</option>
+                    <option value="credit">آجل (كريدي)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between text-slate-700">
+                  <span className="font-bold">المجموع الفرعي للخدمات:</span>
+                  <span className="font-mono font-black text-[#292A34]">{formatCurrency(editingOrder.subtotal)}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-slate-700 block mb-1 font-bold">قيمة الخصم (دج)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editDiscount}
+                      onChange={(e) => setEditDiscount(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-[#E31C2B]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-700 block mb-1 font-bold">المبلغ المدفوع (دج)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editPaidAmount}
+                      onChange={(e) => setEditPaidAmount(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-[#E31C2B]"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                  <span className="font-black text-[#292A34]">الإجمالي بعد الخصم:</span>
+                  <span className="font-mono font-black text-sm text-[#E31C2B]">
+                    {formatCurrency(Math.max(0, editingOrder.subtotal - (Number(editDiscount) || 0)))}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-700 block mb-1 font-bold">ملاحظات الطلب والتعليمات</label>
+                <textarea
+                  rows={2}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] focus:outline-none focus:border-[#E31C2B]"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingOrder(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingOrderEdit}
+                  className="px-5 py-2 rounded-xl bg-[#E31C2B] hover:bg-[#c91422] text-white font-black shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingOrderEdit ? 'جاري الحفظ...' : 'حفظ التعديلات في MongoDB'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Order Confirmation Modal */}
+      {orderToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in" dir="rtl">
+          <div className="bg-white border border-slate-300 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-[#292A34]">تأكيد حذف المعاملة / الطلب</h3>
+                <p className="text-xs text-slate-500">هذا الإجراء سيحذف الطلب نهائياً من قاعدة بيانات MongoDB</p>
+              </div>
+            </div>
+
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-900 space-y-1">
+              <div><strong>رقم التذكرة:</strong> {orderToDelete.ticketNumber}</div>
+              <div><strong>الزبون:</strong> {orderToDelete.customerName}</div>
+              <div><strong>المبلغ:</strong> {formatCurrency(orderToDelete.total)}</div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setOrderToDelete(null)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold text-xs"
+              >
+                تراجع
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingOrder}
+                onClick={handleConfirmDelete}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingOrder ? 'جاري الحذف...' : 'نعم، حذف الطلب نهائياً'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manager Permission PIN Prompt Modal */}
+      {managerPrompt.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in" dir="rtl">
+          <div className="bg-white border border-slate-300 w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-amber-700">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-[#292A34]">صلاحية مدير الاستوديو مطلوبة</h3>
+                <p className="text-[11px] text-slate-500">{managerPrompt.actionTitle}</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleVerifyManagerPin} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  أدخل كلمة مرور المدير (PIN) للتفويض:
+                </label>
+                <input
+                  type="password"
+                  autoFocus
+                  required
+                  value={managerPinInput}
+                  onChange={(e) => {
+                    setManagerPinInput(e.target.value);
+                    setManagerPinError('');
+                  }}
+                  placeholder="كلمة مرور المدير..."
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-center text-sm font-mono tracking-widest text-[#292A34] focus:outline-none focus:border-[#E31C2B]"
+                />
+                {managerPinError && (
+                  <p className="text-[11px] text-rose-600 font-bold mt-1">{managerPinError}</p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setManagerPrompt({ isOpen: false, actionTitle: '', onAuthorize: () => {} })}
+                  className="px-3 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold text-xs"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-[#292A34] hover:bg-slate-800 text-white font-black text-xs cursor-pointer"
+                >
+                  تأكيد وتفويض الإجراء
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -1172,4 +1613,5 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     </div>
   );
 };
+
 

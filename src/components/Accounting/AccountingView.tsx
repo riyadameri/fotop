@@ -52,7 +52,7 @@ import {
   Cell,
   Legend
 } from 'recharts';
-import { Order, Material, WasteRecord, Expense, Staff, Shift, AttendanceRecord, SalaryPayment, Store } from '../../types';
+import { Order, Material, WasteRecord, Expense, Staff, Shift, AttendanceRecord, SalaryPayment, Store, checkStaffPermission } from '../../types';
 import { formatCurrency, formatDate, formatTime, exportToCSV, getItemUnitCost } from '../../utils/formatters';
 
 interface AccountingViewProps {
@@ -66,6 +66,8 @@ interface AccountingViewProps {
   attendanceLogs?: AttendanceRecord[];
   salaryPayments?: SalaryPayment[];
   onAddExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => void;
+  onUpdateExpense?: (id: string, expense: Partial<Expense>) => Promise<void>;
+  onDeleteExpense?: (id: string) => Promise<void>;
   onAddStaff?: (newStaff: Staff) => void;
   onUpdateStaff?: (updated: Staff) => void;
   onDeleteStaff?: (staffId: string) => void;
@@ -74,6 +76,7 @@ interface AccountingViewProps {
   onAddSalaryPayment?: (payment: Partial<SalaryPayment> & { recordAsStudioExpense?: boolean }) => Promise<void>;
   onUpdateSalaryPayment?: (id: string, payment: Partial<SalaryPayment>) => Promise<void>;
   onDeleteSalaryPayment?: (id: string) => Promise<void>;
+  onDeleteStore?: (id: string) => Promise<void>;
   currentStoreId?: string;
   stores?: Store[];
 }
@@ -106,6 +109,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   attendanceLogs = [],
   salaryPayments = [],
   onAddExpense,
+  onUpdateExpense,
+  onDeleteExpense,
   onAddStaff,
   onUpdateStaff = (_updated: Staff) => {},
   onDeleteStaff,
@@ -114,6 +119,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   onAddSalaryPayment = async () => {},
   onUpdateSalaryPayment = async () => {},
   onDeleteSalaryPayment = async () => {},
+  onDeleteStore,
   currentStoreId,
   stores = [],
 }) => {
@@ -136,11 +142,65 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   const [showPDFReportModal, setShowPDFReportModal] = useState<boolean>(false);
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
 
+  // Edit Expense State
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editExpenseTitle, setEditExpenseTitle] = useState<string>('');
+  const [editExpenseAmount, setEditExpenseAmount] = useState<string>('');
+  const [editExpenseCategory, setEditExpenseCategory] = useState<Expense['category']>('materials');
+  const [editExpenseNotes, setEditExpenseNotes] = useState<string>('');
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+  const [isDeletingExpense, setIsDeletingExpense] = useState<boolean>(false);
+  const [isSubmittingExpenseEdit, setIsSubmittingExpenseEdit] = useState<boolean>(false);
+
   // New Expense form state
   const [expenseTitle, setExpenseTitle] = useState<string>('');
   const [expenseAmount, setExpenseAmount] = useState<string>('');
   const [expenseCategory, setExpenseCategory] = useState<Expense['category']>('materials');
   const [expenseNotes, setExpenseNotes] = useState<string>('');
+
+  const handleAttemptEditExpense = (exp: Expense) => {
+    setEditingExpense(exp);
+    setEditExpenseTitle(exp.title || '');
+    setEditExpenseAmount(String(exp.amount || ''));
+    setEditExpenseCategory(exp.category);
+    setEditExpenseNotes(exp.notes || '');
+  };
+
+  const handleAttemptDeleteExpense = (exp: Expense) => {
+    setExpenseToDelete(exp);
+  };
+
+  const handleSaveExpenseEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExpense || !onUpdateExpense) return;
+    setIsSubmittingExpenseEdit(true);
+    try {
+      await onUpdateExpense(editingExpense.id, {
+        title: editExpenseTitle.trim(),
+        amount: Number(editExpenseAmount) || 0,
+        category: editExpenseCategory,
+        notes: editExpenseNotes.trim(),
+      });
+      setEditingExpense(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmittingExpenseEdit(false);
+    }
+  };
+
+  const handleConfirmDeleteExpense = async () => {
+    if (!expenseToDelete || !onDeleteExpense) return;
+    setIsDeletingExpense(true);
+    try {
+      await onDeleteExpense(expenseToDelete.id);
+      setExpenseToDelete(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeletingExpense(false);
+    }
+  };
 
   // New Staff form state (With rich Work Schedule, Store assignment & Hourly Rate Builder)
   const defaultWorkerStore = (currentStoreId && currentStoreId !== 'all') ? currentStoreId : 'store_sidiamer';
@@ -1586,7 +1646,8 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                   <th className="p-3">بيان المصروف</th>
                   <th className="p-3">التصنيف</th>
                   <th className="p-3">العامل / المسجل</th>
-                  <th className="p-3 text-center rounded-l-xl">المبلغ</th>
+                  <th className="p-3 text-center">المبلغ</th>
+                  <th className="p-3 text-center rounded-l-xl">إجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -1607,6 +1668,28 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                     <td className="p-3 text-slate-600">{e.staffName}</td>
                     <td className="p-3 text-center font-mono font-black text-rose-600">
                       -{formatCurrency(e.amount)}
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {onUpdateExpense && (
+                          <button
+                            onClick={() => handleAttemptEditExpense(e)}
+                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 cursor-pointer"
+                            title="تعديل المصروف"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {onDeleteExpense && (
+                          <button
+                            onClick={() => handleAttemptDeleteExpense(e)}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer"
+                            title="حذف المصروف"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1640,9 +1723,164 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                     {e.notes}
                   </div>
                 )}
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                  {onUpdateExpense && (
+                    <button
+                      onClick={() => handleAttemptEditExpense(e)}
+                      className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>تعديل</span>
+                    </button>
+                  )}
+                  {onDeleteExpense && (
+                    <button
+                      onClick={() => handleAttemptDeleteExpense(e)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>حذف</span>
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
+
+          {/* Edit Expense Modal */}
+          {editingExpense && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in" dir="rtl">
+              <div className="bg-white border border-slate-300 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+                <div className="bg-[#292A34] text-white px-5 py-4 flex items-center justify-between border-b-2 border-blue-500">
+                  <div className="flex items-center gap-2">
+                    <Edit2 className="w-5 h-5 text-blue-400" />
+                    <div>
+                      <h3 className="text-sm font-black">تعديل بيانات المصروف</h3>
+                      <p className="text-[11px] text-slate-400">تحديث المبلغ والتصنيف وملاحظات الفاتورة</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setEditingExpense(null)}
+                    className="text-slate-400 hover:text-white font-bold p-1 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveExpenseEdit} className="p-5 space-y-3.5 text-xs font-medium">
+                  <div>
+                    <label className="text-slate-700 block mb-1 font-bold">بيان المصروف / الوصف</label>
+                    <input
+                      type="text"
+                      required
+                      value={editExpenseTitle}
+                      onChange={(e) => setEditExpenseTitle(e.target.value)}
+                      className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-slate-700 block mb-1 font-bold">المبلغ (دج)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        required
+                        value={editExpenseAmount}
+                        onChange={(e) => setEditExpenseAmount(e.target.value)}
+                        className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-slate-700 block mb-1 font-bold">التصنيف</label>
+                      <select
+                        value={editExpenseCategory}
+                        onChange={(e) => setEditExpenseCategory(e.target.value as any)}
+                        className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="materials">شراء مواد خام</option>
+                        <option value="maintenance">صيانة طابعات وآلات</option>
+                        <option value="utilities">كهرباء وإنترنت وفواتير</option>
+                        <option value="tea_coffee">شاي وضيافة ومأكولات</option>
+                        <option value="salary">أجور ومستحقات</option>
+                        <option value="other">مصاريف أخرى</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-slate-700 block mb-1 font-bold">ملاحظات الفاتورة</label>
+                    <textarea
+                      rows={2}
+                      value={editExpenseNotes}
+                      onChange={(e) => setEditExpenseNotes(e.target.value)}
+                      placeholder="رقم الفاتورة أو اسم المحل..."
+                      className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setEditingExpense(null)}
+                      className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingExpenseEdit}
+                      className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-md cursor-pointer disabled:opacity-50"
+                    >
+                      {isSubmittingExpenseEdit ? 'جاري الحفظ...' : 'حفظ التعديل في MongoDB'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Delete Expense Confirmation Modal */}
+          {expenseToDelete && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in" dir="rtl">
+              <div className="bg-white border border-slate-300 w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4 animate-in zoom-in-95">
+                <div className="flex items-center gap-3 text-rose-600">
+                  <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                    <Trash2 className="w-5 h-5 text-rose-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-[#292A34]">تأكيد حذف المصروف</h3>
+                    <p className="text-xs text-slate-500">سيتم حذف هذا المصروف نهائياً من قاعدة بيانات MongoDB</p>
+                  </div>
+                </div>
+
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-900 space-y-1">
+                  <div><strong>البيان:</strong> {expenseToDelete.title}</div>
+                  <div><strong>المبلغ:</strong> {formatCurrency(expenseToDelete.amount)}</div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setExpenseToDelete(null)}
+                    className="px-3 py-1.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold text-xs"
+                  >
+                    تراجع
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isDeletingExpense}
+                    onClick={handleConfirmDeleteExpense}
+                    className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md cursor-pointer disabled:opacity-50"
+                  >
+                    {isDeletingExpense ? 'جاري الحذف...' : 'تأكيد الحذف'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       )}
 

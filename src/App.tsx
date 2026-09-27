@@ -654,6 +654,17 @@ export function App() {
     }
   };
 
+  // Delete Material
+  const handleDeleteMaterial = async (id: string) => {
+    setMaterials(prev => (prev || []).filter(m => m.id !== id));
+    try {
+      const updatedList = await api.deleteMaterial(id);
+      if (updatedList) setMaterials(updatedList);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Shifts Operations
   const handleOpenShift = async (staffId: string, staffName: string, openingCash: number, optStoreId?: string, optStoreName?: string) => {
     const targetStoreId = optStoreId || (currentStaff.role === 'worker' && currentStaff.storeId 
@@ -706,6 +717,28 @@ export function App() {
 
     try {
       const updated = await api.closeShift(shiftId, actualCash, notes);
+      if (updated) setShifts(updated);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Update Shift
+  const handleUpdateShift = async (shiftId: string, updatedFields: Partial<Shift>) => {
+    setShifts(prev => (prev || []).map(s => (s.id === shiftId ? { ...s, ...updatedFields } : s)));
+    try {
+      const updated = await api.updateShift(shiftId, updatedFields);
+      if (updated) setShifts(updated);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Delete Shift
+  const handleDeleteShift = async (shiftId: string) => {
+    setShifts(prev => (prev || []).filter(s => s.id !== shiftId));
+    try {
+      const updated = await api.deleteShift(shiftId);
       if (updated) setShifts(updated);
     } catch (e) {
       console.error(e);
@@ -773,6 +806,88 @@ export function App() {
     try {
       const updated = await api.updateOrderStatus(orderId, newStatus);
       if (updated) setOrders(updated);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Full Order Update (Edit Customer, Items, Notes, Amounts)
+  const handleUpdateOrder = async (orderId: string, updatedFields: Partial<Order>) => {
+    setOrders(prev => (prev || []).map(o => (o.id === orderId ? { ...o, ...updatedFields } : o)));
+    try {
+      const res = await api.updateOrder(orderId, updatedFields);
+      if (res?.orders) setOrders(res.orders);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Delete Order
+  const handleDeleteOrder = async (orderId: string) => {
+    setOrders(prev => (prev || []).filter(o => o.id !== orderId));
+    try {
+      const res = await api.deleteOrder(orderId);
+      if (res?.orders) setOrders(res.orders);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Update Expense
+  const handleUpdateExpense = async (id: string, updatedExp: Partial<Expense>) => {
+    setExpenses(prev => (prev || []).map(e => (e.id === id ? { ...e, ...updatedExp } : e)));
+    try {
+      const res = await api.updateExpense(id, updatedExp);
+      if (res?.expenses) setExpenses(res.expenses);
+      if (res?.shifts) setShifts(res.shifts);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Delete Expense
+  const handleDeleteExpense = async (id: string) => {
+    setExpenses(prev => (prev || []).filter(e => e.id !== id));
+    try {
+      const res = await api.deleteExpense(id);
+      if (res?.expenses) setExpenses(res.expenses);
+      if (res?.shifts) setShifts(res.shifts);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Update Waste Record
+  const handleUpdateWasteRecord = async (id: string, updatedRecord: Partial<WasteRecord>) => {
+    setWasteRecords(prev => (prev || []).map(w => (w.id === id ? { ...w, ...updatedRecord } : w)));
+    try {
+      const res = await api.updateWasteRecord(id, updatedRecord);
+      if (res?.wasteRecords) setWasteRecords(res.wasteRecords);
+      if (res?.materials) setMaterials(res.materials);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Delete Waste Record
+  const handleDeleteWasteRecord = async (id: string) => {
+    setWasteRecords(prev => (prev || []).filter(w => w.id !== id));
+    try {
+      const res = await api.deleteWasteRecord(id);
+      if (res?.wasteRecords) setWasteRecords(res.wasteRecords);
+      if (res?.materials) setMaterials(res.materials);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Delete Store
+  const handleDeleteStore = async (storeId: string) => {
+    if (storeId === 'store_sidiamer') return;
+    setStores(prev => (prev || []).filter(s => s.id !== storeId));
+    try {
+      const updated = await api.deleteStore(storeId);
+      if (updated) setStores(updated);
     } catch (e) {
       console.error(e);
     }
@@ -1051,6 +1166,9 @@ export function App() {
                       activeShift={activeShift}
                       orders={filteredOrders || []}
                       onCheckoutOrder={handleCheckoutOrder}
+                      onAddService={handleAddService}
+                      onUpdateService={handleUpdateService}
+                      onDeleteService={handleDeleteService}
                       onPrintLastReceipt={() => {
                         if (filteredOrders.length > 0) {
                           setPrintedOrder(filteredOrders[0]);
@@ -1066,6 +1184,7 @@ export function App() {
                       currentStaff={currentStaff}
                       onUpdateMaterial={handleUpdateMaterial}
                       onAddMaterial={handleAddMaterial}
+                      onDeleteMaterial={handleDeleteMaterial}
                       onRestock={handleRestock}
                       onAddService={handleAddService}
                       onUpdateService={handleUpdateService}
@@ -1081,6 +1200,8 @@ export function App() {
                       staffList={filteredStaffList || []}
                       currentStaff={currentStaff}
                       onAddWasteRecord={handleAddWasteRecord}
+                      onUpdateWasteRecord={handleUpdateWasteRecord}
+                      onDeleteWasteRecord={handleDeleteWasteRecord}
                     />
                   )}
 
@@ -1093,6 +1214,8 @@ export function App() {
                       onOpenShift={handleOpenShift}
                       onCloseShift={handleCloseShift}
                       onSwitchStaff={setCurrentStaff}
+                      onUpdateShift={handleUpdateShift}
+                      onDeleteShift={handleDeleteShift}
                     />
                   )}
 
@@ -1124,6 +1247,8 @@ export function App() {
                       attendanceLogs={filteredAttendanceLogs || []}
                       salaryPayments={filteredSalaryPayments || []}
                       onAddExpense={handleAddExpense}
+                      onUpdateExpense={handleUpdateExpense}
+                      onDeleteExpense={handleDeleteExpense}
                       onAddStaff={handleAddStaff}
                       onUpdateStaff={handleUpdateStaff}
                       onDeleteStaff={handleDeleteStaff}
@@ -1147,6 +1272,8 @@ export function App() {
                       wasteRecords={filteredWasteRecords || []}
                       onSelectOrderForPrint={setPrintedOrder}
                       onUpdateOrderStatus={handleUpdateOrderStatus}
+                      onUpdateOrder={handleUpdateOrder}
+                      onDeleteOrder={handleDeleteOrder}
                     />
                   )}
 

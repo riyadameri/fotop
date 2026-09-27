@@ -34,7 +34,11 @@ import {
   Keyboard,
   Printer,
   HelpCircle,
-  Zap
+  Zap,
+  Edit3,
+  Check,
+  X,
+  Camera
 } from 'lucide-react';
 import { ServiceItem, CartItem, Material, Order, PaymentMethod, Shift, Staff } from '../../types';
 import { 
@@ -56,6 +60,9 @@ interface PosViewProps {
   orders?: Order[];
   onCheckoutOrder: (orderData: Omit<Order, 'id' | 'ticketNumber' | 'createdAt'>) => void;
   onPrintLastReceipt?: () => void;
+  onAddService?: (newService: ServiceItem) => void;
+  onUpdateService?: (updatedService: ServiceItem) => void;
+  onDeleteService?: (serviceId: string) => void;
 }
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -81,12 +88,41 @@ export const PosView: React.FC<PosViewProps> = ({
   currentStaff,
   activeShift,
   orders = [],
-  onCheckoutOrder
+  onCheckoutOrder,
+  onAddService,
+  onUpdateService,
+  onDeleteService
 }) => {
   const isManager = currentStaff?.role === 'manager';
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>([]);
+
+  // Quick Edit and Delete Product in POS State
+  const [editingService, setEditingService] = useState<ServiceItem | null>(null);
+  const [editServiceName, setEditServiceName] = useState<string>('');
+  const [editServicePrice, setEditServicePrice] = useState<string>('');
+  const [editServiceBuyCost, setEditServiceBuyCost] = useState<string>('');
+  const [editServiceStock, setEditServiceStock] = useState<string>('');
+  const [editServiceDescription, setEditServiceDescription] = useState<string>('');
+  const [editServiceImageUrl, setEditServiceImageUrl] = useState<string>('');
+  const [serviceToDelete, setServiceToDelete] = useState<ServiceItem | null>(null);
+
+  const handleOpenEditProduct = (e: React.MouseEvent, s: ServiceItem) => {
+    e.stopPropagation();
+    setEditingService(s);
+    setEditServiceName(s.name);
+    setEditServicePrice(String(s.price));
+    setEditServiceBuyCost(String(s.buyCost ?? 0));
+    setEditServiceStock(String(s.currentStock ?? 0));
+    setEditServiceDescription(s.description || '');
+    setEditServiceImageUrl(s.imageUrl || '');
+  };
+
+  const handleOpenDeleteProduct = (e: React.MouseEvent, s: ServiceItem) => {
+    e.stopPropagation();
+    setServiceToDelete(s);
+  };
   
   // Worker Today's Performance (إجمالي مبيعات العامل اليومية)
   const todayStr = new Date().toISOString().split('T')[0];
@@ -402,14 +438,41 @@ export const PosView: React.FC<PosViewProps> = ({
                       </div>
                     )}
 
-                    {/* Top Bar: Icon + Price */}
+                    {/* Top Bar: Icon + Action Buttons (Edit/Delete) + Price */}
                     <div className="flex items-start justify-between gap-2 mb-2.5">
-                      <div className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all shadow-inner ${
-                        isDirectSale
-                          ? 'bg-emerald-50 border-emerald-200 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white'
-                          : 'bg-[#F0F0F0] border-slate-200 text-[#E31C2B] group-hover:bg-[#E31C2B] group-hover:text-white'
-                      }`}>
-                        <Icon className="w-5 h-5" />
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all shadow-inner ${
+                          isDirectSale
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 group-hover:bg-emerald-600 group-hover:text-white'
+                            : 'bg-[#F0F0F0] border-slate-200 text-[#E31C2B] group-hover:bg-[#E31C2B] group-hover:text-white'
+                        }`}>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        {/* Quick Edit & Delete Icons for Staff & Manager */}
+                        {(onUpdateService || onDeleteService) && (
+                          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                            {onUpdateService && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleOpenEditProduct(e, service)}
+                                className="p-1 rounded-lg bg-slate-100 hover:bg-blue-100 text-slate-500 hover:text-blue-700 transition-colors shadow-2xs cursor-pointer"
+                                title="تعديل السعر أو بيانات المنتج"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {onDeleteService && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleOpenDeleteProduct(e, service)}
+                                className="p-1 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-700 transition-colors shadow-2xs cursor-pointer"
+                                title="حذف هذا المنتج"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="text-right">
                         <div className="text-lg font-black text-[#E31C2B] font-mono">
@@ -457,6 +520,27 @@ export const PosView: React.FC<PosViewProps> = ({
                         )}
                       </div>
                     )}
+
+                    {/* Linked Photo Product: Ink Cost Per Sheet */}
+                    {service.photoConfig && (() => {
+                      const cfg = service.photoConfig;
+                      const iMat = materials.find(m => m.id === cfg.inkMaterialId);
+                      const pPerSheet = cfg.photosPerSheet || 1;
+                      const iCostPerPhoto = iMat 
+                        ? (iMat.unitCost * (100 / (cfg.inkYieldPhotos || 1)))
+                        : (cfg.inkPerPhotoMl && iMat ? iMat.unitCost * cfg.inkPerPhotoMl : 0);
+                      const iCostPerSheet = iCostPerPhoto * pPerSheet;
+
+                      return (
+                        <div className="mb-2 py-1 px-2.5 rounded-lg bg-amber-50/90 border border-amber-200 text-amber-900 flex items-center justify-between text-[10px]">
+                          <span className="font-bold flex items-center gap-1.5 text-amber-900">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            <span>تكلفة حبر الورقة:</span>
+                          </span>
+                          <span className="font-mono font-black text-amber-800 text-[11px]">{formatCurrency(iCostPerSheet)}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Bottom BOM or Good Deduction Badge */}
@@ -789,6 +873,220 @@ export const PosView: React.FC<PosViewProps> = ({
               <span className="bg-white/20 px-2 py-0.5 rounded-lg text-[10px]">إتمام المحاسبة ↵</span>
             </div>
           </button>
+        </div>
+      )}
+
+      {/* Quick Edit Product Modal in POS */}
+      {editingService && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs" dir="rtl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white border border-slate-300 w-full max-w-md rounded-2xl shadow-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-100 text-blue-700 rounded-xl">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-[#292A34]">تعديل بيانات وسعر السلعة</h3>
+                  <p className="text-[11px] text-slate-500">{editingService.name}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingService(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!editingService || !onUpdateService) return;
+                const updated: ServiceItem = {
+                  ...editingService,
+                  name: editServiceName.trim() || editingService.name,
+                  price: Number(editServicePrice) || editingService.price,
+                  buyCost: Number(editServiceBuyCost) >= 0 ? Number(editServiceBuyCost) : editingService.buyCost,
+                  currentStock: Number(editServiceStock) >= 0 ? Number(editServiceStock) : editingService.currentStock,
+                  description: editServiceDescription.trim() || editingService.description,
+                  imageUrl: editServiceImageUrl.trim() || undefined,
+                };
+                onUpdateService(updated);
+                setEditingService(null);
+              }}
+              className="space-y-3 text-xs font-bold"
+            >
+              <div>
+                <label className="text-slate-700 block mb-1">اسم المنتج أو الخدمة *</label>
+                <input
+                  type="text"
+                  required
+                  value={editServiceName}
+                  onChange={(e) => setEditServiceName(e.target.value)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 block mb-1">سعر الشراء / التكلفة (دج)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={editServiceBuyCost}
+                    onChange={(e) => setEditServiceBuyCost(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-700 block mb-1">سعر البيع للزبون (دج) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="1"
+                    value={editServicePrice}
+                    onChange={(e) => setEditServicePrice(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-emerald-700 font-mono font-black focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Linked Product Info in POS Edit Modal */}
+              {editingService.photoConfig && (() => {
+                const cfg = editingService.photoConfig;
+                const iMat = materials.find(m => m.id === cfg.inkMaterialId);
+                const pMat = materials.find(m => m.id === cfg.paperMaterialId);
+                const pPerSheet = cfg.photosPerSheet || 1;
+                const iCostPerPhoto = iMat 
+                  ? (iMat.unitCost * (100 / (cfg.inkYieldPhotos || 1)))
+                  : (cfg.inkPerPhotoMl && iMat ? iMat.unitCost * cfg.inkPerPhotoMl : 0);
+                const iCostPerSheet = iCostPerPhoto * pPerSheet;
+                const pCostPerSheet = pMat ? pMat.unitCost : 0;
+                const totalCostSheet = pCostPerSheet + iCostPerSheet;
+
+                return (
+                  <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-2.5 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between text-amber-900 font-bold">
+                      <span className="text-[11px]">منتج ارتباطي (ورق + حبر):</span>
+                      <span className="text-[10px] font-mono bg-amber-200/80 px-2 py-0.5 rounded-full font-bold">
+                        مقاس {cfg.paperSize} ({pPerSheet} صور/ورقة)
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                      <div className="bg-white p-1.5 rounded-lg border border-amber-300">
+                        <span className="text-amber-800 font-bold block">تكلفة الحبر للورقة</span>
+                        <strong className="font-mono text-amber-800 font-black text-xs block">{formatCurrency(iCostPerSheet)}</strong>
+                      </div>
+                      <div className="bg-white p-1.5 rounded-lg border border-amber-200">
+                        <span className="text-slate-500 block">تكلفة الورقة الخام</span>
+                        <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(pCostPerSheet)}</strong>
+                      </div>
+                      <div className="bg-white p-1.5 rounded-lg border border-amber-200">
+                        <span className="text-slate-500 block">إجمالي تكلفة الورقة</span>
+                        <strong className="font-mono text-slate-900 font-black text-xs block">{formatCurrency(totalCostSheet)}</strong>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {editingService.itemType === 'direct_sale' && (
+                <div>
+                  <label className="text-slate-700 block mb-1">الرصيد المتاح بالمخزن (قطعة)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editServiceStock}
+                    onChange={(e) => setEditServiceStock(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="text-slate-700 block mb-1">رابط صورة المنتج (اختياري)</label>
+                <input
+                  type="url"
+                  value={editServiceImageUrl}
+                  onChange={(e) => setEditServiceImageUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono text-[11px] focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingService(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>حفظ التعديل</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Product Confirmation Modal in POS */}
+      {serviceToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs" dir="rtl" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white border border-slate-300 w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 bg-rose-100 rounded-2xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-sm text-[#292A34]">تأكيد حذف المنتج</h3>
+                <p className="text-[11px] text-slate-500">حذف السلعة من شاشة المبيعات</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+              <div className="font-bold text-[#292A34] flex justify-between">
+                <span>اسم السلعة:</span>
+                <span>{serviceToDelete.name}</span>
+              </div>
+              <div className="text-slate-500 flex justify-between font-mono">
+                <span>سعر البيع:</span>
+                <span className="font-bold text-emerald-700">{formatCurrency(serviceToDelete.price)}</span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200 text-xs">
+              <button
+                type="button"
+                onClick={() => setServiceToDelete(null)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+              >
+                تراجع
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteService && serviceToDelete) {
+                    onDeleteService(serviceToDelete.id);
+                  }
+                  setServiceToDelete(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black shadow-md cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>نعم، احذف</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

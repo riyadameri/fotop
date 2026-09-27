@@ -12,9 +12,14 @@ import {
   Lock, 
   UserCheck,
   DollarSign,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Edit2,
+  Trash2,
+  ShieldAlert,
+  X,
+  Check
 } from 'lucide-react';
-import { Shift, Staff, Expense } from '../../types';
+import { Shift, Staff, Expense, checkStaffPermission } from '../../types';
 import { formatCurrency, formatDate, exportToCSV } from '../../utils/formatters';
 
 interface ShiftsViewProps {
@@ -25,6 +30,8 @@ interface ShiftsViewProps {
   onOpenShift: (staffId: string, staffName: string, openingCash: number) => void;
   onCloseShift: (shiftId: string, actualCash: number, notes?: string) => void;
   onSwitchStaff: (staff: Staff) => void;
+  onUpdateShift?: (shiftId: string, shiftData: Partial<Shift>) => void;
+  onDeleteShift?: (shiftId: string) => void;
 }
 
 export const ShiftsView: React.FC<ShiftsViewProps> = ({
@@ -34,7 +41,9 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({
   currentStaff,
   onOpenShift,
   onCloseShift,
-  onSwitchStaff
+  onSwitchStaff,
+  onUpdateShift,
+  onDeleteShift
 }) => {
   // Open Shift Form State
   const [showOpenModal, setShowOpenModal] = useState<boolean>(false);
@@ -74,6 +83,35 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({
     setShowCloseModal(false);
     setActualCashInput('');
     setCloseNotes('');
+  };
+
+  // Shift Edit & Delete State
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [editOpeningCash, setEditOpeningCash] = useState<string>('');
+  const [editActualCash, setEditActualCash] = useState<string>('');
+  const [editNotes, setEditNotes] = useState<string>('');
+  const [shiftToDelete, setShiftToDelete] = useState<Shift | null>(null);
+  const [permissionAlert, setPermissionAlert] = useState<string | null>(null);
+
+  const canManageShifts = checkStaffPermission(currentStaff, 'canManageShifts');
+
+  const handleOpenEditShift = (s: Shift) => {
+    if (!canManageShifts) {
+      setPermissionAlert('ليس لديك صلاحية تعديل الورديات والصندوق. يرجى مراجعة إدارة الأستوديو.');
+      return;
+    }
+    setEditingShift(s);
+    setEditOpeningCash(String(s.openingCash));
+    setEditActualCash(s.actualCash !== undefined ? String(s.actualCash) : '');
+    setEditNotes(s.notes || '');
+  };
+
+  const handleAttemptDeleteShift = (s: Shift) => {
+    if (!canManageShifts) {
+      setPermissionAlert('ليس لديك صلاحية حذف سجلات الورديات. يرجى مراجعة إدارة الأستوديو.');
+      return;
+    }
+    setShiftToDelete(s);
   };
 
   const handleExportCSV = () => {
@@ -274,6 +312,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({
                 <th className="p-3.5">الفارق (عجز/فائض)</th>
                 <th className="p-3.5">التذاكر</th>
                 <th className="p-3.5">الحالة</th>
+                <th className="p-3.5 text-center">إجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 font-medium">
@@ -316,6 +355,28 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({
                       }`}>
                         {s.status === 'open' ? 'نشطة' : 'مغلقة ومؤرشفة'}
                       </span>
+                    </td>
+                    <td className="p-3.5 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {onUpdateShift && (
+                          <button
+                            onClick={() => handleOpenEditShift(s)}
+                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 cursor-pointer"
+                            title="تعديل الوردية"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {onDeleteShift && (
+                          <button
+                            onClick={() => handleAttemptDeleteShift(s)}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer"
+                            title="حذف الوردية"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -379,6 +440,30 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({
                   )}
                 </div>
               )}
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <span className="text-slate-400 text-[10px]">إجراءات:</span>
+                <div className="flex items-center gap-1.5">
+                  {onUpdateShift && (
+                    <button
+                      onClick={() => handleOpenEditShift(s)}
+                      className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>تعديل</span>
+                    </button>
+                  )}
+                  {onDeleteShift && (
+                    <button
+                      onClick={() => handleAttemptDeleteShift(s)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>حذف</span>
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -553,14 +638,174 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({
                 >
                   إلغاء
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Shift Modal */}
+      {editingShift && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" dir="rtl">
+          <div className="bg-white border border-slate-300 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="bg-[#292A34] text-white px-5 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2 font-black text-sm">
+                <Edit2 className="w-4 h-4 text-blue-400" />
+                <span>تعديل بيانات الوردية ({editingShift.staffName})</span>
+              </div>
+              <button
+                onClick={() => setEditingShift(null)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!editingShift || !onUpdateShift) return;
+                const newOpening = Number(editOpeningCash) || 0;
+                const newActual = editActualCash !== '' ? Number(editActualCash) : undefined;
+                const expected = newOpening + editingShift.cashSales - editingShift.expenses;
+                const diff = newActual !== undefined ? newActual - expected : undefined;
+
+                onUpdateShift(editingShift.id, {
+                  openingCash: newOpening,
+                  actualCash: newActual,
+                  expectedCash: expected,
+                  difference: diff,
+                  notes: editNotes.trim() || undefined
+                });
+                setEditingShift(null);
+              }}
+              className="p-5 space-y-4 text-xs font-bold"
+            >
+              <div>
+                <label className="text-slate-700 block mb-1">المبلغ الافتتاحي بالدرج (دج)</label>
+                <input
+                  type="number"
+                  min="0"
+                  required
+                  value={editOpeningCash}
+                  onChange={(e) => setEditOpeningCash(e.target.value)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 block mb-1">المبلغ الفعلي المقبوض عند الإغلاق (دج)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={editActualCash}
+                  onChange={(e) => setEditActualCash(e.target.value)}
+                  placeholder="اتركه فارغاً إذا كانت الوردية ما زالت جارية"
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 font-mono font-bold text-slate-800 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 block mb-1">ملاحظات الوردية</label>
+                <textarea
+                  rows={2}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingShift(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+                >
+                  إلغاء
+                </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#E31C2B] hover:bg-[#c91422] text-white font-black shadow-md shadow-[#E31C2B]/30 cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-md cursor-pointer flex items-center gap-1.5"
                 >
-                  تأكيد الإغلاق والأرشفة
+                  <Check className="w-4 h-4" />
+                  <span>حفظ التعديلات</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Shift Confirmation Modal */}
+      {shiftToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" dir="rtl">
+          <div className="bg-white border border-slate-300 w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 bg-rose-100 rounded-2xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-base text-[#292A34]">تأكيد حذف سجل الوردية</h3>
+                <p className="text-xs text-slate-500">حذف نهائي لسجل المناوبة</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+              <div className="flex justify-between font-bold text-[#292A34]">
+                <span>الموظف:</span>
+                <span>{shiftToDelete.staffName}</span>
+              </div>
+              <div className="flex justify-between text-slate-500 font-mono">
+                <span>المبيعات النقدية:</span>
+                <span className="font-bold text-emerald-700">+{formatCurrency(shiftToDelete.cashSales)}</span>
+              </div>
+              <div className="flex justify-between text-slate-500 font-mono">
+                <span>التذاكر المسجلة:</span>
+                <span>{shiftToDelete.ordersCount}</span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200 text-xs">
+              <button
+                type="button"
+                onClick={() => setShiftToDelete(null)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+              >
+                تراجع
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteShift && shiftToDelete) {
+                    onDeleteShift(shiftToDelete.id);
+                  }
+                  setShiftToDelete(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black shadow-md cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>نعم، احذف الوردية</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Permission Alert Modal */}
+      {permissionAlert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm" dir="rtl">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl space-y-3 text-center">
+            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <h4 className="font-black text-sm text-[#292A34]">صلاحية غير متوفرة</h4>
+            <p className="text-xs text-slate-600 leading-relaxed">{permissionAlert}</p>
+            <button
+              onClick={() => setPermissionAlert(null)}
+              className="w-full py-2 bg-[#292A34] hover:bg-[#1a1b22] text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+            >
+              حسناً، فهمت
+            </button>
           </div>
         </div>
       )}

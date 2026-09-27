@@ -171,11 +171,48 @@ export interface WasteRecord {
   notes?: string;
 }
 
+export interface StaffPermissions {
+  canEditOrders: boolean;        // تعديل تفاصيل وأسعار الطلبات
+  canDeleteOrders: boolean;      // حذف الطلبات
+  canChangeOrderStatus: boolean; // تغيير حالة الطلب (انتظار، تجهيز، تسليم)
+  canManageMaterials: boolean;   // إضافة وتعديل وحذف المواد الخام والمخزون
+  canManageServices: boolean;    // إضافة وتعديل وحذف الخدمات والمنتجات
+  canManageExpenses: boolean;    // تعديل وحذف المصروفات
+  canManageWaste: boolean;       // تعديل وحذف سجلات التالف
+  canManageShifts: boolean;      // فتح وإغلاق وتعديل الورديات والصندوق
+  canManageStores: boolean;      // إضافة وتعديل الفروع
+}
+
+export const DEFAULT_WORKER_PERMISSIONS: StaffPermissions = {
+  canEditOrders: true,
+  canDeleteOrders: true,
+  canChangeOrderStatus: true,
+  canManageMaterials: true,
+  canManageServices: true,
+  canManageExpenses: true,
+  canManageWaste: true,
+  canManageShifts: true,
+  canManageStores: true,
+};
+
+export function checkStaffPermission(
+  staff: Staff | undefined | null,
+  permission: keyof StaffPermissions
+): boolean {
+  if (!staff) return false;
+  if (staff.role === 'manager') return true;
+  if (staff.permissions && typeof staff.permissions[permission] === 'boolean') {
+    return Boolean(staff.permissions[permission]);
+  }
+  return Boolean(DEFAULT_WORKER_PERMISSIONS[permission]);
+}
+
 export interface Staff {
   id: string;
   name: string;
   role: 'manager' | 'worker'; // عمال ومدير
   password?: string; // كلمة سر العامل أو المدير
+  permissions?: Partial<StaffPermissions>; // صلاحيات مخصصة للعناصر
   storeId?: string; // معرف المتجر التابع له (store_sidiamer أو store_labhour)
   storeName?: string; // اسم المتجر التابع له (fotop sidiamer أو fotop labhour)
   assignedStores?: string[]; // للمدير فؤاد: صلاحية الوصول لكلا المتجرين ['store_sidiamer', 'store_labhour']

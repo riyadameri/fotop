@@ -31,7 +31,7 @@ import {
   ImagePlus,
   X
 } from 'lucide-react';
-import { Material, ServiceItem, PhotoLinkConfig, Staff, Expense, Store } from '../../types';
+import { Material, ServiceItem, PhotoLinkConfig, Staff, Expense, Store, checkStaffPermission } from '../../types';
 import { formatCurrency, formatNumber, exportToCSV, calculateServiceBOMCost } from '../../utils/formatters';
 
 interface InventoryViewProps {
@@ -42,6 +42,7 @@ interface InventoryViewProps {
   stores?: Store[];
   onUpdateMaterial: (updated: Material) => void;
   onAddMaterial: (newMat: Omit<Material, 'id'>) => void;
+  onDeleteMaterial?: (materialId: string) => void;
   onRestock: (materialId: string, quantityToAdd: number, newUnitCost?: number) => void;
   onAddService: (newService: ServiceItem) => void;
   onUpdateService?: (updatedService: ServiceItem) => void;
@@ -57,6 +58,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   stores = [],
   onUpdateMaterial,
   onAddMaterial,
+  onDeleteMaterial,
   onRestock,
   onAddService,
   onUpdateService,
@@ -117,12 +119,77 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [photoPrice, setPhotoPrice] = useState<string>('450');
   const [photoImageUrl, setPhotoImageUrl] = useState<string>('');
 
+  // Edit Material State
+  const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
+  const [editMatName, setEditMatName] = useState<string>('');
+  const [editMatCategory, setEditMatCategory] = useState<Material['category']>('paper');
+  const [editMatUnit, setEditMatUnit] = useState<Material['unit']>('sheet');
+  const [editMatStock, setEditMatStock] = useState<string>('');
+  const [editMatThreshold, setEditMatThreshold] = useState<string>('');
+  const [editMatUnitCost, setEditMatUnitCost] = useState<string>('');
+  const [editMatSku, setEditMatSku] = useState<string>('');
+  const [editMatSupplier, setEditMatSupplier] = useState<string>('');
+  const [editMatStoreId, setEditMatStoreId] = useState<string>('');
+
+  // Delete Confirmations State
+  const [materialToDelete, setMaterialToDelete] = useState<Material | null>(null);
+  const [serviceToDelete, setServiceToDelete] = useState<ServiceItem | null>(null);
+  const [permissionAlert, setPermissionAlert] = useState<string | null>(null);
+
+  const canManageMaterials = checkStaffPermission(currentStaff, 'canManageMaterials');
+  const canManageServices = checkStaffPermission(currentStaff, 'canManageServices');
+
+  const handleOpenEditMaterial = (m: Material) => {
+    if (!canManageMaterials) {
+      setPermissionAlert('ليس لديك صلاحية تعديل المواد الخام والمخزون. يرجى مراجعة الإدارة لمنحك الصلاحية.');
+      return;
+    }
+    setEditingMaterial(m);
+    setEditMatName(m.name);
+    setEditMatCategory(m.category);
+    setEditMatUnit(m.unit);
+    setEditMatStock(String(m.currentStock));
+    setEditMatThreshold(String(m.minThreshold));
+    setEditMatUnitCost(String(m.unitCost));
+    setEditMatSku(m.sku || '');
+    setEditMatSupplier(m.supplier || '');
+    setEditMatStoreId(m.storeId || defaultBranch);
+  };
+
+  const handleAttemptDeleteMaterial = (m: Material) => {
+    if (!canManageMaterials) {
+      setPermissionAlert('ليس لديك صلاحية حذف المواد من المخزن. يرجى مراجعة الإدارة لمنحك الصلاحية.');
+      return;
+    }
+    setMaterialToDelete(m);
+  };
+
+  const handleOpenEditProduct = (p: ServiceItem) => {
+    if (!canManageServices) {
+      setPermissionAlert('ليس لديك صلاحية تعديل الخدمات والمنتجات. يرجى مراجعة الإدارة لمنحك الصلاحية.');
+      return;
+    }
+    openEditProduct(p);
+  };
+
+  const handleAttemptDeleteService = (p: ServiceItem) => {
+    if (!canManageServices) {
+      setPermissionAlert('ليس لديك صلاحية حذف الخدمات أو المنتجات. يرجى مراجعة الإدارة لمنحك الصلاحية.');
+      return;
+    }
+    setServiceToDelete(p);
+  };
+
   // Edit Product / Update Image Modal State
   const [editingProduct, setEditingProduct] = useState<ServiceItem | null>(null);
   const [editProductName, setEditProductName] = useState<string>('');
   const [editProductPrice, setEditProductPrice] = useState<string>('');
   const [editProductBuyCost, setEditProductBuyCost] = useState<string>('');
   const [editProductStock, setEditProductStock] = useState<string>('');
+  const [editProductMinThreshold, setEditProductMinThreshold] = useState<string>('3');
+  const [editProductCategory, setEditProductCategory] = useState<ServiceItem['category']>('retail_goods');
+  const [editProductItemType, setEditProductItemType] = useState<ServiceItem['itemType']>('direct_sale');
+  const [editProductStoreId, setEditProductStoreId] = useState<string>('all');
   const [editProductDescription, setEditProductDescription] = useState<string>('');
   const [editProductImageUrl, setEditProductImageUrl] = useState<string>('');
 
@@ -179,6 +246,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setEditProductPrice(String(prod.price));
     setEditProductBuyCost(String(prod.buyCost ?? 0));
     setEditProductStock(String(prod.currentStock ?? 0));
+    setEditProductMinThreshold(String(prod.minThreshold ?? 3));
+    setEditProductCategory(prod.category || 'retail_goods');
+    setEditProductItemType(prod.itemType || 'direct_sale');
+    setEditProductStoreId(prod.storeId || 'all');
     setEditProductDescription(prod.description || '');
     setEditProductImageUrl(prod.imageUrl || '');
   };
@@ -189,6 +260,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     const updated: ServiceItem = {
       ...editingProduct,
       name: editProductName.trim() || editingProduct.name,
+      category: editProductCategory,
+      itemType: editProductItemType,
+      storeId: editProductStoreId !== 'all' ? editProductStoreId : undefined,
+      minThreshold: Number(editProductMinThreshold) || 3,
       price: Number(editProductPrice) || editingProduct.price,
       buyCost: Number(editProductBuyCost) >= 0 ? Number(editProductBuyCost) : editingProduct.buyCost,
       currentStock: Number(editProductStock) >= 0 ? Number(editProductStock) : editingProduct.currentStock,
@@ -238,6 +313,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const unitPaperCost = selectedPaperMat ? (selectedPaperMat.unitCost / numPhotosPerSheet) : 0;
   const unitInkCost = selectedInkMat ? (selectedInkMat.unitCost * (100 / numInkYield)) : 0;
+  const sheetInkCost = unitInkCost * numPhotosPerSheet; // تكلفة الحبر للورقة الواحدة
+  const sheetPaperCost = selectedPaperMat ? selectedPaperMat.unitCost : 0; // تكلفة الورقة الخام
+  const totalSheetCost = sheetPaperCost + sheetInkCost; // إجمالي تكلفة إنتاج الورقة الواحدة (ورق + حبر)
   const totalFormulaCost = unitPaperCost + unitInkCost;
   const netFormulaProfit = Math.max(0, sellingPricePerPhoto - totalFormulaCost);
   const formulaMargin = sellingPricePerPhoto > 0 ? ((netFormulaProfit / sellingPricePerPhoto) * 100).toFixed(1) : '0';
@@ -885,13 +963,32 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         {formatCurrency(m.currentStock * m.unitCost)}
                       </td>
                       <td className="p-3 text-center">
-                        <button
-                          onClick={() => setRestockMat(m)}
-                          className="bg-[#292A34] hover:bg-[#E31C2B] text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 mx-auto"
-                        >
-                          <PackagePlus className="w-3.5 h-3.5" />
-                          <span>تزويد</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => setRestockMat(m)}
+                            className="bg-[#292A34] hover:bg-[#E31C2B] text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                            title="تزويد رصيد المادة"
+                          >
+                            <PackagePlus className="w-3.5 h-3.5" />
+                            <span>تزويد</span>
+                          </button>
+                          <button
+                            onClick={() => handleOpenEditMaterial(m)}
+                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 cursor-pointer transition-colors"
+                            title="تعديل المادة وبياناتها"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          {onDeleteMaterial && (
+                            <button
+                              onClick={() => handleAttemptDeleteMaterial(m)}
+                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer transition-colors"
+                              title="حذف المادة من المخزن"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -944,13 +1041,32 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         )}
                       </div>
 
-                      <button
-                        onClick={() => setRestockMat(m)}
-                        className="bg-[#292A34] hover:bg-[#E31C2B] text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shrink-0 shadow-xs"
-                      >
-                        <PackagePlus className="w-3.5 h-3.5" />
-                        <span>تزويد</span>
-                      </button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => setRestockMat(m)}
+                          className="bg-[#292A34] hover:bg-[#E31C2B] text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+                          title="تزويد المادة"
+                        >
+                          <PackagePlus className="w-3.5 h-3.5" />
+                          <span>تزويد</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditMaterial(m)}
+                          className="p-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 cursor-pointer"
+                          title="تعديل المادة"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        {onDeleteMaterial && (
+                          <button
+                            onClick={() => handleAttemptDeleteMaterial(m)}
+                            className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer"
+                            title="حذف المادة"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 pt-2.5 border-t border-slate-200 text-[11px]">
@@ -997,6 +1113,17 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               const profit = Math.max(0, s.price - rawCost);
               const margin = s.price > 0 ? ((profit / s.price) * 100).toFixed(0) : '0';
 
+              const linkedConfig = s.photoConfig;
+              const pMat = linkedConfig ? (materials || []).find(m => m.id === linkedConfig.paperMaterialId) : null;
+              const iMat = linkedConfig ? (materials || []).find(m => m.id === linkedConfig.inkMaterialId) : null;
+              const pPerSheet = linkedConfig?.photosPerSheet || 1;
+              const iCostPerPhoto = iMat 
+                ? (iMat.unitCost * (100 / (linkedConfig?.inkYieldPhotos || 1)))
+                : (linkedConfig?.inkPerPhotoMl && iMat ? iMat.unitCost * linkedConfig.inkPerPhotoMl : 0);
+              const iCostPerSheet = iCostPerPhoto * pPerSheet;
+              const pCostPerSheet = pMat ? pMat.unitCost : 0;
+              const totalCostPerSheet = pCostPerSheet + iCostPerSheet;
+
               return (
                 <div key={s.id} className="bg-[#F9FAFB] border border-slate-200 rounded-2xl p-4 space-y-3 relative hover:border-[#E31C2B] transition-all flex flex-col justify-between">
                   <div>
@@ -1010,7 +1137,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           referrerPolicy="no-referrer"
                         />
                         <button
-                          onClick={() => openEditProduct(s)}
+                          onClick={() => handleOpenEditProduct(s)}
                           className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/75 hover:bg-black text-white text-[10px] font-bold flex items-center gap-1.5 backdrop-blur-xs transition-colors shadow-sm"
                           title="تغيير صورة المنتج"
                         >
@@ -1025,7 +1152,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           <span>لا توجد صورة لهذا المنتج</span>
                         </div>
                         <button
-                          onClick={() => openEditProduct(s)}
+                          onClick={() => handleOpenEditProduct(s)}
                           className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 text-slate-600 text-[11px] font-bold flex items-center gap-1 border border-slate-200 transition-colors"
                         >
                           <Camera className="w-3.5 h-3.5 text-emerald-600" />
@@ -1060,17 +1187,17 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => openEditProduct(s)}
-                          className="text-slate-400 hover:text-[#292A34] p-1.5 rounded-lg hover:bg-slate-100"
-                          title="تعديل بيانات وصورة المنتج"
+                          onClick={() => handleOpenEditProduct(s)}
+                          className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                          title="تعديل بيانات وصورة المنتج/الخدمة"
                         >
                           <Edit3 className="w-4 h-4" />
                         </button>
-                        {onDeleteService && s.id.startsWith('retail_') && (
+                        {onDeleteService && (
                           <button
-                            onClick={() => onDeleteService(s.id)}
-                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50"
-                            title="حذف السلعة"
+                            onClick={() => handleAttemptDeleteService(s)}
+                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="حذف المنتج أو الخدمة"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1097,6 +1224,39 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     </div>
                   </div>
 
+                  {/* Linked Photo Product Breakdown (Paper + Ink + Sheet Cost) */}
+                  {linkedConfig && (
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/90 rounded-xl p-2.5 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between text-amber-900 font-bold">
+                        <div className="flex items-center gap-1.5">
+                          <Link2 className="w-3.5 h-3.5 text-amber-600" />
+                          <span className="text-[11px]">تحليل المنتج الارتباطي (الورقة الكاملة):</span>
+                        </div>
+                        <span className="text-[10px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md font-mono font-bold">
+                          {linkedConfig.paperSize} ({pPerSheet} صور/ورقة)
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] pt-1 border-t border-amber-200/70">
+                        <div className="bg-white p-1.5 rounded-lg border border-amber-300 shadow-2xs">
+                          <span className="text-amber-800 font-bold block">تكلفة الحبر للورقة:</span>
+                          <strong className="font-mono text-amber-700 font-black text-xs block">{formatCurrency(iCostPerSheet)}</strong>
+                        </div>
+                        <div className="bg-white p-1.5 rounded-lg border border-amber-200 shadow-2xs">
+                          <span className="text-slate-500 block">تكلفة الورقة الخام:</span>
+                          <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(pCostPerSheet)}</strong>
+                        </div>
+                        <div className="bg-white p-1.5 rounded-lg border border-amber-200 shadow-2xs">
+                          <span className="text-slate-500 block">إجمالي تكلفة الورقة:</span>
+                          <strong className="font-mono text-slate-900 font-black text-xs block">{formatCurrency(totalCostPerSheet)}</strong>
+                        </div>
+                      </div>
+                      <div className="text-[9px] text-amber-850 flex items-center justify-between pt-0.5 px-0.5">
+                        <span>حبر الصورة الواحدة: <strong className="font-mono font-bold text-amber-900">{formatCurrency(iCostPerPhoto)}</strong></span>
+                        <span className="truncate max-w-[140px] font-mono text-slate-500">{iMat?.name?.split(' ')?.[0] || 'حبر'} + {pMat?.name?.split(' ')?.[0] || 'ورق'}</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Stock and Profit Margin Bar */}
                   <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-200 gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5">
@@ -1112,7 +1272,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => openEditProduct(s)}
+                        onClick={() => handleOpenEditProduct(s)}
                         className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors border border-slate-200"
                         title="تعديل صورة أو سعر السلعة"
                       >
@@ -1522,19 +1682,50 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               </div>
 
               {/* Dynamic Formula Calculation Box */}
-              <div className="bg-[#1e1f27] text-white p-4 rounded-xl space-y-2 border border-slate-700">
-                <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-                  <Calculator className="w-4 h-4" />
-                  <span>الاحتساب التلقائي لتكلفة وصافي ربح الصورة:</span>
+              <div className="bg-[#1e1f27] text-white p-4 rounded-xl space-y-3 border border-slate-700">
+                <div className="flex items-center justify-between text-xs border-b border-slate-700/80 pb-2">
+                  <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                    <Calculator className="w-4 h-4" />
+                    <span>الاحتساب التلقائي لتكلفة وصافي ربح المنتج الارتباطي:</span>
+                  </div>
+                  <span className="text-[11px] text-slate-300 font-mono">
+                    {numPhotosPerSheet} صور / ورقة
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center pt-1 border-t border-slate-700 text-xs">
-                  <div className="bg-slate-800 p-2 rounded-lg">
-                    <span className="text-[10px] text-slate-400 block">تكلفة الورق/الصورة</span>
+                {/* Section A: تكاليف الورقة الواحدة بالكامل مع إبراز تكلفة الحبر للورقة */}
+                <div className="space-y-1.5 bg-[#252733] p-2.5 rounded-xl border border-slate-700">
+                  <div className="flex items-center justify-between text-[11px] text-slate-300 font-bold">
+                    <span>تحليل تكلفة الورقة الكاملة (ورق خام + استهلاك الحبر):</span>
+                    <span className="text-[10px] text-amber-300 font-normal">مقاس: {photoPaperSize}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="bg-amber-950/60 border border-amber-500/50 p-2 rounded-lg">
+                      <span className="text-[10px] text-amber-300 font-bold block">تكلفة الحبر للورقة الواحدة</span>
+                      <span className="font-mono font-black text-amber-400 text-sm">{formatCurrency(sheetInkCost)}</span>
+                      <span className="text-[9px] text-amber-200/70 block mt-0.5 font-mono">({formatCurrency(unitInkCost)} × {numPhotosPerSheet})</span>
+                    </div>
+                    <div className="bg-slate-800/90 border border-slate-700 p-2 rounded-lg">
+                      <span className="text-[10px] text-slate-400 block">تكلفة الورقة الخام</span>
+                      <span className="font-mono font-bold text-slate-200 text-sm">{formatCurrency(sheetPaperCost)}</span>
+                      <span className="text-[9px] text-slate-400 block mt-0.5 font-mono truncate">{selectedPaperMat?.name?.split(' ')?.[0] || 'الورق'}</span>
+                    </div>
+                    <div className="bg-slate-800/90 border border-slate-700 p-2 rounded-lg">
+                      <span className="text-[10px] text-slate-400 block">إجمالي تكلفة الورقة كاملة</span>
+                      <span className="font-mono font-black text-white text-sm">{formatCurrency(totalSheetCost)}</span>
+                      <span className="text-[9px] text-slate-400 block mt-0.5">ورق + حبر</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section B: تكلفة وأرباح الصورة الواحدة */}
+                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="bg-slate-800 p-2 rounded-lg border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 block">تكلفة الورق / صورة</span>
                     <span className="font-mono font-bold text-slate-200">{formatCurrency(unitPaperCost)}</span>
                   </div>
-                  <div className="bg-slate-800 p-2 rounded-lg">
-                    <span className="text-[10px] text-slate-400 block">تكلفة الحبر/الصورة</span>
+                  <div className="bg-slate-800 p-2 rounded-lg border border-slate-700/60">
+                    <span className="text-[10px] text-slate-400 block">تكلفة الحبر / صورة</span>
                     <span className="font-mono font-bold text-slate-200">{formatCurrency(unitInkCost)}</span>
                   </div>
                   <div className="bg-emerald-950/80 border border-emerald-500/40 p-2 rounded-lg">
@@ -1543,8 +1734,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   </div>
                 </div>
 
-                <div className="text-[10px] text-slate-400 text-center">
-                  هامش الربح الصافي: <strong className="text-emerald-400 font-bold">%{formulaMargin}</strong> ─ يخصم تلقائياً من المخزون بمجرد تحديد عدد الصور!
+                <div className="text-[10px] text-slate-400 text-center flex items-center justify-between pt-1 border-t border-slate-700">
+                  <span>هامش الربح الصافي: <strong className="text-emerald-400 font-bold">%{formulaMargin}</strong></span>
+                  <span className="text-amber-400 font-medium">خصم تلقائي للورق والحبر من المخزن</span>
                 </div>
               </div>
 
@@ -1970,7 +2162,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
               {/* Product Info Inputs */}
               <div>
-                <label className="text-slate-700 block mb-1 font-bold">اسم المنتج / الخدمة</label>
+                <label className="text-slate-700 block mb-1 font-bold">اسم المنتج / الخدمة *</label>
                 <input
                   type="text"
                   required
@@ -1978,6 +2170,48 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   onChange={(e) => setEditProductName(e.target.value)}
                   className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-amber-500"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-slate-700 block mb-1 font-bold">التصنيف</label>
+                  <select
+                    value={editProductCategory}
+                    onChange={(e) => setEditProductCategory(e.target.value as ServiceItem['category'])}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold cursor-pointer"
+                  >
+                    <option value="retail_goods">سلعة بيع مباشر</option>
+                    <option value="photo_printing">طباعة وتكبير صور</option>
+                    <option value="document_printing">طباعة مستندات</option>
+                    <option value="id_photo">صور هوية وجواز</option>
+                    <option value="custom">خدمة مخصصة / خاصة</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-700 block mb-1 font-bold">نوع السلعة</label>
+                  <select
+                    value={editProductItemType}
+                    onChange={(e) => setEditProductItemType(e.target.value as ServiceItem['itemType'])}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold cursor-pointer"
+                  >
+                    <option value="direct_sale">سلعة بيع مباشر</option>
+                    <option value="custom_photo_service">خدمة استوديو وطباعة</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-700 block mb-1 font-bold">الفرع المتاح فيه</label>
+                  <select
+                    value={editProductStoreId}
+                    onChange={(e) => setEditProductStoreId(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold cursor-pointer"
+                  >
+                    <option value="all">كلا الفرعين (مشترك)</option>
+                    <option value="store_sidiamer">فرع سيدي عامر</option>
+                    <option value="store_labhour">فرع الأبحور</option>
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1994,7 +2228,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-slate-700 block mb-1 font-bold">سعر البيع النهائي (دج)</label>
+                  <label className="text-slate-700 block mb-1 font-bold">سعر البيع النهائي (دج) *</label>
                   <input
                     type="number"
                     required
@@ -2007,16 +2241,79 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
               </div>
 
-              {editingProduct.itemType === 'direct_sale' && (
-                <div>
-                  <label className="text-slate-700 block mb-1 font-bold">الكمية المتوفرة بالمخزن</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={editProductStock}
-                    onChange={(e) => setEditProductStock(e.target.value)}
-                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-amber-500"
-                  />
+              {/* Linked Photo Product Breakdown (If photoConfig exists) */}
+              {editingProduct.photoConfig && (() => {
+                const cfg = editingProduct.photoConfig;
+                const pMat = (materials || []).find(m => m.id === cfg.paperMaterialId);
+                const iMat = (materials || []).find(m => m.id === cfg.inkMaterialId);
+                const pPerSheet = cfg.photosPerSheet || 1;
+                const iCostPerPhoto = iMat 
+                  ? (iMat.unitCost * (100 / (cfg.inkYieldPhotos || 1)))
+                  : (cfg.inkPerPhotoMl && iMat ? iMat.unitCost * cfg.inkPerPhotoMl : 0);
+                const iCostPerSheet = iCostPerPhoto * pPerSheet;
+                const pCostPerSheet = pMat ? pMat.unitCost : 0;
+                const totalCostSheet = pCostPerSheet + iCostPerSheet;
+
+                return (
+                  <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3 space-y-2 text-xs">
+                    <div className="flex items-center justify-between text-amber-900 font-bold">
+                      <span className="flex items-center gap-1.5">
+                        <Link2 className="w-4 h-4 text-amber-600" />
+                        <span>بيانات الربط الآلي (الورق والحبر المستهلك):</span>
+                      </span>
+                      <span className="bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold">
+                        مقاس {cfg.paperSize} ({pPerSheet} صور/ورقة)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-[11px]">
+                      <div className="bg-white p-2 rounded-lg border border-amber-300 shadow-2xs">
+                        <span className="text-[10px] text-amber-800 font-bold block">تكلفة الحبر للورقة:</span>
+                        <strong className="font-mono text-amber-700 font-black text-sm block mt-0.5">{formatCurrency(iCostPerSheet)}</strong>
+                        <span className="text-[9px] text-slate-400 block font-mono">({formatCurrency(iCostPerPhoto)} × {pPerSheet})</span>
+                      </div>
+                      <div className="bg-white p-2 rounded-lg border border-amber-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 block">تكلفة الورقة الخام</span>
+                        <strong className="font-mono text-slate-800 font-bold text-sm block mt-0.5">{formatCurrency(pCostPerSheet)}</strong>
+                        <span className="text-[9px] text-slate-400 block font-mono truncate">{pMat?.name?.split(' ')?.[0] || 'الورق'}</span>
+                      </div>
+                      <div className="bg-white p-2 rounded-lg border border-amber-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 block">إجمالي تكلفة الورقة</span>
+                        <strong className="font-mono text-slate-900 font-black text-sm block mt-0.5">{formatCurrency(totalCostSheet)}</strong>
+                        <span className="text-[9px] text-slate-400 block">ورق + حبر</span>
+                      </div>
+                      <div className="bg-white p-2 rounded-lg border border-amber-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 block">تكلفة حبر الصورة</span>
+                        <strong className="font-mono text-slate-700 font-bold text-sm block mt-0.5">{formatCurrency(iCostPerPhoto)}</strong>
+                        <span className="text-[9px] text-slate-400 block">لكل صورة مطبوعة</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {editProductItemType === 'direct_sale' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-slate-700 block mb-1 font-bold">الكمية المتوفرة بالمخزن</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editProductStock}
+                      onChange={(e) => setEditProductStock(e.target.value)}
+                      className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-700 block mb-1 font-bold">حد الأمان للتنبيه (نواقص)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editProductMinThreshold}
+                      onChange={(e) => setEditProductMinThreshold(e.target.value)}
+                      className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -2047,6 +2344,323 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          EDIT RAW MATERIAL MODAL
+      ===================================================================== */}
+      {editingMaterial && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-4 my-8" dir="rtl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-100 text-blue-700 rounded-xl">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-[#292A34]">تعديل بيانات المادة والمخزون</h3>
+                  <p className="text-xs text-slate-500">تعديل الاسم، الفئة، التكلفة، الرصيد وحد الأمان</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingMaterial(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!editingMaterial) return;
+                const updated: Material = {
+                  ...editingMaterial,
+                  name: editMatName.trim(),
+                  category: editMatCategory,
+                  unit: editMatUnit,
+                  currentStock: Number(editMatStock) || 0,
+                  minThreshold: Number(editMatThreshold) || 0,
+                  unitCost: Number(editMatUnitCost) || 0,
+                  sku: editMatSku.trim(),
+                  supplier: editMatSupplier.trim() || undefined,
+                  storeId: editMatStoreId || undefined,
+                };
+                onUpdateMaterial(updated);
+                setEditingMaterial(null);
+              }}
+              className="space-y-4 text-xs font-bold"
+            >
+              <div>
+                <label className="text-slate-700 block mb-1">اسم المادة الخام *</label>
+                <input
+                  type="text"
+                  required
+                  value={editMatName}
+                  onChange={(e) => setEditMatName(e.target.value)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 block mb-1">التصنيف</label>
+                  <select
+                    value={editMatCategory}
+                    onChange={(e) => setEditMatCategory(e.target.value as Material['category'])}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] cursor-pointer"
+                  >
+                    <option value="paper">ورق طباعة</option>
+                    <option value="ink">حبر سائل / ليزر</option>
+                    <option value="frame">إطارات وبراويز</option>
+                    <option value="lamination">تغليف وسلوفان</option>
+                    <option value="other">أخرى</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-700 block mb-1">وحدة القياس</label>
+                  <select
+                    value={editMatUnit}
+                    onChange={(e) => setEditMatUnit(e.target.value as Material['unit'])}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] cursor-pointer"
+                  >
+                    <option value="sheet">ورقة / لوح</option>
+                    <option value="ml">مليلتر (حبر)</option>
+                    <option value="piece">قطعة / إطار</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-slate-700 block mb-1">الرصيد الفعلي</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                    value={editMatStock}
+                    onChange={(e) => setEditMatStock(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-700 block mb-1">حد الأمان (التنبيه)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    required
+                    value={editMatThreshold}
+                    onChange={(e) => setEditMatThreshold(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-700 block mb-1">سعر الوحدة (دج)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    required
+                    value={editMatUnitCost}
+                    onChange={(e) => setEditMatUnitCost(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold text-emerald-700 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 block mb-1">رمز المادة (SKU)</label>
+                  <input
+                    type="text"
+                    value={editMatSku}
+                    onChange={(e) => setEditMatSku(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-700 block mb-1">المورد المعتمد</label>
+                  <input
+                    type="text"
+                    value={editMatSupplier}
+                    onChange={(e) => setEditMatSupplier(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-700 block mb-1">الفرع التابع له</label>
+                <select
+                  value={editMatStoreId}
+                  onChange={(e) => setEditMatStoreId(e.target.value)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] cursor-pointer"
+                >
+                  <option value="store_sidiamer">فرع سيدي عامر</option>
+                  <option value="store_labhour">فرع الأبحور</option>
+                </select>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingMaterial(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>حفظ التعديلات</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          DELETE MATERIAL CONFIRMATION MODAL
+      ===================================================================== */}
+      {materialToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4" dir="rtl">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 bg-rose-100 rounded-2xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-base text-[#292A34]">تأكيد حذف المادة الخام</h3>
+                <p className="text-xs text-slate-500">حذف نهائي من قاعدة بيانات المخزن</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+              <div className="font-bold text-[#292A34] flex items-center justify-between">
+                <span>اسم المادة:</span>
+                <span>{materialToDelete.name}</span>
+              </div>
+              <div className="text-slate-500 flex items-center justify-between">
+                <span>الرصيد المتبقي:</span>
+                <span className="font-mono font-bold">{formatNumber(materialToDelete.currentStock)} {materialToDelete.unit}</span>
+              </div>
+              <div className="text-slate-500 flex items-center justify-between">
+                <span>القيمة الإجمالية:</span>
+                <span className="font-mono font-bold text-rose-600">{formatCurrency(materialToDelete.currentStock * materialToDelete.unitCost)}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+              تحذير: سيتم حذف المادة ولن تظهر في حسابات التكلفة أو قوائم التزويد بعد الآن.
+            </p>
+
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setMaterialToDelete(null)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold text-xs cursor-pointer"
+              >
+                تراجع وإلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteMaterial && materialToDelete) {
+                    onDeleteMaterial(materialToDelete.id);
+                  }
+                  setMaterialToDelete(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>نعم، احذف المادة</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          DELETE SERVICE CONFIRMATION MODAL
+      ===================================================================== */}
+      {serviceToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4" dir="rtl">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 bg-rose-100 rounded-2xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-base text-[#292A34]">تأكيد حذف الخدمة أو المنتج</h3>
+                <p className="text-xs text-slate-500">حذف السلعة من قائمة المبيعات ونقطة البيع</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+              <div className="font-bold text-[#292A34] flex items-center justify-between">
+                <span>اسم السلعة/الخدمة:</span>
+                <span>{serviceToDelete.name}</span>
+              </div>
+              <div className="text-slate-500 flex items-center justify-between">
+                <span>سعر البيع:</span>
+                <span className="font-mono font-bold text-emerald-700">{formatCurrency(serviceToDelete.price)}</span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setServiceToDelete(null)}
+                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold text-xs cursor-pointer"
+              >
+                تراجع وإلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteService && serviceToDelete) {
+                    onDeleteService(serviceToDelete.id);
+                  }
+                  setServiceToDelete(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>نعم، احذف السلعة</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          PERMISSION ALERT MODAL
+      ===================================================================== */}
+      {permissionAlert && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl space-y-3 text-center" dir="rtl">
+            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <h4 className="font-black text-sm text-[#292A34]">صلاحية غير متوفرة</h4>
+            <p className="text-xs text-slate-600 leading-relaxed">{permissionAlert}</p>
+            <button
+              onClick={() => setPermissionAlert(null)}
+              className="w-full py-2 bg-[#292A34] hover:bg-[#1a1b22] text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+            >
+              حسناً، فهمت
+            </button>
           </div>
         </div>
       )}

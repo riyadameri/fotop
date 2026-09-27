@@ -10,9 +10,10 @@ import {
   FileSpreadsheet, 
   AlertTriangle,
   TrendingDown,
-  Info
+  Info,
+  Edit2
 } from 'lucide-react';
-import { WasteRecord, Material, Staff } from '../../types';
+import { WasteRecord, Material, Staff, checkStaffPermission } from '../../types';
 import { formatCurrency, formatDate, exportToCSV } from '../../utils/formatters';
 
 interface WasteViewProps {
@@ -21,6 +22,8 @@ interface WasteViewProps {
   staffList: Staff[];
   currentStaff: Staff;
   onAddWasteRecord: (record: Omit<WasteRecord, 'id' | 'createdAt'>) => void;
+  onUpdateWasteRecord?: (id: string, updated: Partial<WasteRecord>) => Promise<void>;
+  onDeleteWasteRecord?: (id: string) => Promise<void>;
 }
 
 export const WasteView: React.FC<WasteViewProps> = ({
@@ -28,7 +31,9 @@ export const WasteView: React.FC<WasteViewProps> = ({
   materials = [],
   staffList = [],
   currentStaff,
-  onAddWasteRecord
+  onAddWasteRecord,
+  onUpdateWasteRecord,
+  onDeleteWasteRecord
 }) => {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>((materials || [])[0]?.id || '');
@@ -37,6 +42,58 @@ export const WasteView: React.FC<WasteViewProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [selectedStaffId, setSelectedStaffId] = useState<string>(currentStaff?.id || '');
   const [filterReason, setFilterReason] = useState<string>('all');
+
+  // Edit & Delete Waste Record State
+  const [editingWasteRecord, setEditingWasteRecord] = useState<WasteRecord | null>(null);
+  const [editWasteQuantity, setEditWasteQuantity] = useState<string>('1');
+  const [editWasteReason, setEditWasteReason] = useState<WasteRecord['reason']>('print_error');
+  const [editWasteNotes, setEditWasteNotes] = useState<string>('');
+  const [wasteRecordToDelete, setWasteRecordToDelete] = useState<WasteRecord | null>(null);
+  const [isDeletingWasteRecord, setIsDeletingWasteRecord] = useState<boolean>(false);
+  const [isSubmittingWasteEdit, setIsSubmittingWasteEdit] = useState<boolean>(false);
+
+  const handleAttemptEditWaste = (record: WasteRecord) => {
+    setEditingWasteRecord(record);
+    setEditWasteQuantity(String(record.quantity || 1));
+    setEditWasteReason(record.reason);
+    setEditWasteNotes(record.notes || '');
+  };
+
+  const handleSaveWasteEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWasteRecord || !onUpdateWasteRecord) return;
+    setIsSubmittingWasteEdit(true);
+    try {
+      const q = Math.max(1, Number(editWasteQuantity) || 1);
+      const mat = materials.find(m => m.id === editingWasteRecord.materialId);
+      const costLoss = q * (mat?.unitCost || 0);
+
+      await onUpdateWasteRecord(editingWasteRecord.id, {
+        quantity: q,
+        reason: editWasteReason,
+        notes: editWasteNotes.trim(),
+        costLoss,
+      });
+      setEditingWasteRecord(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmittingWasteEdit(false);
+    }
+  };
+
+  const handleConfirmDeleteWaste = async () => {
+    if (!wasteRecordToDelete || !onDeleteWasteRecord) return;
+    setIsDeletingWasteRecord(true);
+    try {
+      await onDeleteWasteRecord(wasteRecordToDelete.id);
+      setWasteRecordToDelete(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeletingWasteRecord(false);
+    }
+  };
 
   const reasonsMap: Record<WasteRecord['reason'], { label: string; desc: string }> = {
     print_error: { label: 'خطأ في الطباعة / تشويه ألوان', desc: 'ألوان باهتة أو خطوط رأس الطابعة' },
@@ -189,12 +246,13 @@ export const WasteView: React.FC<WasteViewProps> = ({
                 <th className="p-3.5">الخسارة المالية المباشرة</th>
                 <th className="p-3.5">الموظف المسؤول</th>
                 <th className="p-3.5">ملاحظات تفصيلية</th>
+                <th className="p-3.5 text-center">إجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 font-medium">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-400 font-bold">
+                  <td colSpan={8} className="p-8 text-center text-slate-400 font-bold">
                     لا توجد سجلات هدر مطابقة حالياً
                   </td>
                 </tr>
@@ -221,6 +279,28 @@ export const WasteView: React.FC<WasteViewProps> = ({
                     </td>
                     <td className="p-3.5 text-slate-600">
                       {r.notes || '─'}
+                    </td>
+                    <td className="p-3.5 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {onUpdateWasteRecord && (
+                          <button
+                            onClick={() => handleAttemptEditWaste(r)}
+                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 cursor-pointer"
+                            title="تعديل سجل التالف"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {onDeleteWasteRecord && (
+                          <button
+                            onClick={() => setWasteRecordToDelete(r)}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 cursor-pointer"
+                            title="حذف سجل التالف"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -265,12 +345,150 @@ export const WasteView: React.FC<WasteViewProps> = ({
                     {r.notes}
                   </div>
                 )}
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
+                  {onUpdateWasteRecord && (
+                    <button
+                      onClick={() => handleAttemptEditWaste(r)}
+                      className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>تعديل</span>
+                    </button>
+                  )}
+                  {onDeleteWasteRecord && (
+                    <button
+                      onClick={() => setWasteRecordToDelete(r)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>حذف</span>
+                    </button>
+                  )}
+                </div>
               </div>
             ))
           )}
         </div>
 
       </div>
+
+      {/* Edit Waste Record Modal */}
+      {editingWasteRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in" dir="rtl">
+          <div className="bg-white border border-slate-300 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+            <div className="bg-[#292A34] text-white px-5 py-3.5 flex items-center justify-between border-b-2 border-blue-500">
+              <div className="flex items-center gap-2 font-black text-sm">
+                <Edit2 className="w-5 h-5 text-blue-400" />
+                <span>تعديل سجل التالف ({editingWasteRecord.materialName})</span>
+              </div>
+              <button 
+                onClick={() => setEditingWasteRecord(null)}
+                className="text-slate-400 hover:text-white font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveWasteEdit} className="p-5 space-y-3.5 text-xs font-medium">
+              <div>
+                <label className="text-slate-700 block mb-1 font-bold">الكمية التالفة ({editingWasteRecord.unit})</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  value={editWasteQuantity}
+                  onChange={(e) => setEditWasteQuantity(e.target.value)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-slate-700 block mb-1 font-bold">سبب التلف</label>
+                <select
+                  value={editWasteReason}
+                  onChange={(e) => setEditWasteReason(e.target.value as any)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-blue-500"
+                >
+                  <option value="print_error">خطأ في الطباعة / تشويه ألوان</option>
+                  <option value="miscut">خطأ في القص أو المقاس</option>
+                  <option value="paper_jam">انحشار في ساحب الطابعة</option>
+                  <option value="ink_spill">هدر حبر أثناء التنظيف المكثف</option>
+                  <option value="expired">تلف مادة بسبب الرطوبة أو التخزين</option>
+                  <option value="other">أسباب أخرى</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-slate-700 block mb-1 font-bold">ملاحظات إضافية</label>
+                <textarea
+                  rows={2}
+                  value={editWasteNotes}
+                  onChange={(e) => setEditWasteNotes(e.target.value)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditingWasteRecord(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingWasteEdit}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingWasteEdit ? 'جاري الحفظ...' : 'حفظ التعديل في MongoDB'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Waste Record Modal */}
+      {wasteRecordToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in" dir="rtl">
+          <div className="bg-white border border-slate-300 w-full max-w-sm rounded-2xl shadow-2xl p-5 space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-[#292A34]">تأكيد حذف سجل التالف</h3>
+                <p className="text-xs text-slate-500">سيتم حذف هذا السجل نهائياً من قاعدة بيانات MongoDB</p>
+              </div>
+            </div>
+
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-900 space-y-1">
+              <div><strong>المادة:</strong> {wasteRecordToDelete.materialName}</div>
+              <div><strong>الكمية:</strong> {wasteRecordToDelete.quantity} {wasteRecordToDelete.unit}</div>
+              <div><strong>الخسارة:</strong> {formatCurrency(wasteRecordToDelete.costLoss)}</div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setWasteRecordToDelete(null)}
+                className="px-3 py-1.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold text-xs"
+              >
+                تراجع
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingWasteRecord}
+                onClick={handleConfirmDeleteWaste}
+                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {isDeletingWasteRecord ? 'جاري الحذف...' : 'تأكيد الحذف'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Waste Record Modal */}
       {showAddModal && (

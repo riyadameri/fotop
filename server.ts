@@ -613,11 +613,21 @@ async function startServer() {
     res.json(db.stores);
   });
 
-  app.put('/api/stores/:id', (req, res) => {
+  app.put('/api/stores/:id', async (req, res) => {
     const { id } = req.params;
     const updated = req.body as Partial<Store>;
     db.stores = (db.stores || []).map(s => (s.id === id ? { ...s, ...updated } : s));
-    saveDatabase(db, 'stores');
+    await saveDatabase(db, 'stores');
+    res.json(db.stores);
+  });
+
+  app.delete('/api/stores/:id', async (req, res) => {
+    const { id } = req.params;
+    if (id === 'store_sidiamer') {
+      return res.status(400).json({ error: 'لا يمكن حذف الفرع الرئيسي المعتمد' });
+    }
+    db.stores = (db.stores || []).filter(s => s.id !== id);
+    await saveDatabase(db, 'stores');
     res.json(db.stores);
   });
 
@@ -633,25 +643,25 @@ async function startServer() {
     res.json(db.materials);
   });
 
-  app.post('/api/materials', (req, res) => {
+  app.post('/api/materials', async (req, res) => {
     const newMat: Material = {
       ...req.body,
       id: req.body.id || `mat_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     };
     db.materials.push(newMat);
-    saveDatabase(db);
+    await saveDatabase(db, 'materials');
     res.json(db.materials);
   });
 
-  app.put('/api/materials/:id', (req, res) => {
+  app.put('/api/materials/:id', async (req, res) => {
     const { id } = req.params;
     const updated = req.body as Material;
     db.materials = db.materials.map(m => (m.id === id ? { ...updated, id } : m));
-    saveDatabase(db);
+    await saveDatabase(db, 'materials');
     res.json(db.materials);
   });
 
-  app.post('/api/materials/restock', (req, res) => {
+  app.post('/api/materials/restock', async (req, res) => {
     const { materialId, quantity, unitCost } = req.body;
     const qty = Number(quantity) || 0;
     const cost = unitCost !== undefined && Number(unitCost) > 0 ? Number(unitCost) : undefined;
@@ -666,14 +676,14 @@ async function startServer() {
       }
       return m;
     });
-    saveDatabase(db);
+    await saveDatabase(db, 'materials');
     res.json(db.materials);
   });
 
-  app.delete('/api/materials/:id', (req, res) => {
+  app.delete('/api/materials/:id', async (req, res) => {
     const { id } = req.params;
     db.materials = db.materials.filter(m => m.id !== id);
-    saveDatabase(db);
+    await saveDatabase(db, 'materials');
     res.json(db.materials);
   });
 
@@ -682,28 +692,28 @@ async function startServer() {
     res.json(db.services);
   });
 
-  app.post('/api/services', (req, res) => {
+  app.post('/api/services', async (req, res) => {
     const newService: ServiceItem = {
       ...req.body,
       id: req.body.id || `srv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     };
     db.services.unshift(newService);
-    saveDatabase(db);
+    await saveDatabase(db, 'services');
     res.json(db.services);
   });
 
-  app.put('/api/services/:id', (req, res) => {
+  app.put('/api/services/:id', async (req, res) => {
     const { id } = req.params;
     const updated = req.body as ServiceItem;
     db.services = db.services.map(s => (s.id === id ? { ...updated, id } : s));
-    saveDatabase(db);
+    await saveDatabase(db, 'services');
     res.json(db.services);
   });
 
-  app.delete('/api/services/:id', (req, res) => {
+  app.delete('/api/services/:id', async (req, res) => {
     const { id } = req.params;
     db.services = db.services.filter(s => s.id !== id);
-    saveDatabase(db);
+    await saveDatabase(db, 'services');
     res.json(db.services);
   });
 
@@ -742,7 +752,7 @@ async function startServer() {
     res.json(db.shifts);
   });
 
-  app.post('/api/shifts/open', (req, res) => {
+  app.post('/api/shifts/open', async (req, res) => {
     const { staffId, staffName, openingCash, storeId, storeName } = req.body;
     const newShift: Shift = {
       id: `shf_${Date.now()}`,
@@ -759,11 +769,11 @@ async function startServer() {
       status: 'open',
     };
     db.shifts.unshift(newShift);
-    saveDatabase(db);
+    await saveDatabase(db, 'shifts');
     res.json(db.shifts);
   });
 
-  app.post('/api/shifts/close', (req, res) => {
+  app.post('/api/shifts/close', async (req, res) => {
     const { shiftId, actualCash, notes } = req.body;
     const actCash = Number(actualCash) || 0;
     db.shifts = db.shifts.map(s => {
@@ -780,7 +790,22 @@ async function startServer() {
       }
       return s;
     });
-    saveDatabase(db);
+    await saveDatabase(db, 'shifts');
+    res.json(db.shifts);
+  });
+
+  app.put('/api/shifts/:id', async (req, res) => {
+    const { id } = req.params;
+    const updated = req.body;
+    db.shifts = db.shifts.map(s => (s.id === id ? { ...s, ...updated, id } : s));
+    await saveDatabase(db, 'shifts');
+    res.json(db.shifts);
+  });
+
+  app.delete('/api/shifts/:id', async (req, res) => {
+    const { id } = req.params;
+    db.shifts = db.shifts.filter(s => s.id !== id);
+    await saveDatabase(db, 'shifts');
     res.json(db.shifts);
   });
 
@@ -863,12 +888,34 @@ async function startServer() {
     });
   });
 
-  app.put('/api/orders/:id/status', (req, res) => {
+  app.put('/api/orders/:id/status', async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
     db.orders = db.orders.map(o => (o.id === id ? { ...o, status } : o));
-    saveDatabase(db);
+    await saveDatabase(db, 'orders');
     res.json(db.orders);
+  });
+
+  app.put('/api/orders/:id', async (req, res) => {
+    const { id } = req.params;
+    const updated = req.body;
+    db.orders = db.orders.map(o => (o.id === id ? { ...o, ...updated, id } : o));
+    await saveDatabase(db, 'orders');
+    res.json({
+      success: true,
+      order: db.orders.find(o => o.id === id),
+      orders: db.orders
+    });
+  });
+
+  app.delete('/api/orders/:id', async (req, res) => {
+    const { id } = req.params;
+    db.orders = db.orders.filter(o => o.id !== id);
+    await saveDatabase(db, 'orders');
+    res.json({
+      success: true,
+      orders: db.orders
+    });
   });
 
   // === Waste API ===
@@ -876,7 +923,7 @@ async function startServer() {
     res.json(db.wasteRecords);
   });
 
-  app.post('/api/waste', (req, res) => {
+  app.post('/api/waste', async (req, res) => {
     const newWaste: WasteRecord = {
       ...req.body,
       id: `wst_${Date.now()}`,
@@ -895,7 +942,28 @@ async function startServer() {
       return m;
     });
 
-    saveDatabase(db);
+    await saveDatabase(db);
+    res.json({
+      wasteRecords: db.wasteRecords,
+      materials: db.materials,
+    });
+  });
+
+  app.put('/api/waste/:id', async (req, res) => {
+    const { id } = req.params;
+    const updated = req.body;
+    db.wasteRecords = db.wasteRecords.map(w => (w.id === id ? { ...w, ...updated, id } : w));
+    await saveDatabase(db, 'wasteRecords');
+    res.json({
+      wasteRecords: db.wasteRecords,
+      materials: db.materials,
+    });
+  });
+
+  app.delete('/api/waste/:id', async (req, res) => {
+    const { id } = req.params;
+    db.wasteRecords = db.wasteRecords.filter(w => w.id !== id);
+    await saveDatabase(db, 'wasteRecords');
     res.json({
       wasteRecords: db.wasteRecords,
       materials: db.materials,
@@ -907,7 +975,7 @@ async function startServer() {
     res.json(db.expenses);
   });
 
-  app.post('/api/expenses', (req, res) => {
+  app.post('/api/expenses', async (req, res) => {
     const newExp: Expense = {
       ...req.body,
       id: `exp_${Date.now()}`,
@@ -933,7 +1001,28 @@ async function startServer() {
       });
     }
 
-    saveDatabase(db);
+    await saveDatabase(db);
+    res.json({
+      expenses: db.expenses,
+      shifts: db.shifts,
+    });
+  });
+
+  app.put('/api/expenses/:id', async (req, res) => {
+    const { id } = req.params;
+    const updated = req.body;
+    db.expenses = db.expenses.map(e => (e.id === id ? { ...e, ...updated, id } : e));
+    await saveDatabase(db, 'expenses');
+    res.json({
+      expenses: db.expenses,
+      shifts: db.shifts,
+    });
+  });
+
+  app.delete('/api/expenses/:id', async (req, res) => {
+    const { id } = req.params;
+    db.expenses = db.expenses.filter(e => e.id !== id);
+    await saveDatabase(db, 'expenses');
     res.json({
       expenses: db.expenses,
       shifts: db.shifts,

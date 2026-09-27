@@ -206,6 +206,24 @@ export const Header: React.FC<HeaderProps> = ({
     };
   }, [showNotificationPopover]);
 
+  // Unified Burger Menu State
+  const [isBurgerMenuOpen, setIsBurgerMenuOpen] = useState<boolean>(false);
+  const burgerMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleBurgerClickOutside = (event: MouseEvent) => {
+      if (burgerMenuRef.current && !burgerMenuRef.current.contains(event.target as Node)) {
+        setIsBurgerMenuOpen(false);
+      }
+    };
+    if (isBurgerMenuOpen) {
+      document.addEventListener('mousedown', handleBurgerClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleBurgerClickOutside);
+    };
+  }, [isBurgerMenuOpen]);
+
   // Auth modal state for switching staff
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [selectedStaffToLogin, setSelectedStaffToLogin] = useState<Staff | null>(null);
@@ -591,150 +609,259 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Left / End: Audio Sound Toggle, Notification Bell, Action Shortcuts, Profile Switcher */}
+          {/* Left / End: Unified Burger Menu (Replaces all scattered loose buttons) */}
           <div className="flex items-center gap-1.5 sm:gap-2 justify-end shrink-0">
-            
-            {/* Sound Mute / Unmute Button */}
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              onClick={handleToggleMute}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl border text-xs font-bold flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 ${
-                isMuted 
-                  ? 'bg-slate-800/80 border-slate-700/80 text-slate-400 hover:text-slate-200' 
-                  : 'bg-emerald-950/70 border-emerald-700/80 text-emerald-300 hover:bg-emerald-900'
-              }`}
-              title={isMuted ? 'الصوت مكتوم - انقر لتفعيل أصوات الأشعارات والتنبيهات' : 'الأصوات مفعلة - انقر لكتم الصوت'}
-            >
-              {isMuted ? (
-                <VolumeX className="w-4 h-4 text-slate-400" />
-              ) : (
-                <Volume2 className="w-4 h-4 text-emerald-400" />
-              )}
-            </motion.button>
-
-            {/* Notification Bell for Low Stock Alerts */}
-            <div className="relative" ref={notifRef}>
+            <div className="relative" ref={burgerMenuRef}>
+              
+              {/* The Burger Button */}
               <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={handleOpenAlerts}
-                className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl border text-xs font-bold flex items-center justify-center transition-all cursor-pointer shadow-xs shrink-0 ${
-                  totalLowStockCount > 0
-                    ? 'bg-[#E31C2B]/20 hover:bg-[#E31C2B]/30 border-[#E31C2B] text-white shadow-lg shadow-[#E31C2B]/20'
-                    : 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-700/80 text-slate-300'
+                whileTap={{ scale: 0.94 }}
+                onClick={() => {
+                  soundManager.playClickSound();
+                  setIsBurgerMenuOpen(!isBurgerMenuOpen);
+                }}
+                className={`relative h-9 px-2.5 sm:px-3 rounded-xl border flex items-center gap-2 cursor-pointer transition-all shadow-xs ${
+                  isBurgerMenuOpen 
+                    ? 'bg-[#E31C2B] border-[#E31C2B] text-white shadow-md shadow-[#E31C2B]/30' 
+                    : 'bg-[#23242e] hover:bg-slate-700/80 border-slate-700/80 text-white'
                 }`}
-                title={
-                  totalLowStockCount > 0 
-                    ? `تنبيه: يوجد ${totalLowStockCount} مواد تحتاج إلى إعادة تعبئة` 
-                    : 'تنبيهات المخزون (المستويات آمنة)'
-                }
+                title="القائمة والخيارات السريعة (برجر باتن)"
               >
-                {totalLowStockCount > 0 ? (
-                  <BellRing className="w-4 h-4 text-[#ff6b6b] animate-bounce" />
+                {/* User avatar or photo */}
+                {customStaffPhoto ? (
+                  <img src={customStaffPhoto} alt={currentStaff.name} className="w-5 h-5 rounded-md object-cover shrink-0" />
                 ) : (
-                  <Bell className="w-4 h-4 text-slate-300" />
+                  <span className="text-sm leading-none">{currentStaff.avatar || '👤'}</span>
                 )}
 
-                {/* Notification Badge */}
+                <div className="text-right hidden sm:block">
+                  <div className="text-xs font-bold text-white leading-none flex items-center gap-1">
+                    <span className="truncate max-w-[85px]">{currentStaff.name}</span>
+                    {currentStaff.role === 'manager' && (
+                      <ShieldCheck className="w-3 h-3 text-amber-300 shrink-0" />
+                    )}
+                  </div>
+                </div>
+
+                {/* Burger Icon */}
+                <Menu className="w-4 h-4 text-slate-200 shrink-0" />
+
+                {/* Red alert bubble for low stock */}
                 {totalLowStockCount > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 bg-[#E31C2B] text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-[#181920] shadow-md animate-pulse">
                     {totalLowStockCount}
                   </span>
                 )}
               </motion.button>
-            </div>
 
-            {/* Quick Expense Shortcut (Desktop) */}
-            <button
-              onClick={() => {
-                soundManager.playClickSound();
-                onOpenExpenseModal();
-              }}
-              className="hidden sm:flex h-9 text-xs bg-slate-800/80 hover:bg-slate-700/80 text-white border border-slate-700/80 rounded-xl items-center gap-1.5 px-2.5 transition-colors cursor-pointer shadow-xs shrink-0"
-              title="تسجيل مصروف نثري من الدرج"
-            >
-              <Wallet className="w-3.5 h-3.5 text-amber-400" />
-              <span className="font-bold">مصروف</span>
-            </button>
+              {/* Burger Dropdown Menu */}
+              <AnimatePresence>
+                {isBurgerMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute left-0 top-full mt-2 w-72 sm:w-80 bg-[#1c1d25] border border-slate-700/90 rounded-2xl shadow-2xl p-3 z-50 text-white divide-y divide-slate-800"
+                    dir="rtl"
+                  >
+                    {/* 1. User Header & Switcher */}
+                    <div className="pb-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        {customStaffPhoto ? (
+                          <img src={customStaffPhoto} alt={currentStaff.name} className="w-9 h-9 rounded-xl object-cover border border-slate-700" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-lg">
+                            {currentStaff.avatar || '👤'}
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-bold text-xs text-white flex items-center gap-1">
+                            <span>{currentStaff.name}</span>
+                            {currentStaff.role === 'manager' ? (
+                              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-black px-1.5 py-0.2 rounded-md">
+                                مدير عام
+                              </span>
+                            ) : (
+                              <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[9px] font-black px-1.5 py-0.2 rounded-md">
+                                عامل
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                            {currentStoreId === 'store_sidiamer' ? 'فرع سيدي عامر' : 'فرع الأبحور'}
+                          </div>
+                        </div>
+                      </div>
 
-            {/* Quick Waste Shortcut (Desktop) */}
-            <button
-              onClick={() => {
-                soundManager.playClickSound();
-                onOpenLogWaste();
-              }}
-              className="hidden lg:flex h-9 text-xs bg-slate-800/80 hover:bg-slate-700/80 text-rose-300 hover:text-rose-200 border border-slate-700/80 rounded-xl items-center gap-1.5 px-2.5 transition-colors cursor-pointer shadow-xs shrink-0"
-              title="تسجيل تالف ورق أو حبر"
-            >
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-              <span className="font-bold">تالف</span>
-            </button>
+                      <button
+                        onClick={() => {
+                          setIsBurgerMenuOpen(false);
+                          setShowProfileDropdown(true);
+                        }}
+                        className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-bold border border-slate-700 flex items-center gap-1 cursor-pointer transition-colors"
+                        title="تبديل حساب المستخدم"
+                      >
+                        <User className="w-3 h-3 text-amber-400" />
+                        <span>تبديل</span>
+                      </button>
+                    </div>
 
-            {/* Direct Settings Shortcut (Desktop) */}
-            {onNavigateToSettings && (
-              <button
-                onClick={() => {
-                  soundManager.playClickSound();
-                  onNavigateToSettings();
-                }}
-                className="hidden xl:flex h-9 text-xs bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white border border-slate-700/80 rounded-xl items-center gap-1.5 px-2.5 transition-colors cursor-pointer shadow-xs shrink-0"
-                title="إعدادات النظام وهوية الاستوديو"
-              >
-                <Sliders className="w-3.5 h-3.5 text-slate-300" />
-                <span className="font-bold">الإعدادات</span>
-              </button>
-            )}
+                    {/* 2. Quick Actions */}
+                    <div className="py-2.5 space-y-1">
+                      <div className="text-[10px] font-black text-slate-400 px-1 mb-1">
+                        الإجراءات السريعة
+                      </div>
 
-            {/* Staff Switcher Profile Pill */}
-            <div className="relative" ref={profileRef}>
-              <motion.button
-                whileTap={{ scale: 0.96 }}
-                onClick={() => {
-                  soundManager.playClickSound();
-                  setShowProfileDropdown(!showProfileDropdown);
-                }}
-                className={`h-8 sm:h-9 flex items-center gap-1.5 border rounded-xl cursor-pointer transition-all px-2 sm:px-2.5 shadow-xs shrink-0 ${
-                  currentStaff.role === 'manager' 
-                    ? 'bg-gradient-to-r from-amber-600/90 to-amber-700/90 border-amber-500/80 text-white' 
-                    : 'bg-slate-800/80 hover:bg-slate-700/80 border-slate-700/80 text-white'
-                }`}
-                title={`${currentStaff.name} (${currentStaff.role === 'manager' ? 'مدير' : 'عامل'})`}
-              >
-                {customStaffPhoto ? (
-                  <img src={customStaffPhoto} alt={currentStaff.name} className="w-5 h-5 rounded-lg object-cover shrink-0" />
-                ) : (
-                  <span className="text-sm sm:text-base leading-none">{currentStaff.avatar}</span>
-                )}
-                <div className="text-right hidden sm:block">
-                  <div className="text-xs font-bold text-white leading-none flex items-center gap-1">
-                    <span className="truncate max-w-[85px]">{currentStaff.name}</span>
-                    {currentStaff.role === 'manager' && (
-                      <ShieldCheck className="w-3 h-3 text-amber-200 shrink-0" />
+                      {/* Quick Expense */}
+                      <button
+                        onClick={() => {
+                          setIsBurgerMenuOpen(false);
+                          soundManager.playClickSound();
+                          onOpenExpenseModal();
+                        }}
+                        className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-800/80 text-right text-xs font-bold text-slate-200 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                            <Wallet className="w-3.5 h-3.5" />
+                          </div>
+                          <span>تسجيل مصروف نثري من الدرج</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-amber-400 font-bold">+ مصروف</span>
+                      </button>
+
+                      {/* Quick Waste */}
+                      <button
+                        onClick={() => {
+                          setIsBurgerMenuOpen(false);
+                          soundManager.playClickSound();
+                          onOpenLogWaste();
+                        }}
+                        className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-800/80 text-right text-xs font-bold text-slate-200 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                          </div>
+                          <span>تسجيل تالف ورق أو حبر</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-rose-400 font-bold">+ تالف</span>
+                      </button>
+
+                      {/* Settings */}
+                      {onNavigateToSettings && (
+                        <button
+                          onClick={() => {
+                            setIsBurgerMenuOpen(false);
+                            soundManager.playClickSound();
+                            onNavigateToSettings();
+                          }}
+                          className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-800/80 text-right text-xs font-bold text-slate-200 transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                              <Sliders className="w-3.5 h-3.5" />
+                            </div>
+                            <span>إعدادات النظام وهوية الاستوديو</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-bold">ضبط</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 3. System Controls & Alerts */}
+                    <div className="py-2.5 space-y-1">
+                      <div className="text-[10px] font-black text-slate-400 px-1 mb-1">
+                        التحكم والتنبيهات
+                      </div>
+
+                      {/* Low Stock Alerts */}
+                      <button
+                        onClick={() => {
+                          setIsBurgerMenuOpen(false);
+                          handleOpenAlerts();
+                        }}
+                        className={`w-full flex items-center justify-between p-2 rounded-xl text-right text-xs font-bold transition-colors cursor-pointer ${
+                          totalLowStockCount > 0 ? 'bg-[#E31C2B]/15 hover:bg-[#E31C2B]/25 text-white' : 'hover:bg-slate-800/80 text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                            totalLowStockCount > 0 ? 'bg-[#E31C2B] text-white' : 'bg-slate-800 text-slate-300'
+                          }`}>
+                            <Bell className="w-3.5 h-3.5" />
+                          </div>
+                          <span>تنبيهات حد الأمان والمخزون</span>
+                        </div>
+                        {totalLowStockCount > 0 ? (
+                          <span className="text-[10px] bg-[#E31C2B] text-white px-2 py-0.5 rounded-full font-black animate-pulse">
+                            {totalLowStockCount} نواقص
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-emerald-400 font-bold">آمن</span>
+                        )}
+                      </button>
+
+                      {/* Sound Toggle */}
+                      <button
+                        onClick={handleToggleMute}
+                        className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-800/80 text-right text-xs font-bold text-slate-200 transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 flex items-center justify-center">
+                            {isMuted ? <VolumeX className="w-3.5 h-3.5 text-slate-400" /> : <Volume2 className="w-3.5 h-3.5 text-emerald-400" />}
+                          </div>
+                          <span>أصوات وتنبيهات النظام</span>
+                        </div>
+                        <span className={`text-[10px] font-bold ${isMuted ? 'text-slate-400' : 'text-emerald-400'}`}>
+                          {isMuted ? 'مكتوم' : 'مفعل'}
+                        </span>
+                      </button>
+
+                      {/* MongoDB Atlas Cloud Sync */}
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+                        <div className="flex items-center gap-2">
+                          <Database className={`w-3.5 h-3.5 ${mongoStatus.connected ? 'text-emerald-400' : 'text-amber-400'}`} />
+                          <span className="text-[11px] font-bold text-slate-300">سحابة MongoDB</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-black ${mongoStatus.connected ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {mongoStatus.connected ? 'متصل' : 'محلي'}
+                          </span>
+                          <button
+                            onClick={handleManualMongoSync}
+                            disabled={isSyncingMongo}
+                            className="p-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer disabled:opacity-50"
+                            title="مزامنة فورية مع MongoDB"
+                          >
+                            <RefreshCw className={`w-3 h-3 ${isSyncingMongo ? 'animate-spin' : ''}`} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 4. Logout Action */}
+                    {onLogout && (
+                      <div className="pt-2">
+                        <button
+                          onClick={() => {
+                            setIsBurgerMenuOpen(false);
+                            soundManager.playClickSound();
+                            onLogout();
+                          }}
+                          className="w-full py-2 px-3 rounded-xl bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800/60 text-rose-300 text-xs font-black flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                          <span>تسجيل الخروج من المنظومة</span>
+                        </button>
+                      </div>
                     )}
-                  </div>
-                  <div className="text-[9px] text-slate-300 mt-0.5 leading-none">
-                    {currentStaff.role === 'manager' ? 'مدير' : 'عامل'}
-                  </div>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-300 shrink-0 opacity-80" />
-              </motion.button>
+
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-
-            {/* Quick Logout Button (Desktop only) */}
-            {onLogout && (
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  soundManager.playClickSound();
-                  onLogout();
-                }}
-                className="hidden sm:flex w-9 h-9 xl:w-auto xl:px-2.5 rounded-xl text-xs bg-rose-950/70 hover:bg-rose-900 border border-rose-700/60 text-rose-200 items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
-                title="تسجيل الخروج"
-              >
-                <LogOut className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                <span className="hidden xl:inline font-bold">خروج</span>
-              </motion.button>
-            )}
-
           </div>
         </div>
 

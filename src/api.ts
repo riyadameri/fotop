@@ -189,6 +189,24 @@ export const api = {
     return res.json();
   },
 
+  async updateOrder(orderId: string, updated: Partial<Order>): Promise<{ success: boolean; order?: Order; orders: Order[] }> {
+    const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    });
+    if (!res.ok) throw new Error('Failed to update order');
+    return res.json();
+  },
+
+  async deleteOrder(orderId: string): Promise<{ success: boolean; orders: Order[] }> {
+    const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to delete order');
+    return res.json();
+  },
+
   // Shifts
   async openShift(staffId: string, staffName: string, openingCash: number, storeId?: string, storeName?: string): Promise<Shift[]> {
     const res = await fetch('/api/shifts/open', {
@@ -210,6 +228,24 @@ export const api = {
     return res.json();
   },
 
+  async updateShift(shiftId: string, updated: Partial<Shift>): Promise<Shift[]> {
+    const res = await fetch(`/api/shifts/${encodeURIComponent(shiftId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    });
+    if (!res.ok) throw new Error('Failed to update shift');
+    return res.json();
+  },
+
+  async deleteShift(shiftId: string): Promise<Shift[]> {
+    const res = await fetch(`/api/shifts/${encodeURIComponent(shiftId)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to delete shift');
+    return res.json();
+  },
+
   // Waste
   async addWasteRecord(record: Omit<WasteRecord, 'id' | 'createdAt'>): Promise<{
     wasteRecords: WasteRecord[];
@@ -224,6 +260,30 @@ export const api = {
     return res.json();
   },
 
+  async updateWasteRecord(id: string, updated: Partial<WasteRecord>): Promise<{
+    wasteRecords: WasteRecord[];
+    materials: Material[];
+  }> {
+    const res = await fetch(`/api/waste/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    });
+    if (!res.ok) throw new Error('Failed to update waste record');
+    return res.json();
+  },
+
+  async deleteWasteRecord(id: string): Promise<{
+    wasteRecords: WasteRecord[];
+    materials: Material[];
+  }> {
+    const res = await fetch(`/api/waste/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to delete waste record');
+    return res.json();
+  },
+
   // Expenses
   async addExpense(expense: Omit<Expense, 'id' | 'createdAt'>): Promise<{
     expenses: Expense[];
@@ -235,6 +295,38 @@ export const api = {
       body: JSON.stringify(expense),
     });
     if (!res.ok) throw new Error('Failed to add expense');
+    return res.json();
+  },
+
+  async updateExpense(id: string, updated: Partial<Expense>): Promise<{
+    expenses: Expense[];
+    shifts: Shift[];
+  }> {
+    const res = await fetch(`/api/expenses/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    });
+    if (!res.ok) throw new Error('Failed to update expense');
+    return res.json();
+  },
+
+  async deleteExpense(id: string): Promise<{
+    expenses: Expense[];
+    shifts: Shift[];
+  }> {
+    const res = await fetch(`/api/expenses/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to delete expense');
+    return res.json();
+  },
+
+  async deleteStore(id: string): Promise<Store[]> {
+    const res = await fetch(`/api/stores/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) throw new Error('Failed to delete store');
     return res.json();
   },
 

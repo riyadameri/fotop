@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Staff, SalaryPayment, SalaryPaymentType, SalaryPaymentMethod, AttendanceRecord, Expense } from '../../types';
+import { Staff, SalaryPayment, SalaryPaymentType, SalaryPaymentMethod, AttendanceRecord, Expense, StaffPermissions, DEFAULT_WORKER_PERMISSIONS } from '../../types';
 import { 
   Users, 
   DollarSign, 
@@ -25,6 +25,8 @@ import {
   FileText,
   BadgePercent,
   Sliders,
+  ShieldCheck,
+  Key,
   X
 } from 'lucide-react';
 import { exportToCSV, formatCurrency, formatDate, formatTime } from '../../utils/formatters';
@@ -89,12 +91,16 @@ export const HumanResourcesView: React.FC<HumanResourcesViewProps> = ({
   const [editPaymentMethod, setEditPaymentMethod] = useState<SalaryPaymentMethod>('cash');
   const [editNotes, setEditNotes] = useState<string>('');
 
-  // Modal: Edit Worker Base Rates
+  // Modal: Edit Worker Base Rates & Permissions
   const [editingRatesStaff, setEditingRatesStaff] = useState<Staff | null>(null);
   const [staffMonthlySalary, setStaffMonthlySalary] = useState<string>('35000');
   const [staffDailyRate, setStaffDailyRate] = useState<string>('2000');
   const [staffHourlyRate, setStaffHourlyRate] = useState<string>('250');
   const [staffOvertimeRate, setStaffOvertimeRate] = useState<string>('350');
+  const [staffRole, setStaffRole] = useState<'manager' | 'worker'>('worker');
+  const [staffStoreId, setStaffStoreId] = useState<string>('store_sidiamer');
+  const [staffPassword, setStaffPassword] = useState<string>('');
+  const [staffPermissions, setStaffPermissions] = useState<StaffPermissions>(DEFAULT_WORKER_PERMISSIONS);
 
   // Modal: Payslip Voucher Print
   const [printingPayment, setPrintingPayment] = useState<SalaryPayment | null>(null);
@@ -247,13 +253,18 @@ export const HumanResourcesView: React.FC<HumanResourcesViewProps> = ({
     }
   };
 
-  // Save staff base rates
+  // Save staff base rates & permissions
   const handleSaveStaffRates = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRatesStaff) return;
 
     const updated: Staff = {
       ...editingRatesStaff,
+      role: staffRole,
+      storeId: staffStoreId,
+      storeName: staffStoreId === 'store_labhour' ? 'fotop labhour' : 'fotop sidiamer',
+      password: staffPassword.trim() || undefined,
+      permissions: staffPermissions,
       monthlySalaryBase: Number(staffMonthlySalary) || undefined,
       dailyRate: Number(staffDailyRate) || undefined,
       hourlyRate: Number(staffHourlyRate) || undefined,
@@ -262,7 +273,7 @@ export const HumanResourcesView: React.FC<HumanResourcesViewProps> = ({
 
     onUpdateStaff(updated);
     setEditingRatesStaff(null);
-    showToast(`تم تحديث شروط الراتب والأجر للموظف: ${updated.name}`);
+    showToast(`تم تحديث شروط الراتب وصلاحيات الموظف: ${updated.name}`);
   };
 
   // Filtered Payments
@@ -348,13 +359,17 @@ export const HumanResourcesView: React.FC<HumanResourcesViewProps> = ({
     setShowPaymentModal(true);
   };
 
-  // Open Edit Rates Modal
+  // Open Edit Rates & Permissions Modal
   const openEditRates = (staff: Staff) => {
     setEditingRatesStaff(staff);
     setStaffMonthlySalary(String(staff.monthlySalaryBase || ''));
     setStaffDailyRate(String(staff.dailyRate || ''));
     setStaffHourlyRate(String(staff.hourlyRate || '250'));
     setStaffOvertimeRate(String(staff.overtimeHourlyRate || '350'));
+    setStaffRole(staff.role);
+    setStaffStoreId(staff.storeId || 'store_sidiamer');
+    setStaffPassword(staff.password || '');
+    setStaffPermissions(staff.permissions ? { ...DEFAULT_WORKER_PERMISSIONS, ...staff.permissions } : DEFAULT_WORKER_PERMISSIONS);
   };
 
   // Open Edit Payment Modal
@@ -1417,15 +1432,15 @@ export const HumanResourcesView: React.FC<HumanResourcesViewProps> = ({
       ========================================================================= */}
       {editingRatesStaff && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-scaleUp my-8">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 animate-scaleUp my-8" dir="rtl">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center">
                   <Sliders className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-black text-base text-[#292A34]">تعديل شروط الأجر للموظف</h3>
-                  <p className="text-xs text-slate-500">{editingRatesStaff.name}</p>
+                  <h3 className="font-black text-base text-[#292A34]">تعديل شروط الأجر والصلاحيات للموظف</h3>
+                  <p className="text-xs text-slate-500">{editingRatesStaff.name} ({editingRatesStaff.phone || 'بدون هاتف'})</p>
                 </div>
               </div>
               <button
@@ -1436,59 +1451,239 @@ export const HumanResourcesView: React.FC<HumanResourcesViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSaveStaffRates} className="mt-5 space-y-4">
-              <div>
-                <label className="block text-xs font-black text-slate-700 mb-1.5">الراتب الأساسي الشهري (دج):</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="500"
-                  value={staffMonthlySalary}
-                  onChange={e => setStaffMonthlySalary(e.target.value)}
-                  placeholder="مثلاً: 35000"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-[#292A34] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-black text-slate-700 mb-1.5">الأجر باليوم (اليومية بالدينار دج):</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="100"
-                  value={staffDailyRate}
-                  onChange={e => setStaffDailyRate(e.target.value)}
-                  placeholder="مثلاً: 2000"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-[#292A34] focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-black text-slate-700 mb-1.5">أجر الساعة العادية:</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="50"
-                    value={staffHourlyRate}
-                    onChange={e => setStaffHourlyRate(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-[#292A34] focus:outline-none"
-                  />
+            <form onSubmit={handleSaveStaffRates} className="mt-5 space-y-4 max-h-[75vh] overflow-y-auto px-1">
+              {/* Role, Store & Password */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="text-xs font-black text-[#292A34] flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-purple-600" />
+                  <span>الرتبة والفرع وكلمة السر</span>
                 </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">الرتبة في النظام:</label>
+                    <select
+                      value={staffRole}
+                      onChange={e => setStaffRole(e.target.value as 'manager' | 'worker')}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl font-bold text-[#292A34] cursor-pointer"
+                    >
+                      <option value="worker">عامل في الأستوديو</option>
+                      <option value="manager">مدير عام (كامل الصلاحيات)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">الفرع المخصص:</label>
+                    <select
+                      value={staffStoreId}
+                      onChange={e => setStaffStoreId(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl font-bold text-[#292A34] cursor-pointer"
+                    >
+                      <option value="store_sidiamer">فرع سيدي عامر</option>
+                      <option value="store_labhour">فرع الأبحور</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label className="block text-xs font-black text-slate-700 mb-1.5">أجر الساعة الإضافية:</label>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">كلمة مرور الحساب (للدخول وتبديل الحساب):</label>
                   <input
-                    type="number"
-                    min="0"
-                    step="50"
-                    value={staffOvertimeRate}
-                    onChange={e => setStaffOvertimeRate(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-[#292A34] focus:outline-none"
+                    type="text"
+                    value={staffPassword}
+                    onChange={e => setStaffPassword(e.target.value)}
+                    placeholder="مثلاً: 123"
+                    className="w-full p-2 bg-white border border-slate-300 rounded-xl font-mono font-bold text-xs text-[#292A34]"
                   />
                 </div>
               </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2.5">
+              {/* Salary & Wage Base Rates */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="text-xs font-black text-[#292A34] flex items-center gap-1.5">
+                  <DollarSign className="w-4 h-4 text-emerald-600" />
+                  <span>الأجر والراتب الأساسي</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">الراتب الشهري (دج):</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="500"
+                      value={staffMonthlySalary}
+                      onChange={e => setStaffMonthlySalary(e.target.value)}
+                      placeholder="مثلاً: 35000"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-[#292A34]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">الأجر باليوم (اليومية دج):</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="100"
+                      value={staffDailyRate}
+                      onChange={e => setStaffDailyRate(e.target.value)}
+                      placeholder="مثلاً: 2000"
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-[#292A34]"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">أجر الساعة العادية:</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="50"
+                      value={staffHourlyRate}
+                      onChange={e => setStaffHourlyRate(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-[#292A34]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">أجر الساعة الإضافية:</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="50"
+                      value={staffOvertimeRate}
+                      onChange={e => setStaffOvertimeRate(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-[#292A34]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Granular Permissions Checklist for Elements */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-black text-[#292A34] flex items-center gap-1.5">
+                    <Key className="w-4 h-4 text-amber-600" />
+                    <span>صلاحيات العامل على عناصر وعمليات النظام</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStaffPermissions({
+                          canEditOrders: true,
+                          canDeleteOrders: true,
+                          canChangeOrderStatus: true,
+                          canManageMaterials: true,
+                          canManageServices: true,
+                          canManageExpenses: true,
+                          canManageWaste: true,
+                          canManageShifts: true,
+                          canManageStores: true,
+                        });
+                      }}
+                      className="px-2 py-0.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[10px] font-bold cursor-pointer transition-colors"
+                    >
+                      منح الكل
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStaffPermissions(DEFAULT_WORKER_PERMISSIONS)}
+                      className="px-2 py-0.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold cursor-pointer transition-colors"
+                    >
+                      قياسي
+                    </button>
+                  </div>
+                </div>
+
+                {staffRole === 'manager' ? (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 font-bold">
+                    المستخدم بصلاحية مدير عام يمتلك جميع صلاحيات الحذف والتعديل والتغيير تلقائياً.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1 font-bold">
+                    <label className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100/60">
+                      <input
+                        type="checkbox"
+                        checked={staffPermissions.canEditOrders}
+                        onChange={e => setStaffPermissions(prev => ({ ...prev, canEditOrders: e.target.checked }))}
+                        className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                      />
+                      <span>تعديل تفاصيل وأسعار الطلبات</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100/60">
+                      <input
+                        type="checkbox"
+                        checked={staffPermissions.canDeleteOrders}
+                        onChange={e => setStaffPermissions(prev => ({ ...prev, canDeleteOrders: e.target.checked }))}
+                        className="rounded text-rose-600 focus:ring-rose-500 w-4 h-4"
+                      />
+                      <span className="text-rose-700">حذف الطلبات نهائياً</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100/60">
+                      <input
+                        type="checkbox"
+                        checked={staffPermissions.canChangeOrderStatus}
+                        onChange={e => setStaffPermissions(prev => ({ ...prev, canChangeOrderStatus: e.target.checked }))}
+                        className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                      />
+                      <span>تغيير حالة الطلب (تجهيز/تسليم)</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100/60">
+                      <input
+                        type="checkbox"
+                        checked={staffPermissions.canManageMaterials}
+                        onChange={e => setStaffPermissions(prev => ({ ...prev, canManageMaterials: e.target.checked }))}
+                        className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                      />
+                      <span>تعديل وحذف المواد والمخزون</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100/60">
+                      <input
+                        type="checkbox"
+                        checked={staffPermissions.canManageServices}
+                        onChange={e => setStaffPermissions(prev => ({ ...prev, canManageServices: e.target.checked }))}
+                        className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                      />
+                      <span>تعديل وحذف السلع والخدمات</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100/60">
+                      <input
+                        type="checkbox"
+                        checked={staffPermissions.canManageExpenses}
+                        onChange={e => setStaffPermissions(prev => ({ ...prev, canManageExpenses: e.target.checked }))}
+                        className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                      />
+                      <span>تعديل وحذف المصروفات</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100/60">
+                      <input
+                        type="checkbox"
+                        checked={staffPermissions.canManageWaste}
+                        onChange={e => setStaffPermissions(prev => ({ ...prev, canManageWaste: e.target.checked }))}
+                        className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                      />
+                      <span>تعديل وحذف سجلات التالف</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-100/60">
+                      <input
+                        type="checkbox"
+                        checked={staffPermissions.canManageShifts}
+                        onChange={e => setStaffPermissions(prev => ({ ...prev, canManageShifts: e.target.checked }))}
+                        className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4"
+                      />
+                      <span>تعديل وحذف الورديات والصندوق</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2.5 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setEditingRatesStaff(null)}
@@ -1500,7 +1695,7 @@ export const HumanResourcesView: React.FC<HumanResourcesViewProps> = ({
                   type="submit"
                   className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-black rounded-xl text-xs shadow-md shadow-purple-600/30 cursor-pointer"
                 >
-                  حفظ البيانات
+                  حفظ البيانات والصلاحيات
                 </button>
               </div>
             </form>

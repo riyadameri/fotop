@@ -262,6 +262,40 @@ export async function syncCollectionToMongo(collectionName: CollectionName, item
 }
 
 /**
+ * Upsert a single document directly in MongoDB Atlas
+ */
+export async function upsertDocInMongo(collectionName: CollectionName, item: any): Promise<void> {
+  if (!isConnected || !dbInstance) {
+    const ok = await connectToMongoDB();
+    if (!ok || !dbInstance) return;
+  }
+  try {
+    const col = dbInstance.collection(collectionName);
+    const doc = { ...item };
+    delete (doc as any)._id;
+    await col.replaceOne({ id: item.id }, doc, { upsert: true });
+  } catch (err) {
+    console.error(`[MongoDB] Error upserting doc into "${collectionName}":`, err);
+  }
+}
+
+/**
+ * Delete a single document directly from MongoDB Atlas
+ */
+export async function deleteDocInMongo(collectionName: CollectionName, id: string): Promise<void> {
+  if (!isConnected || !dbInstance) {
+    const ok = await connectToMongoDB();
+    if (!ok || !dbInstance) return;
+  }
+  try {
+    const col = dbInstance.collection(collectionName);
+    await col.deleteOne({ id });
+  } catch (err) {
+    console.error(`[MongoDB] Error deleting doc from "${collectionName}":`, err);
+  }
+}
+
+/**
  * Synchronize all collections to MongoDB
  */
 export async function syncAllToMongo(data: Record<CollectionName, any[]>): Promise<void> {
