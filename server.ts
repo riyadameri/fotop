@@ -477,7 +477,8 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Static assets serving so user can place logo.png in either /assets or /public/assets
   const rootAssetsPath = path.join(process.cwd(), 'assets');
@@ -656,7 +657,7 @@ async function startServer() {
   app.put('/api/materials/:id', async (req, res) => {
     const { id } = req.params;
     const updated = req.body as Material;
-    db.materials = db.materials.map(m => (m.id === id ? { ...updated, id } : m));
+    db.materials = db.materials.map(m => (m.id === id ? { ...m, ...updated, id } : m));
     await saveDatabase(db, 'materials');
     res.json(db.materials);
   });
@@ -705,7 +706,7 @@ async function startServer() {
   app.put('/api/services/:id', async (req, res) => {
     const { id } = req.params;
     const updated = req.body as ServiceItem;
-    db.services = db.services.map(s => (s.id === id ? { ...updated, id } : s));
+    db.services = db.services.map(s => (s.id === id ? { ...s, ...updated, id } : s));
     await saveDatabase(db, 'services');
     res.json(db.services);
   });
@@ -735,7 +736,7 @@ async function startServer() {
   app.put('/api/staff/:id', (req, res) => {
     const { id } = req.params;
     const updated = req.body as Staff;
-    db.staff = db.staff.map(s => (s.id === id ? { ...updated, id } : s));
+    db.staff = db.staff.map(s => (s.id === id ? { ...s, ...updated, id } : s));
     saveDatabase(db);
     res.json(db.staff);
   });

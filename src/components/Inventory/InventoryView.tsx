@@ -29,10 +29,24 @@ import {
   Check,
   Edit3,
   ImagePlus,
-  X
+  X,
+  Filter
 } from 'lucide-react';
-import { Material, ServiceItem, PhotoLinkConfig, Staff, Expense, Store, checkStaffPermission } from '../../types';
+import { 
+  Material, 
+  ServiceItem, 
+  PhotoLinkConfig, 
+  Staff, 
+  Expense, 
+  Store, 
+  checkStaffPermission,
+  OFFICIAL_SERVICE_CATEGORIES,
+  OfficialServiceCategory,
+  normalizeServiceCategory,
+  BOMItem
+} from '../../types';
 import { formatCurrency, formatNumber, exportToCSV, calculateServiceBOMCost } from '../../utils/formatters';
+import { compressAndResizeImage } from '../../utils/imageCompressor';
 
 interface InventoryViewProps {
   materials: Material[];
@@ -101,23 +115,28 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   // Add Direct Sale Item Modal State
   const [showAddDirectSaleModal, setShowAddDirectSaleModal] = useState<boolean>(false);
   const [directName, setDirectName] = useState<string>('');
-  const [directCategory, setDirectCategory] = useState<ServiceItem['category']>('retail_goods');
+  const [directCategory, setDirectCategory] = useState<OfficialServiceCategory>('goods_and_accessories');
   const [directBuyCost, setDirectBuyCost] = useState<string>('500');
   const [directSalePrice, setDirectSalePrice] = useState<string>('900');
   const [directStock, setDirectStock] = useState<string>('20');
   const [directDescription, setDirectDescription] = useState<string>('');
   const [directImageUrl, setDirectImageUrl] = useState<string>('');
 
-  // Add Associative Photo Item Modal State (BOM Photo & Ink Builder)
+  // Add Associative Photo Item Modal State (BOM Photo & Ink & Frame Builder)
   const [showAddPhotoLinkModal, setShowAddPhotoLinkModal] = useState<boolean>(false);
-  const [photoServiceName, setPhotoServiceName] = useState<string>('طباعة وتكبير صور مقاس A4');
+  const [photoServiceName, setPhotoServiceName] = useState<string>('كادر A4 مع صورة');
+  const [photoCategory, setPhotoCategory] = useState<OfficialServiceCategory>('frames_and_enlargements');
   const [photoPaperSize, setPhotoPaperSize] = useState<'A4' | 'A3' | '10x15' | '13x18' | 'custom'>('A4');
   const [photoPaperMatId, setPhotoPaperMatId] = useState<string>((materials || []).find(m => m.category === 'paper')?.id || '');
   const [photosPerSheet, setPhotosPerSheet] = useState<string>('1');
   const [photoInkMatId, setPhotoInkMatId] = useState<string>((materials || []).find(m => m.category === 'ink')?.id || '');
   const [photoInkYield, setPhotoInkYield] = useState<string>('150');
+  const [photoFrameMatId, setPhotoFrameMatId] = useState<string>((materials || []).find(m => m.category === 'frame')?.id || '');
   const [photoPrice, setPhotoPrice] = useState<string>('450');
   const [photoImageUrl, setPhotoImageUrl] = useState<string>('');
+
+  // Products Category Filter
+  const [productSelectedCategory, setProductSelectedCategory] = useState<string>('all');
 
   // Edit Material State
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null);
@@ -221,23 +240,27 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     }
   ];
 
-  const handleImageFileUpload = (
+  const [editProductFrameMatId, setEditProductFrameMatId] = useState<string>('');
+
+  const handleImageFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (val: string) => void
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) {
-      alert('حجم الصورة كبير، يرجى اختيار صورة أقل من 3 ميغابايت');
-      return;
+    try {
+      const compressed = await compressAndResizeImage(file);
+      setter(compressed);
+    } catch (err) {
+      console.warn('Compression fallback to FileReader:', err);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setter(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        setter(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
   };
 
   const openEditProduct = (prod: ServiceItem) => {
@@ -247,29 +270,51 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setEditProductBuyCost(String(prod.buyCost ?? 0));
     setEditProductStock(String(prod.currentStock ?? 0));
     setEditProductMinThreshold(String(prod.minThreshold ?? 3));
-    setEditProductCategory(prod.category || 'retail_goods');
+    setEditProductCategory(normalizeServiceCategory(prod.category, prod.name));
     setEditProductItemType(prod.itemType || 'direct_sale');
-    setEditProductStoreId(prod.storeId || 'all');
+    setEditProductStoreId(prod.storeId || defaultBranch);
     setEditProductDescription(prod.description || '');
     setEditProductImageUrl(prod.imageUrl || '');
+    setEditProductFrameMatId(prod.photoConfig?.frameMaterialId || '');
   };
 
   const handleSaveProductEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
+
+    let updatedBom: BOMItem[] = [...(editingProduct.bom || [])];
+    if (editingProduct.photoConfig) {
+      const frameMatIds = materials.filter(m => m.category === 'frame').map(m => m.id);
+      updatedBom = updatedBom.filter(b => !frameMatIds.includes(b.materialId));
+      if (editProductFrameMatId) {
+        updatedBom.push({
+          materialId: editProductFrameMatId,
+          quantity: 1
+        });
+      }
+    }
+
     const updated: ServiceItem = {
       ...editingProduct,
       name: editProductName.trim() || editingProduct.name,
       category: editProductCategory,
       itemType: editProductItemType,
-      storeId: editProductStoreId !== 'all' ? editProductStoreId : undefined,
+      storeId: editProductStoreId !== 'all' ? editProductStoreId : (editingProduct.storeId || defaultBranch),
+      storeName: stores?.find(st => st.id === (editProductStoreId !== 'all' ? editProductStoreId : (editingProduct.storeId || defaultBranch)))?.name || editingProduct.storeName,
       minThreshold: Number(editProductMinThreshold) || 3,
       price: Number(editProductPrice) || editingProduct.price,
       buyCost: Number(editProductBuyCost) >= 0 ? Number(editProductBuyCost) : editingProduct.buyCost,
       currentStock: Number(editProductStock) >= 0 ? Number(editProductStock) : editingProduct.currentStock,
       description: editProductDescription.trim() || editingProduct.description,
-      imageUrl: editProductImageUrl.trim() || undefined
+      imageUrl: editProductImageUrl.trim() || undefined,
+      bom: updatedBom,
+      photoConfig: editingProduct.photoConfig ? {
+        ...editingProduct.photoConfig,
+        frameMaterialId: editProductFrameMatId || undefined,
+        framePerPhoto: editProductFrameMatId ? 1 : 0
+      } : undefined
     };
+
     if (onUpdateService) {
       onUpdateService(updated);
     }
@@ -303,9 +348,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const totalInventoryValue = (materials || []).reduce((acc, m) => acc + (m.currentStock * m.unitCost), 0);
 
-  // Live calculation for associative photo formula modal
+  // Live calculation for associative photo formula modal (Paper + Ink + Frame)
   const selectedPaperMat = (materials || []).find(m => m.id === (photoPaperMatId || (materials || [])[0]?.id));
   const selectedInkMat = (materials || []).find(m => m.id === (photoInkMatId || (materials || []).find(x => x.category === 'ink')?.id));
+  const selectedFrameMat = (materials || []).find(m => m.id === photoFrameMatId);
 
   const numPhotosPerSheet = Math.max(1, Number(photosPerSheet) || 1);
   const numInkYield = Math.max(1, Number(photoInkYield) || 1);
@@ -313,12 +359,25 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const unitPaperCost = selectedPaperMat ? (selectedPaperMat.unitCost / numPhotosPerSheet) : 0;
   const unitInkCost = selectedInkMat ? (selectedInkMat.unitCost * (100 / numInkYield)) : 0;
+  const unitFrameCost = selectedFrameMat ? selectedFrameMat.unitCost : 0;
+  const totalItemCost = unitPaperCost + unitInkCost + unitFrameCost;
+
   const sheetInkCost = unitInkCost * numPhotosPerSheet; // تكلفة الحبر للورقة الواحدة
   const sheetPaperCost = selectedPaperMat ? selectedPaperMat.unitCost : 0; // تكلفة الورقة الخام
   const totalSheetCost = sheetPaperCost + sheetInkCost; // إجمالي تكلفة إنتاج الورقة الواحدة (ورق + حبر)
-  const totalFormulaCost = unitPaperCost + unitInkCost;
-  const netFormulaProfit = Math.max(0, sellingPricePerPhoto - totalFormulaCost);
+  const totalFormulaCost = totalItemCost;
+  const netFormulaProfit = Math.max(0, sellingPricePerPhoto - totalItemCost);
   const formulaMargin = sellingPricePerPhoto > 0 ? ((netFormulaProfit / sellingPricePerPhoto) * 100).toFixed(1) : '0';
+
+  // Filtered Products List for SubTab 'products'
+  const filteredProducts = (services || []).filter(s => {
+    const normCat = normalizeServiceCategory(s.category, s.name);
+    const matchesCat = productSelectedCategory === 'all' || normCat === productSelectedCategory;
+    const matchesSearch = searchQuery === '' || 
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCat && matchesSearch;
+  });
 
   const handleExecuteRestock = (e: React.FormEvent) => {
     e.preventDefault();
@@ -482,11 +541,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
     const targetStore = defaultBranch;
     const storeObj = stores?.find(s => s.id === targetStore);
+    const frameMat = (materials || []).find(m => m.id === photoFrameMatId);
 
-    const bomList = [
+    const bomList: BOMItem[] = [
       { materialId: paperId, quantity: Number((1 / numPhotosPerSheet).toFixed(2)) },
       { materialId: inkId, quantity: Number((100 / numInkYield).toFixed(2)) }
     ];
+    if (photoFrameMatId) {
+      bomList.push({ materialId: photoFrameMatId, quantity: 1 });
+    }
 
     const photoConfig: PhotoLinkConfig = {
       paperSize: photoPaperSize,
@@ -495,17 +558,21 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       inkMaterialId: inkId,
       inkYieldPhotos: numInkYield,
       inkPerPhotoMl: Number((100 / numInkYield).toFixed(2)),
-      pricePerPhoto: sellingPricePerPhoto
+      pricePerPhoto: sellingPricePerPhoto,
+      frameMaterialId: photoFrameMatId || undefined,
+      framePerPhoto: photoFrameMatId ? 1 : 0
     };
 
     const newService: ServiceItem = {
       id: `photo_link_${Date.now()}`,
       name: photoServiceName.trim(),
       itemType: 'custom_photo_service',
-      category: 'prints',
+      category: photoCategory || 'frames_and_enlargements',
       buyCost: Number(totalFormulaCost.toFixed(1)),
       price: sellingPricePerPhoto,
-      description: `طباعة مقاس ${photoPaperSize} مع خصم تلقائي للورق والحبر (${numPhotosPerSheet} صورة/ورقة)`,
+      description: photoFrameMatId
+        ? `كادر مع صورة مقاس ${photoPaperSize} (ورق + حبر + كادر ${frameMat?.name || ''})`
+        : `طباعة مقاس ${photoPaperSize} مع خصم تلقائي للورق والحبر (${numPhotosPerSheet} صورة/ورقة)`,
       imageIcon: 'Image',
       imageUrl: photoImageUrl.trim() || undefined,
       bom: bomList,
@@ -520,6 +587,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setShowAddPhotoLinkModal(false);
     setPhotoServiceName('');
     setPhotoImageUrl('');
+    setPhotoFrameMatId('');
   };
 
   const handleExportCSV = () => {
@@ -1107,162 +1175,220 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {services.map(s => {
-              const rawCost = s.itemType === 'direct_sale' ? (s.buyCost || 0) : calculateServiceBOMCost(s.bom, materials);
-              const profit = Math.max(0, s.price - rawCost);
-              const margin = s.price > 0 ? ((profit / s.price) * 100).toFixed(0) : '0';
-
-              const linkedConfig = s.photoConfig;
-              const pMat = linkedConfig ? (materials || []).find(m => m.id === linkedConfig.paperMaterialId) : null;
-              const iMat = linkedConfig ? (materials || []).find(m => m.id === linkedConfig.inkMaterialId) : null;
-              const pPerSheet = linkedConfig?.photosPerSheet || 1;
-              const iCostPerPhoto = iMat 
-                ? (iMat.unitCost * (100 / (linkedConfig?.inkYieldPhotos || 1)))
-                : (linkedConfig?.inkPerPhotoMl && iMat ? iMat.unitCost * linkedConfig.inkPerPhotoMl : 0);
-              const iCostPerSheet = iCostPerPhoto * pPerSheet;
-              const pCostPerSheet = pMat ? pMat.unitCost : 0;
-              const totalCostPerSheet = pCostPerSheet + iCostPerSheet;
-
+          {/* Category Filter Bar for Products */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar border-b border-slate-100">
+            <button
+              onClick={() => setProductSelectedCategory('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-colors ${
+                productSelectedCategory === 'all'
+                  ? 'bg-[#292A34] text-white shadow-xs'
+                  : 'bg-[#F0F0F0] text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              جميع الأقسام والخدمات ({services.length})
+            </button>
+            {OFFICIAL_SERVICE_CATEGORIES.map(cat => {
+              const count = (services || []).filter(s => normalizeServiceCategory(s.category, s.name) === cat.id).length;
+              const isSelected = productSelectedCategory === cat.id;
               return (
-                <div key={s.id} className="bg-[#F9FAFB] border border-slate-200 rounded-2xl p-4 space-y-3 relative hover:border-[#E31C2B] transition-all flex flex-col justify-between">
-                  <div>
-                    {/* Product Image Banner if available, or image adder */}
-                    {s.imageUrl ? (
-                      <div className="w-full h-36 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 mb-3 relative group">
-                        <img 
-                          src={s.imageUrl} 
-                          alt={s.name} 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          referrerPolicy="no-referrer"
-                        />
-                        <button
-                          onClick={() => handleOpenEditProduct(s)}
-                          className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/75 hover:bg-black text-white text-[10px] font-bold flex items-center gap-1.5 backdrop-blur-xs transition-colors shadow-sm"
-                          title="تغيير صورة المنتج"
-                        >
-                          <Camera className="w-3.5 h-3.5 text-amber-400" />
-                          <span>تغيير الصورة</span>
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="w-full py-2.5 px-3 rounded-xl border border-dashed border-slate-300 bg-white/70 hover:bg-white flex items-center justify-between mb-3 transition-colors">
-                        <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
-                          <ImageIcon className="w-4 h-4 text-slate-400" />
-                          <span>لا توجد صورة لهذا المنتج</span>
+                <button
+                  key={cat.id}
+                  onClick={() => setProductSelectedCategory(cat.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'bg-[#292A34] text-white shadow-xs'
+                      : 'bg-[#F0F0F0] text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat.label} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          {filteredProducts.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 space-y-2">
+              <Boxes className="w-10 h-10 mx-auto text-slate-300" />
+              <p className="text-xs font-bold">لا توجد منتجات أو خدمات متوفرة في هذا التصنيف حالياً.</p>
+              <p className="text-[11px] text-slate-400">يمكنك إضافة سلعة أو خدمة جديدة بنقر أزرار الإضافة أعلاه.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProducts.map(s => {
+                const rawCost = s.itemType === 'direct_sale' ? (s.buyCost || 0) : calculateServiceBOMCost(s.bom, materials);
+                const profit = Math.max(0, s.price - rawCost);
+                const margin = s.price > 0 ? ((profit / s.price) * 100).toFixed(0) : '0';
+
+                const linkedConfig = s.photoConfig;
+                const pMat = linkedConfig ? (materials || []).find(m => m.id === linkedConfig.paperMaterialId) : null;
+                const iMat = linkedConfig ? (materials || []).find(m => m.id === linkedConfig.inkMaterialId) : null;
+                const frameMat = linkedConfig?.frameMaterialId ? (materials || []).find(m => m.id === linkedConfig.frameMaterialId) : null;
+                const pPerSheet = linkedConfig?.photosPerSheet || 1;
+                const iCostPerPhoto = iMat 
+                  ? (iMat.unitCost * (100 / (linkedConfig?.inkYieldPhotos || 1)))
+                  : (linkedConfig?.inkPerPhotoMl && iMat ? iMat.unitCost * linkedConfig.inkPerPhotoMl : 0);
+                const iCostPerSheet = iCostPerPhoto * pPerSheet;
+                const pCostPerSheet = pMat ? pMat.unitCost : 0;
+                const frameCost = frameMat ? frameMat.unitCost : 0;
+                const totalCostPerSheet = pCostPerSheet + iCostPerSheet;
+
+                return (
+                  <div key={s.id} className="bg-[#F9FAFB] border border-slate-200 rounded-2xl p-4 space-y-3 relative hover:border-[#E31C2B] transition-all flex flex-col justify-between">
+                    <div>
+                      {/* Product Image Banner if available, or image adder */}
+                      {s.imageUrl ? (
+                        <div className="w-full h-36 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 mb-3 relative group">
+                          <img 
+                            src={s.imageUrl} 
+                            alt={s.name} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                          <button
+                            onClick={() => handleOpenEditProduct(s)}
+                            className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/75 hover:bg-black text-white text-[10px] font-bold flex items-center gap-1.5 backdrop-blur-xs transition-colors shadow-sm cursor-pointer"
+                            title="تغيير صورة المنتج"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-amber-400" />
+                            <span>تغيير الصورة</span>
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleOpenEditProduct(s)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 text-slate-600 text-[11px] font-bold flex items-center gap-1 border border-slate-200 transition-colors"
-                        >
-                          <Camera className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>+ إضافة صورة</span>
-                        </button>
+                      ) : (
+                        <div className="w-full py-2.5 px-3 rounded-xl border border-dashed border-slate-300 bg-white/70 hover:bg-white flex items-center justify-between mb-3 transition-colors">
+                          <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
+                            <ImageIcon className="w-4 h-4 text-slate-400" />
+                            <span>لا توجد صورة لهذا المنتج</span>
+                          </div>
+                          <button
+                            onClick={() => handleOpenEditProduct(s)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 text-slate-600 text-[11px] font-bold flex items-center gap-1 border border-slate-200 transition-colors cursor-pointer"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>+ إضافة صورة</span>
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`p-2.5 rounded-xl ${s.itemType === 'direct_sale' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-900 text-white'}`}>
+                            {s.itemType === 'direct_sale' ? <ShoppingBag className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h4 className="text-base sm:text-lg font-black text-[#292A34] tracking-tight">{s.name}</h4>
+                              {s.storeId && (
+                                <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                                  s.storeId === 'store_labhour' 
+                                    ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                                    : 'bg-rose-100 text-rose-800 border border-rose-200'
+                                }`}>
+                                  {s.storeId === 'store_labhour' ? 'الأبحور' : 'سيدي عامر'}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              {s.itemType === 'direct_sale' ? 'سلعة بيع مباشر' : s.photoConfig ? `طباعة صور ارتباطية (${s.photoConfig.paperSize})` : 'خدمة مخصصة'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleOpenEditProduct(s)}
+                            className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                            title="تعديل بيانات وصورة المنتج/الخدمة"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          {onDeleteService && (
+                            <button
+                              onClick={() => handleAttemptDeleteService(s)}
+                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="حذف المنتج أو الخدمة"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-600 line-clamp-2 mt-2">{s.description}</p>
+                    </div>
+
+                    {/* Financial Breakdown per item */}
+                    <div className="bg-white p-3 rounded-xl border border-slate-200 grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-bold block">سعر التكلفة/الشراء</span>
+                        <span className="text-xs font-mono font-bold text-slate-700">{formatCurrency(rawCost)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-bold block">سعر البيع (كامل المبلغ)</span>
+                        <span className="text-xs font-mono font-bold text-[#292A34]">{formatCurrency(s.price)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-emerald-700 font-bold block">صافي الربح</span>
+                        <span className="text-xs font-mono font-black text-emerald-600">+{formatCurrency(profit)}</span>
+                      </div>
+                    </div>
+
+                    {/* Linked Photo Product Breakdown (Paper + Ink + Frame) */}
+                    {linkedConfig && (
+                      <div className="bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/90 rounded-xl p-2.5 space-y-2 text-xs">
+                        <div className="flex items-center justify-between text-amber-900 font-bold">
+                          <div className="flex items-center gap-1.5">
+                            <Link2 className="w-3.5 h-3.5 text-amber-600" />
+                            <span className="text-[11px]">تحليل المنتج الارتباطي (ورق + حبر {frameMat ? '+ كادر' : ''}):</span>
+                          </div>
+                          <span className="text-[10px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md font-mono font-bold">
+                            {linkedConfig.paperSize} ({pPerSheet} صور/ورقة)
+                          </span>
+                        </div>
+
+                        {/* Breakdown matrix: Per Photo vs Per Sheet */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center text-[10px] pt-1 border-t border-amber-200/70">
+                          <div className="bg-white p-1.5 rounded-lg border border-amber-300 shadow-2xs">
+                            <span className="text-amber-800 font-bold block">حبر الورقة:</span>
+                            <strong className="font-mono text-amber-700 font-black text-xs block">{formatCurrency(iCostPerSheet)}</strong>
+                          </div>
+                          <div className="bg-white p-1.5 rounded-lg border border-amber-200 shadow-2xs">
+                            <span className="text-slate-500 block">الورقة الخام:</span>
+                            <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(pCostPerSheet)}</strong>
+                          </div>
+                          {frameMat && (
+                            <div className="bg-white p-1.5 rounded-lg border border-purple-200 shadow-2xs">
+                              <span className="text-purple-700 font-bold block">الكادر/الإطار:</span>
+                              <strong className="font-mono text-purple-700 font-black text-xs block">{formatCurrency(frameCost)}</strong>
+                            </div>
+                          )}
+                          <div className="bg-white p-1.5 rounded-lg border border-amber-300 shadow-2xs">
+                            <span className="text-slate-700 font-bold block">إجمالي التكلفة:</span>
+                            <strong className="font-mono text-slate-900 font-black text-xs block">{formatCurrency(rawCost)}</strong>
+                          </div>
+                        </div>
+
+                        <div className="text-[9px] text-amber-900 flex items-center justify-between pt-0.5 px-0.5 border-t border-amber-200/50">
+                          <span>حبر الصورة: <strong className="font-mono font-bold text-amber-900">{formatCurrency(iCostPerPhoto)}</strong> • ورق الصورة: <strong className="font-mono font-bold">{formatCurrency(pCostPerSheet / pPerSheet)}</strong></span>
+                          {frameMat && <span className="font-bold text-purple-800 truncate max-w-[130px]">{frameMat.name}</span>}
+                        </div>
                       </div>
                     )}
 
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`p-2.5 rounded-xl ${s.itemType === 'direct_sale' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-900 text-white'}`}>
-                          {s.itemType === 'direct_sale' ? <ShoppingBag className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <h4 className="text-sm font-black text-[#292A34]">{s.name}</h4>
-                            {s.storeId && (
-                              <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
-                                s.storeId === 'store_labhour' 
-                                  ? 'bg-blue-100 text-blue-800 border border-blue-200' 
-                                  : 'bg-rose-100 text-rose-800 border border-rose-200'
-                              }`}>
-                                {s.storeId === 'store_labhour' ? 'الأبحور' : 'سيدي عامر'}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-slate-500 font-medium">
-                            {s.itemType === 'direct_sale' ? 'سلعة بيع مباشر' : s.photoConfig ? `طباعة صور ارتباطية (${s.photoConfig.paperSize})` : 'خدمة مخصصة'}
+                    {/* Stock and Profit Margin Bar */}
+                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-200 gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
+                          %{margin} هامش ربح
+                        </span>
+                        {s.itemType === 'direct_sale' && typeof s.currentStock === 'number' && (
+                          <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                            المخزون: <strong className={s.currentStock > 3 ? 'text-emerald-700' : 'text-rose-600'}>{s.currentStock}</strong> قطعة
                           </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => handleOpenEditProduct(s)}
-                          className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
-                          title="تعديل بيانات وصورة المنتج/الخدمة"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        {onDeleteService && (
-                          <button
-                            onClick={() => handleAttemptDeleteService(s)}
-                            className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="حذف المنتج أو الخدمة"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         )}
                       </div>
-                    </div>
-
-                    <p className="text-xs text-slate-600 line-clamp-2 mt-2">{s.description}</p>
-                  </div>
-
-                  {/* Financial Breakdown per item */}
-                  <div className="bg-white p-3 rounded-xl border border-slate-200 grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <span className="text-[10px] text-slate-500 font-bold block">سعر التكلفة/الشراء</span>
-                      <span className="text-xs font-mono font-bold text-slate-700">{formatCurrency(rawCost)}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 font-bold block">سعر البيع للزبون</span>
-                      <span className="text-xs font-mono font-bold text-[#292A34]">{formatCurrency(s.price)}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-emerald-700 font-bold block">صافي الربح</span>
-                      <span className="text-xs font-mono font-black text-emerald-600">+{formatCurrency(profit)}</span>
-                    </div>
-                  </div>
-
-                  {/* Linked Photo Product Breakdown (Paper + Ink + Sheet Cost) */}
-                  {linkedConfig && (
-                    <div className="bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/90 rounded-xl p-2.5 space-y-1.5 text-xs">
-                      <div className="flex items-center justify-between text-amber-900 font-bold">
-                        <div className="flex items-center gap-1.5">
-                          <Link2 className="w-3.5 h-3.5 text-amber-600" />
-                          <span className="text-[11px]">تحليل المنتج الارتباطي (الورقة الكاملة):</span>
-                        </div>
-                        <span className="text-[10px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md font-mono font-bold">
-                          {linkedConfig.paperSize} ({pPerSheet} صور/ورقة)
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] pt-1 border-t border-amber-200/70">
-                        <div className="bg-white p-1.5 rounded-lg border border-amber-300 shadow-2xs">
-                          <span className="text-amber-800 font-bold block">تكلفة الحبر للورقة:</span>
-                          <strong className="font-mono text-amber-700 font-black text-xs block">{formatCurrency(iCostPerSheet)}</strong>
-                        </div>
-                        <div className="bg-white p-1.5 rounded-lg border border-amber-200 shadow-2xs">
-                          <span className="text-slate-500 block">تكلفة الورقة الخام:</span>
-                          <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(pCostPerSheet)}</strong>
-                        </div>
-                        <div className="bg-white p-1.5 rounded-lg border border-amber-200 shadow-2xs">
-                          <span className="text-slate-500 block">إجمالي تكلفة الورقة:</span>
-                          <strong className="font-mono text-slate-900 font-black text-xs block">{formatCurrency(totalCostPerSheet)}</strong>
-                        </div>
-                      </div>
-                      <div className="text-[9px] text-amber-850 flex items-center justify-between pt-0.5 px-0.5">
-                        <span>حبر الصورة الواحدة: <strong className="font-mono font-bold text-amber-900">{formatCurrency(iCostPerPhoto)}</strong></span>
-                        <span className="truncate max-w-[140px] font-mono text-slate-500">{iMat?.name?.split(' ')?.[0] || 'حبر'} + {pMat?.name?.split(' ')?.[0] || 'ورق'}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Stock and Profit Margin Bar */}
-                  <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-200 gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                        %{margin} هامش ربح
-                      </span>
                       {s.itemType === 'direct_sale' && typeof s.currentStock === 'number' && (
                         <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
                           المخزون: <strong className={s.currentStock > 3 ? 'text-emerald-700' : 'text-rose-600'}>{s.currentStock}</strong> قطعة

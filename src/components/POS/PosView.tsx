@@ -38,9 +38,23 @@ import {
   Edit3,
   Check,
   X,
-  Camera
+  Camera,
+  Upload,
+  ImageIcon,
+  Link2
 } from 'lucide-react';
-import { ServiceItem, CartItem, Material, Order, PaymentMethod, Shift, Staff } from '../../types';
+import { 
+  ServiceItem, 
+  CartItem, 
+  Material, 
+  Order, 
+  PaymentMethod, 
+  Shift, 
+  Staff,
+  OFFICIAL_SERVICE_CATEGORIES,
+  normalizeServiceCategory,
+  OfficialServiceCategory
+} from '../../types';
 import { 
   formatCurrency, 
   calculateServiceBOMCost,
@@ -51,6 +65,7 @@ import {
 import { soundManager } from '../../utils/audio';
 import { usePosKeyboardShortcuts } from '../../hooks/usePosKeyboardShortcuts';
 import { ShortcutsGuideModal } from '../common/ShortcutsGuideModal';
+import { compressAndResizeImage } from '../../utils/imageCompressor';
 
 interface PosViewProps {
   services: ServiceItem[];
@@ -101,22 +116,47 @@ export const PosView: React.FC<PosViewProps> = ({
   // Quick Edit and Delete Product in POS State
   const [editingService, setEditingService] = useState<ServiceItem | null>(null);
   const [editServiceName, setEditServiceName] = useState<string>('');
+  const [editServiceCategory, setEditServiceCategory] = useState<OfficialServiceCategory>('goods_and_accessories');
   const [editServicePrice, setEditServicePrice] = useState<string>('');
   const [editServiceBuyCost, setEditServiceBuyCost] = useState<string>('');
   const [editServiceStock, setEditServiceStock] = useState<string>('');
   const [editServiceDescription, setEditServiceDescription] = useState<string>('');
   const [editServiceImageUrl, setEditServiceImageUrl] = useState<string>('');
+  const [editServiceFrameMatId, setEditServiceFrameMatId] = useState<string>('');
   const [serviceToDelete, setServiceToDelete] = useState<ServiceItem | null>(null);
+
+  // Preset studio product images for quick selection in POS
+  const PRODUCT_IMAGE_PRESETS = [
+    { name: 'إطار صور أسود فاخر', url: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=400&auto=format&fit=crop&q=80' },
+    { name: 'ألبوم صور كلاسيكي', url: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=400&auto=format&fit=crop&q=80' },
+    { name: 'فلاش ديسك USB صور', url: 'https://images.unsplash.com/photo-1622954989659-52e69fce092e?w=400&auto=format&fit=crop&q=80' },
+    { name: 'كوب مطبوع بصورة شخصية', url: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&auto=format&fit=crop&q=80' },
+    { name: 'طباعة وتكبير صور فوتوغرافية', url: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&auto=format&fit=crop&q=80' },
+    { name: 'لوحة كانفاس جدارية معلقة', url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=400&auto=format&fit=crop&q=80' }
+  ];
+
+  const handleImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressAndResizeImage(file);
+      setEditServiceImageUrl(compressed);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handleOpenEditProduct = (e: React.MouseEvent, s: ServiceItem) => {
     e.stopPropagation();
     setEditingService(s);
     setEditServiceName(s.name);
+    setEditServiceCategory(normalizeServiceCategory(s.category));
     setEditServicePrice(String(s.price));
     setEditServiceBuyCost(String(s.buyCost ?? 0));
     setEditServiceStock(String(s.currentStock ?? 0));
     setEditServiceDescription(s.description || '');
     setEditServiceImageUrl(s.imageUrl || '');
+    setEditServiceFrameMatId(s.photoConfig?.frameMaterialId || '');
   };
 
   const handleOpenDeleteProduct = (e: React.MouseEvent, s: ServiceItem) => {
@@ -147,20 +187,26 @@ export const PosView: React.FC<PosViewProps> = ({
   const [paidAmount, setPaidAmount] = useState<string>('');
   const [orderNotes, setOrderNotes] = useState<string>('');
 
+  // 5 Official Categories per User Request:
+  // 1. اخراج الصور الشمسية والعادية
+  // 2. كوادر وتكبير الصور
+  // 3. سلع وإكسسوارات
+  // 4. خدمات الطباعة
+  // 5. جلسة تصوير داخل الاستديو
   const categories = [
-    { id: 'all', label: 'جميع الخدمات والباقات', icon: Sparkles },
-    { id: 'id_photos', label: 'صور شمسية وهوية', icon: UserCheck },
-    { id: 'prints', label: 'طباعة وتكبير صور', icon: Image },
-    { id: 'frames', label: 'إطارات وبراويز', icon: Frame },
-    { id: 'lamination', label: 'تغليف حراري', icon: ShieldCheck },
-    { id: 'digital', label: 'خدمات رقمية وترميم', icon: Wand2 },
-    { id: 'packages', label: 'جلسات استوديو', icon: Smile }
+    { id: 'all', label: 'جميع الأقسام والخدمات', icon: Sparkles },
+    { id: 'id_and_regular_photos', label: '1. اخراج الصور الشمسية والعادية', icon: UserCheck },
+    { id: 'frames_and_enlargements', label: '2. كوادر وتكبير الصور', icon: Frame },
+    { id: 'goods_and_accessories', label: '3. سلع وإكسسوارات', icon: ShoppingBag },
+    { id: 'printing_services', label: '4. خدمات الطباعة', icon: Printer },
+    { id: 'studio_sessions', label: '5. جلسة تصوير داخل الاستديو', icon: Smile }
   ];
 
-  // Filter services
+  // Filter services with accurate normalization
   const filteredServices = useMemo(() => {
     return (services || []).filter(service => {
-      const matchesCat = selectedCategory === 'all' || service.category === selectedCategory;
+      const normCat = normalizeServiceCategory(service.category, service.name);
+      const matchesCat = selectedCategory === 'all' || normCat === selectedCategory;
       const matchesSearch = searchQuery === '' || 
         service.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         service.description.toLowerCase().includes(searchQuery.toLowerCase());
@@ -428,12 +474,15 @@ export const PosView: React.FC<PosViewProps> = ({
                   <div>
                     {/* Product Image if available */}
                     {service.imageUrl && (
-                      <div className="w-full h-28 rounded-xl overflow-hidden mb-2.5 bg-slate-100 border border-slate-200 group-hover:opacity-95 transition-all">
+                      <div className="w-full h-32 rounded-xl overflow-hidden mb-2.5 bg-slate-100 border border-slate-200 group-hover:opacity-95 transition-all">
                         <img 
                           src={service.imageUrl} 
                           alt={service.name} 
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                          }}
                         />
                       </div>
                     )}
@@ -475,56 +524,71 @@ export const PosView: React.FC<PosViewProps> = ({
                         )}
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-black text-[#E31C2B] font-mono">
+                        <div className="text-xl sm:text-2xl font-black text-[#E31C2B] font-mono tracking-tight">
                           {formatCurrency(service.price)}
                         </div>
                         {isManager ? (
-                          <div className="text-[11px] text-emerald-700 font-bold flex items-center justify-end gap-1">
-                            <TrendingUp className="w-3 h-3" />
-                            <span>صافي: {formatCurrency(netProfit)} ({profitMargin}%)</span>
+                          <div className="text-xs text-emerald-700 font-black flex items-center justify-end gap-1 mt-0.5">
+                            <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>صافي: +{formatCurrency(netProfit)} (%{profitMargin})</span>
                           </div>
                         ) : (
-                          <div className="text-[11px] text-slate-500 font-medium text-right">
+                          <div className="text-[11px] text-slate-500 font-bold text-right mt-0.5">
                             {service.itemType === 'direct_sale' ? 'سلعة بيع مباشر' : 'خدمة تصوير'}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    {/* Title & Description */}
-                    <h3 className="font-black text-sm text-[#292A34] mb-1 group-hover:text-[#E31C2B] transition-colors leading-snug">
+                    {/* Title & Description with enlarged font */}
+                    <h3 className="font-black text-lg sm:text-xl text-[#292A34] mb-1.5 group-hover:text-[#E31C2B] transition-colors leading-snug tracking-tight">
                       {service.name}
                     </h3>
                     <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-2.5">
                       {service.description}
                     </p>
 
+                    {/* Summary Row: Full Price + Net Profit side-by-side */}
+                    <div className="flex items-center justify-between gap-1 py-1.5 px-2.5 rounded-xl bg-slate-50 border border-slate-200/80 mb-2.5 text-xs">
+                      <div className="font-bold text-slate-700">
+                        <span>المبلغ الإجمالي: </span>
+                        <strong className="font-mono font-black text-slate-900 text-sm">{formatCurrency(service.price)}</strong>
+                      </div>
+                      {isManager && (
+                        <div className="font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-lg font-mono text-[11px] border border-emerald-200">
+                          الربح: +{formatCurrency(netProfit)}
+                        </div>
+                      )}
+                    </div>
+
                     {/* Stock Badge for Direct Sale Items */}
                     {isDirectSale && stock !== null && (
                       <div className="mb-2">
                         {stock > 3 ? (
-                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold">
-                            <Boxes className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>المخزون: <strong className="font-mono text-emerald-900">{stock}</strong> متوفرة</span>
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                            <Boxes className="w-4 h-4 text-emerald-600" />
+                            <span>المخزون: <strong className="font-mono text-emerald-950 font-black text-sm">{stock}</strong> متوفرة</span>
                           </div>
                         ) : stock > 0 ? (
-                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-bold">
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                            <span>مخزون منخفض: <strong className="font-mono text-amber-950">{stock}</strong> فقط!</span>
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold">
+                            <AlertTriangle className="w-4 h-4 text-amber-600" />
+                            <span>مخزون منخفض: <strong className="font-mono text-amber-950 font-black text-sm">{stock}</strong> فقط!</span>
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-bold">
-                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">
+                            <AlertTriangle className="w-4 h-4 text-rose-600" />
                             <span>نفذت الكمية من المخزن (0)</span>
                           </div>
                         )}
                       </div>
                     )}
 
-                    {/* Linked Photo Product: Ink Cost Per Sheet */}
+                    {/* Linked Photo Product: Ink Cost Per Sheet & Frame */}
                     {service.photoConfig && (() => {
                       const cfg = service.photoConfig;
                       const iMat = materials.find(m => m.id === cfg.inkMaterialId);
+                      const pMat = materials.find(m => m.id === cfg.paperMaterialId);
+                      const fMat = materials.find(m => m.id === cfg.frameMaterialId);
                       const pPerSheet = cfg.photosPerSheet || 1;
                       const iCostPerPhoto = iMat 
                         ? (iMat.unitCost * (100 / (cfg.inkYieldPhotos || 1)))
@@ -532,12 +596,33 @@ export const PosView: React.FC<PosViewProps> = ({
                       const iCostPerSheet = iCostPerPhoto * pPerSheet;
 
                       return (
-                        <div className="mb-2 py-1 px-2.5 rounded-lg bg-amber-50/90 border border-amber-200 text-amber-900 flex items-center justify-between text-[10px]">
-                          <span className="font-bold flex items-center gap-1.5 text-amber-900">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                            <span>تكلفة حبر الورقة:</span>
-                          </span>
-                          <span className="font-mono font-black text-amber-800 text-[11px]">{formatCurrency(iCostPerSheet)}</span>
+                        <div className="mb-2 p-2 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between font-bold">
+                            <span className="flex items-center gap-1.5 text-[11px] text-amber-950">
+                              <Link2 className="w-3.5 h-3.5 text-amber-600" />
+                              <span>منتج ارتباطي ({cfg.paperSize}):</span>
+                            </span>
+                            <span className="text-[10px] font-mono bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md font-bold">
+                              {pPerSheet} صور/ورقة
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1 text-[11px] pt-1 border-t border-amber-200/80">
+                            <div className="bg-white p-1 rounded-lg border border-amber-200 flex justify-between items-center px-2">
+                              <span className="text-slate-600 text-[10px]">حبر الورقة:</span>
+                              <strong className="font-mono text-amber-800 font-bold">{formatCurrency(iCostPerSheet)}</strong>
+                            </div>
+                            {fMat ? (
+                              <div className="bg-white p-1 rounded-lg border border-amber-200 flex justify-between items-center px-2">
+                                <span className="text-slate-600 text-[10px]">كادر {fMat.name.split(' ')[0]}:</span>
+                                <strong className="font-mono text-purple-700 font-bold">{formatCurrency(fMat.unitCost)}</strong>
+                              </div>
+                            ) : (
+                              <div className="bg-white p-1 rounded-lg border border-amber-200 flex justify-between items-center px-2">
+                                <span className="text-slate-600 text-[10px]">الورقة الخام:</span>
+                                <strong className="font-mono text-slate-700 font-bold">{formatCurrency(pMat?.unitCost || 0)}</strong>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })()}
@@ -630,13 +715,16 @@ export const PosView: React.FC<PosViewProps> = ({
                     <img 
                       src={item.service.imageUrl} 
                       alt={item.service.name} 
-                      className="w-9 h-9 rounded-lg object-cover shrink-0 border border-slate-300"
+                      className="w-10 h-10 rounded-lg object-cover shrink-0 border border-slate-300"
                       referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                      }}
                     />
                   ) : null}
                   <div className="min-w-0 flex-1">
-                    <h4 className="text-xs font-bold text-[#292A34] truncate">{item.service.name}</h4>
-                    <div className="text-[11px] text-[#E31C2B] font-mono font-bold mt-0.5">
+                    <h4 className="text-base font-black text-[#292A34] truncate">{item.service.name}</h4>
+                    <div className="text-xs text-[#E31C2B] font-mono font-black mt-0.5">
                       {formatCurrency(item.service.price)} × {item.quantity} = {formatCurrency(item.service.price * item.quantity)}
                     </div>
                   </div>
@@ -903,19 +991,40 @@ export const PosView: React.FC<PosViewProps> = ({
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!editingService || !onUpdateService) return;
+
+                // Build updated BOM if frame was linked
+                let updatedBom = [...(editingService.bom || [])];
+                if (editingService.photoConfig) {
+                  // Remove old frame material from BOM if present
+                  const frameMatIds = materials.filter(m => m.category === 'frame').map(m => m.id);
+                  updatedBom = updatedBom.filter(b => !frameMatIds.includes(b.materialId));
+                  if (editServiceFrameMatId) {
+                    updatedBom.push({
+                      materialId: editServiceFrameMatId,
+                      quantity: 1
+                    });
+                  }
+                }
+
                 const updated: ServiceItem = {
                   ...editingService,
                   name: editServiceName.trim() || editingService.name,
+                  category: editServiceCategory,
                   price: Number(editServicePrice) || editingService.price,
                   buyCost: Number(editServiceBuyCost) >= 0 ? Number(editServiceBuyCost) : editingService.buyCost,
                   currentStock: Number(editServiceStock) >= 0 ? Number(editServiceStock) : editingService.currentStock,
                   description: editServiceDescription.trim() || editingService.description,
                   imageUrl: editServiceImageUrl.trim() || undefined,
+                  bom: updatedBom,
+                  photoConfig: editingService.photoConfig ? {
+                    ...editingService.photoConfig,
+                    frameMaterialId: editServiceFrameMatId || undefined
+                  } : undefined
                 };
                 onUpdateService(updated);
                 setEditingService(null);
               }}
-              className="space-y-3 text-xs font-bold"
+              className="space-y-3.5 text-xs font-bold"
             >
               <div>
                 <label className="text-slate-700 block mb-1">اسم المنتج أو الخدمة *</label>
@@ -924,8 +1033,22 @@ export const PosView: React.FC<PosViewProps> = ({
                   required
                   value={editServiceName}
                   onChange={(e) => setEditServiceName(e.target.value)}
-                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] focus:outline-none focus:border-blue-500"
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] text-sm font-bold focus:outline-none focus:border-blue-500"
                 />
+              </div>
+
+              {/* Category Selector (5 Official Categories) */}
+              <div>
+                <label className="text-slate-700 block mb-1 font-bold">التصنيف الرسمي للخدمة/المنتج</label>
+                <select
+                  value={editServiceCategory}
+                  onChange={(e) => setEditServiceCategory(e.target.value as OfficialServiceCategory)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold cursor-pointer focus:outline-none focus:border-blue-500"
+                >
+                  {OFFICIAL_SERVICE_CATEGORIES.map(c => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -950,44 +1073,76 @@ export const PosView: React.FC<PosViewProps> = ({
                     step="1"
                     value={editServicePrice}
                     onChange={(e) => setEditServicePrice(e.target.value)}
-                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-emerald-700 font-mono font-black focus:outline-none focus:border-blue-500"
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-emerald-700 font-mono font-black text-sm focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
 
-              {/* Linked Product Info in POS Edit Modal */}
+              {/* Linked Product Frame & BOM Info in POS Edit Modal */}
               {editingService.photoConfig && (() => {
                 const cfg = editingService.photoConfig;
                 const iMat = materials.find(m => m.id === cfg.inkMaterialId);
                 const pMat = materials.find(m => m.id === cfg.paperMaterialId);
+                const currentFrameMat = materials.find(m => m.id === (editServiceFrameMatId || cfg.frameMaterialId));
+                const availableFrames = materials.filter(m => m.category === 'frame');
+
                 const pPerSheet = cfg.photosPerSheet || 1;
                 const iCostPerPhoto = iMat 
                   ? (iMat.unitCost * (100 / (cfg.inkYieldPhotos || 1)))
                   : (cfg.inkPerPhotoMl && iMat ? iMat.unitCost * cfg.inkPerPhotoMl : 0);
                 const iCostPerSheet = iCostPerPhoto * pPerSheet;
                 const pCostPerSheet = pMat ? pMat.unitCost : 0;
-                const totalCostSheet = pCostPerSheet + iCostPerSheet;
+                const frameCost = currentFrameMat ? currentFrameMat.unitCost : 0;
+                const totalItemUnitCost = (pCostPerSheet / pPerSheet) + iCostPerPhoto + frameCost;
 
                 return (
-                  <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-2.5 space-y-1.5 text-xs">
+                  <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 space-y-2.5 text-xs">
                     <div className="flex items-center justify-between text-amber-900 font-bold">
-                      <span className="text-[11px]">منتج ارتباطي (ورق + حبر):</span>
+                      <span className="text-[11px] flex items-center gap-1">
+                        <Link2 className="w-3.5 h-3.5 text-amber-600" />
+                        <span>عناصر المنتج الارتباطي (ورق + حبر + كادر):</span>
+                      </span>
                       <span className="text-[10px] font-mono bg-amber-200/80 px-2 py-0.5 rounded-full font-bold">
                         مقاس {cfg.paperSize} ({pPerSheet} صور/ورقة)
                       </span>
                     </div>
-                    <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
+
+                    {/* Frame Selection */}
+                    <div>
+                      <label className="text-amber-900 font-bold block mb-1 text-[11px]">
+                        الكادر / الإطار المرتبط (BOM):
+                      </label>
+                      <select
+                        value={editServiceFrameMatId}
+                        onChange={(e) => setEditServiceFrameMatId(e.target.value)}
+                        className="w-full bg-white border border-amber-300 rounded-xl px-2.5 py-1.5 text-slate-800 text-xs font-bold cursor-pointer"
+                      >
+                        <option value="">-- بدون كادر (طباعة صورة فقط) --</option>
+                        {availableFrames.map(f => (
+                          <option key={f.id} value={f.id}>
+                            {f.name} (تكلفة الكادر: {formatCurrency(f.unitCost)} - المخزون: {f.currentStock} قطعة)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Breakdown Matrix */}
+                    <div className="grid grid-cols-4 gap-1.5 text-center text-[10px]">
                       <div className="bg-white p-1.5 rounded-lg border border-amber-300">
-                        <span className="text-amber-800 font-bold block">تكلفة الحبر للورقة</span>
+                        <span className="text-amber-800 font-bold block">حبر الورقة</span>
                         <strong className="font-mono text-amber-800 font-black text-xs block">{formatCurrency(iCostPerSheet)}</strong>
                       </div>
                       <div className="bg-white p-1.5 rounded-lg border border-amber-200">
-                        <span className="text-slate-500 block">تكلفة الورقة الخام</span>
+                        <span className="text-slate-500 block">الورقة الخام</span>
                         <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(pCostPerSheet)}</strong>
                       </div>
                       <div className="bg-white p-1.5 rounded-lg border border-amber-200">
-                        <span className="text-slate-500 block">إجمالي تكلفة الورقة</span>
-                        <strong className="font-mono text-slate-900 font-black text-xs block">{formatCurrency(totalCostSheet)}</strong>
+                        <span className="text-slate-500 block">الكادر/الإطار</span>
+                        <strong className="font-mono text-purple-700 font-bold text-xs block">{formatCurrency(frameCost)}</strong>
+                      </div>
+                      <div className="bg-white p-1.5 rounded-lg border border-amber-300">
+                        <span className="text-slate-800 font-bold block">إجمالي التكلفة</span>
+                        <strong className="font-mono text-slate-900 font-black text-xs block">{formatCurrency(totalItemUnitCost)}</strong>
                       </div>
                     </div>
                   </div>
@@ -1007,15 +1162,93 @@ export const PosView: React.FC<PosViewProps> = ({
                 </div>
               )}
 
-              <div>
-                <label className="text-slate-700 block mb-1">رابط صورة المنتج (اختياري)</label>
-                <input
-                  type="url"
-                  value={editServiceImageUrl}
-                  onChange={(e) => setEditServiceImageUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono text-[11px] focus:outline-none focus:border-blue-500"
-                />
+              {/* Enhanced Product Image Section */}
+              <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
+                    <Camera className="w-4 h-4 text-blue-600" />
+                    <span>صورة المنتج (رفع من الجهاز أو اختيار نموذج)</span>
+                  </label>
+                  {editServiceImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setEditServiceImageUrl('')}
+                      className="text-[10px] text-rose-600 hover:underline flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                      <span>حذف الصورة</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-3 items-start">
+                  {/* Image preview box */}
+                  <div className="w-20 h-20 rounded-xl bg-white border border-slate-300 overflow-hidden shrink-0 flex items-center justify-center relative shadow-xs">
+                    {editServiceImageUrl ? (
+                      <img 
+                        src={editServiceImageUrl} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover" 
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="text-center p-1 text-slate-400">
+                        <ImageIcon className="w-6 h-6 mx-auto mb-0.5 text-slate-300" />
+                        <span className="text-[9px] block font-bold">بدون صورة</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions: File upload & URL input */}
+                  <div className="flex-1 space-y-2">
+                    <label className="w-full px-3 py-2 bg-white border border-slate-300 hover:border-blue-500 rounded-xl cursor-pointer text-[11px] font-bold text-slate-700 hover:text-blue-700 flex items-center justify-center gap-1.5 shadow-2xs transition-colors">
+                      <Upload className="w-3.5 h-3.5 text-blue-600" />
+                      <span>اختر صورة من الهاتف أو الحاسوب</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageFileUpload}
+                      />
+                    </label>
+
+                    <input
+                      type="url"
+                      value={editServiceImageUrl}
+                      onChange={(e) => setEditServiceImageUrl(e.target.value)}
+                      placeholder="أو الصق رابط صورة ويب (https://...)"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-[#292A34] focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Studio Presets */}
+                <div className="pt-1">
+                  <span className="text-[10px] text-slate-500 font-bold block mb-1">أو اختر صورة جاهزة بنقرة واحدة:</span>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                    {PRODUCT_IMAGE_PRESETS.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setEditServiceImageUrl(preset.url)}
+                        className={`relative rounded-lg overflow-hidden border p-0.5 group text-left cursor-pointer transition-all ${
+                          editServiceImageUrl === preset.url
+                            ? 'border-blue-600 ring-2 ring-blue-500/30'
+                            : 'border-slate-200 hover:border-slate-400'
+                        }`}
+                        title={preset.name}
+                      >
+                        <div className="h-10 w-full overflow-hidden rounded bg-slate-100">
+                          <img
+                            src={preset.url}
+                            alt={preset.name}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                          />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">

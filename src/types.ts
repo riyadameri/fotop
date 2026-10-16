@@ -69,13 +69,89 @@ export interface PhotoLinkConfig {
   inkYieldPhotos: number;  // عدد الصور الإجمالي الذي تطبعه عبوة الحبر (مثلاً 600 صورة)
   inkPerPhotoMl?: number;  // استهلاك الحبر بالميللتر لكل صورة
   pricePerPhoto: number;   // سعر بيع الصورة الواحدة
+  // ربط الكادر / الإطار والتغليف الحراري (عنصر ارتباطي متكامل: ورق + حبر + كادر)
+  frameMaterialId?: string; // مادة الكادر أو البرواز من المخزن
+  framePerPhoto?: number;   // عدد الكوادر لكل وحدة (افتراضياً 1)
+  laminationMaterialId?: string; // مادة التغليف الحراري (اختياري)
+}
+
+// التصنيفات الرسمية المعتمدة لاستوديو التصوير
+export type OfficialServiceCategory = 
+  | 'id_and_regular_photos'   // 1. اخراج الصور الشمسية والعادية
+  | 'frames_and_enlargements' // 2. كوادر وتكبير الصور
+  | 'goods_and_accessories'   // 3. سلع وإكسسوارات
+  | 'printing_services'       // 4. خدمات الطباعة
+  | 'studio_sessions';        // 5. جلسة تصوير داخل الاستديو
+
+export type ServiceCategory = 
+  | OfficialServiceCategory
+  // القيم السابقة للتوافق العكسي التام
+  | 'id_photos'
+  | 'prints'
+  | 'frames'
+  | 'lamination'
+  | 'digital'
+  | 'packages'
+  | 'retail_goods'
+  | 'photo_printing'
+  | 'document_printing'
+  | 'id_photo'
+  | 'custom';
+
+export const OFFICIAL_SERVICE_CATEGORIES: { id: OfficialServiceCategory; label: string; icon: string }[] = [
+  { id: 'id_and_regular_photos', label: '1. اخراج الصور الشمسية والعادية', icon: 'UserCheck' },
+  { id: 'frames_and_enlargements', label: '2. كوادر وتكبير الصور', icon: 'Frame' },
+  { id: 'goods_and_accessories', label: '3. سلع وإكسسوارات', icon: 'ShoppingBag' },
+  { id: 'printing_services', label: '4. خدمات الطباعة', icon: 'Printer' },
+  { id: 'studio_sessions', label: '5. جلسة تصوير داخل الاستديو', icon: 'Smile' },
+];
+
+/**
+ * Normalizes any category string into one of the 5 official studio categories.
+ */
+export function normalizeServiceCategory(cat?: string, name?: string): OfficialServiceCategory {
+  // If explicitly provided as one of the 5 official categories, respect it directly!
+  if (cat) {
+    const c = cat.toLowerCase().trim();
+    if (c === 'id_and_regular_photos') return 'id_and_regular_photos';
+    if (c === 'frames_and_enlargements') return 'frames_and_enlargements';
+    if (c === 'goods_and_accessories') return 'goods_and_accessories';
+    if (c === 'printing_services') return 'printing_services';
+    if (c === 'studio_sessions') return 'studio_sessions';
+    
+    // Legacy category mappings
+    if (c === 'id_photos' || c === 'id_photo') return 'id_and_regular_photos';
+    if (c === 'frames' || c === 'prints' || c === 'photo_printing') return 'frames_and_enlargements';
+    if (c === 'retail_goods') return 'goods_and_accessories';
+    if (c === 'lamination' || c === 'digital' || c === 'document_printing') return 'printing_services';
+    if (c === 'packages') return 'studio_sessions';
+  }
+
+  // Fallback to name-based heuristic only if category was unspecified or unrecognized
+  if (name) {
+    const n = name.toLowerCase();
+    if (n.includes('كادر') || n.includes('إطار') || n.includes('برواز') || n.includes('تكبير') || n.includes('cadre') || n.includes('frame')) {
+      return 'frames_and_enlargements';
+    }
+    if (n.includes('شمسية') || n.includes('هوية') || n.includes('جواز') || n.includes('شمسيه') || n.includes('id photo')) {
+      return 'id_and_regular_photos';
+    }
+    if (n.includes('جلسة') || n.includes('جلسه') || n.includes('استوديو') || n.includes('عرس') || n.includes('جلسات')) {
+      return 'studio_sessions';
+    }
+    if (n.includes('طباعة مستند') || n.includes('فوطوكوبي') || n.includes('فوتوكوبي') || n.includes('تغليف حراري')) {
+      return 'printing_services';
+    }
+  }
+
+  return 'goods_and_accessories';
 }
 
 export interface ServiceItem {
   id: string;
   name: string;
   itemType: 'direct_sale' | 'custom_photo_service' | 'standard_service';
-  category: 'id_photos' | 'prints' | 'frames' | 'lamination' | 'digital' | 'packages' | 'retail_goods';
+  category: ServiceCategory;
   buyCost: number; // سعر الشراء / تكلفة الوحدة المباشرة (للبيع المباشر أو التكلفة الأساسية)
   price: number; // سعر البيع
   currentStock?: number; // للمنتجات والسلع المادية المباعة مباشرة
@@ -84,7 +160,7 @@ export interface ServiceItem {
   imageIcon: string;
   imageUrl?: string; // رابط أو كود Base64 لصورة المنتج
   bom: BOMItem[]; // Raw materials consumed
-  photoConfig?: PhotoLinkConfig; // إعدادات الربط الآلي بين الورق والحبر والصور
+  photoConfig?: PhotoLinkConfig; // إعدادات الربط الآلي بين الورق والحبر والصور والكادر
   estimatedLaborMinutes: number;
   popular?: boolean;
   storeId?: string; // معرف المتجر: 'store_sidiamer' | 'store_labhour'
@@ -300,5 +376,30 @@ export interface SalaryPayment {
   receiptNumber: string; // رقم وصل الدفع (مثلاً HR-PAY-2026-001)
   notes?: string;
   createdAt: string;
+}
+
+// =========================================================================
+// 6 INTELLIGENT SYSTEM ALERTS (التنبيهات والرقابة الذكية)
+// =========================================================================
+export type SystemAlertType = 
+  | 'low_stock'            // نقص في المخزون
+  | 'cash_discrepancy'     // فرق في الصندوق
+  | 'absent_worker'        // عامل غائب
+  | 'unusual_expense'      // مصروف غير معتاد
+  | 'incomplete_operation' // عملية غير مكتملة
+  | 'revenue_drop';        // انخفاض غير طبيعي في المداخيل
+
+export interface SystemAlert {
+  id: string;
+  type: SystemAlertType;
+  title: string;
+  description: string;
+  severity: 'critical' | 'warning' | 'info';
+  timestamp: string;
+  entityId?: string;
+  entityName?: string;
+  details?: Record<string, any>;
+  actionTab?: 'inventory' | 'shifts' | 'hr' | 'accounting' | 'orders' | 'pos';
+  actionLabel?: string;
 }
 

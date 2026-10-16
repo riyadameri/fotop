@@ -38,10 +38,11 @@ import {
   Timer
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Staff, Shift, Material, AttendanceRecord, ServiceItem, Store } from '../types';
-import { formatCurrency, formatTime, formatNumber } from '../utils/formatters';
+import { Staff, Shift, Material, AttendanceRecord, ServiceItem, Store, Order, Expense, SystemAlert, SystemAlertType } from '../types';
+import { formatCurrency, formatTime, formatNumber, formatDate } from '../utils/formatters';
 import { soundManager } from '../utils/audio';
 import { api } from '../api';
+import { generateSystemAlerts } from '../utils/alertsGenerator';
 import { FotopLogo } from './common/FotopLogo';
 import { StudioLogo } from './common/StudioLogo';
 import { StoreSelector } from './common/StoreSelector';
@@ -61,6 +62,10 @@ interface HeaderProps {
   onResetData: () => void;
   materials: Material[];
   services?: ServiceItem[];
+  shifts?: Shift[];
+  orders?: Order[];
+  expenses?: Expense[];
+  onNavigateTab?: (tab: any) => void;
   onNavigateToInventory?: (onlyLowStock?: boolean) => void;
   onToggleMobileMenu?: () => void;
   isMobileMenuOpen?: boolean;
@@ -90,6 +95,10 @@ export const Header: React.FC<HeaderProps> = ({
   onResetData,
   materials = [],
   services = [],
+  shifts = [],
+  orders = [],
+  expenses = [],
+  onNavigateTab,
   onNavigateToInventory,
   onToggleMobileMenu,
   isMobileMenuOpen = false,
@@ -103,6 +112,21 @@ export const Header: React.FC<HeaderProps> = ({
   currentStoreId = 'store_sidiamer',
   onSelectStore,
 }) => {
+  // 6 Intelligent Alerts Engine
+  const [alertActiveCategory, setAlertActiveCategory] = useState<string>('all');
+  const systemAlerts = useMemo(() => {
+    return generateSystemAlerts({
+      materials,
+      services,
+      shifts,
+      allStaff,
+      attendanceLogs,
+      expenses,
+      orders,
+    });
+  }, [materials, services, shifts, allStaff, attendanceLogs, expenses, orders]);
+
+  const totalAlertCount = systemAlerts.counts.total;
   const lowStockMaterials = (materials || []).filter(m => m.currentStock <= m.minThreshold);
   const lowStockProducts = (services || []).filter(
     s => s.itemType === 'direct_sale' && typeof s.currentStock === 'number' && s.currentStock <= (s.minThreshold || 3)
@@ -182,14 +206,14 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotificationPopover, setShowNotificationPopover] = useState<boolean>(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // Sound notification when low stock alert triggers
-  const prevCountRef = useRef<number>(totalLowStockCount);
+  // Sound notification when system alert triggers
+  const prevCountRef = useRef<number>(totalAlertCount);
   useEffect(() => {
-    if (totalLowStockCount > 0 && totalLowStockCount > prevCountRef.current) {
+    if (totalAlertCount > 0 && totalAlertCount > prevCountRef.current) {
       soundManager.playAlertSound();
     }
-    prevCountRef.current = totalLowStockCount;
-  }, [totalLowStockCount]);
+    prevCountRef.current = totalAlertCount;
+  }, [totalAlertCount]);
 
   // Close notifications popover on click outside
   useEffect(() => {
