@@ -1061,7 +1061,7 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#F0F0F0] text-[#292A34] flex flex-col lg:flex-row font-['Cairo',sans-serif]">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-[#F0F0F0] text-[#292A34] flex flex-col lg:flex-row font-['Cairo',sans-serif] w-full max-w-full overflow-x-hidden">
       
       {/* Navigation Component (Full-Height Sidebar on Desktop, Drawer on Mobile) */}
       <Navigation
@@ -1085,7 +1085,7 @@ export function App() {
       />
 
       {/* Main Responsive Body Layout (Header + Scrollable Workspace) */}
-      <div className="flex-1 flex flex-col min-w-0 h-full lg:h-screen lg:overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 w-full max-w-full h-full lg:h-screen lg:overflow-hidden overflow-x-hidden">
         
         {/* Top Global Header (Slim & Professional) */}
         <Header
@@ -1127,7 +1127,7 @@ export function App() {
         />
 
         {/* Dynamic Main Workspace with Motion Transitions */}
-        <main className="flex-1 min-w-0 p-3 sm:p-5 lg:p-6 pb-24 lg:pb-6 overflow-y-auto flex flex-col justify-between">
+        <main className="flex-1 min-w-0 w-full max-w-full p-3 sm:p-5 lg:p-6 pb-24 lg:pb-6 overflow-y-auto overflow-x-hidden flex flex-col justify-between">
           <div>
             {isLoading ? (
               <div className="flex items-center justify-center min-h-[400px]">
@@ -1157,6 +1157,15 @@ export function App() {
                       allStaff={filteredStaffList || []}
                       attendanceLogs={filteredAttendanceLogs || []}
                       onNavigateTab={handleTabChange}
+                      onNavigateToInventory={(materialId?: string, materialName?: string) => {
+                        navigate('/inventory', {
+                          state: {
+                            filter: 'low_stock',
+                            materialId,
+                            searchQuery: materialName
+                          }
+                        });
+                      }}
                       onOpenQuickExpense={() => setShowQuickExpenseModal(true)}
                       onOpenQuickWaste={() => setShowQuickWasteModal(true)}
                     />

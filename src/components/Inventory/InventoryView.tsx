@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
   Layers, 
   Plus, 
@@ -80,6 +81,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   onDeleteService,
   onAddExpense
 }) => {
+  const location = useLocation();
   const isManager = currentStaff?.role === 'manager';
   const defaultBranch = (currentStoreId && currentStoreId !== 'all') ? currentStoreId : 'store_sidiamer';
   const [activeSubTab, setActiveSubTab] = useState<'materials' | 'products'>('materials');
@@ -87,6 +89,22 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [onlyLowStockFilter, setOnlyLowStockFilter] = useState<boolean>(false);
   const [isAlertBannerCollapsed, setIsAlertBannerCollapsed] = useState<boolean>(false);
+
+  // Sync incoming navigation from Dashboard alert clicks
+  useEffect(() => {
+    if (location.state) {
+      const state = location.state as { filter?: string; searchQuery?: string; subTab?: 'materials' | 'products' };
+      if (state.filter === 'low_stock') {
+        setOnlyLowStockFilter(true);
+      }
+      if (state.searchQuery) {
+        setSearchQuery(state.searchQuery);
+      }
+      if (state.subTab) {
+        setActiveSubTab(state.subTab);
+      }
+    }
+  }, [location.state]);
   
   // Branch assignment state for new materials and retail goods
   const [newMatStoreId, setNewMatStoreId] = useState<string>(defaultBranch);
