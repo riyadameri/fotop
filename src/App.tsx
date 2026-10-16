@@ -1110,6 +1110,10 @@ export function App() {
           onResetData={handleResetData}
           materials={filteredMaterials}
           services={filteredServices}
+          shifts={filteredShifts}
+          orders={filteredOrders}
+          expenses={filteredExpenses}
+          onNavigateTab={handleTabChange}
           onNavigateToInventory={() => handleTabChange('inventory')}
           onToggleMobileMenu={() => setIsMobileNavOpen(!isMobileNavOpen)}
           isMobileMenuOpen={isMobileNavOpen}

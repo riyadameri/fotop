@@ -30,7 +30,8 @@ import {
   Edit3,
   ImagePlus,
   X,
-  Filter
+  Filter,
+  Frame
 } from 'lucide-react';
 import { 
   Material, 
@@ -1244,7 +1245,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             referrerPolicy="no-referrer"
                             onError={(e) => {
-                              (e.currentTarget as HTMLElement).style.display = 'none';
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&auto=format&fit=crop&q=80';
                             }}
                           />
                           <button
@@ -1421,11 +1423,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       )}
                     </div>
                   </div>
-
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
 
         </div>
       )}
@@ -1472,6 +1473,19 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   placeholder="مثال: ألبوم صور 100 صورة / فلاش ديسك 64GB / بطاريات..."
                   className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-emerald-600"
                 />
+              </div>
+
+              <div>
+                <label className="text-slate-700 block mb-1 font-bold">التصنيف والقسم في الاستوديو *</label>
+                <select
+                  value={directCategory}
+                  onChange={(e) => setDirectCategory(e.target.value as OfficialServiceCategory)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-emerald-600 cursor-pointer"
+                >
+                  {OFFICIAL_SERVICE_CATEGORIES.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1646,17 +1660,124 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleCreatePhotoLinkService} className="p-5 space-y-4 text-xs font-medium">
+            <form onSubmit={handleCreatePhotoLinkService} className="p-5 space-y-4 text-xs font-medium max-h-[85vh] overflow-y-auto">
+              {/* Quick Presets Bar */}
+              <div className="bg-amber-50/70 border border-amber-200 p-2.5 rounded-xl space-y-1.5">
+                <span className="text-[11px] font-black text-amber-900 block">✨ نماذج ارتباطية جاهزة بنقرة واحدة:</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoServiceName('كادر A4 فاخر مع صورة');
+                      setPhotoCategory('frames_and_enlargements');
+                      setPhotoPaperSize('A4');
+                      setPhotosPerSheet('1');
+                      const frameA4 = (materials || []).find(m => m.category === 'frame' && (m.name.includes('A4') || m.sku.includes('A4'))) || (materials || []).find(m => m.category === 'frame');
+                      if (frameA4) setPhotoFrameMatId(frameA4.id);
+                      const paperA4 = (materials || []).find(m => m.category === 'paper' && (m.name.includes('A4') || m.sku.includes('A4'))) || (materials || []).find(m => m.category === 'paper');
+                      if (paperA4) setPhotoPaperMatId(paperA4.id);
+                      setPhotoPrice('1200');
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
+                  >
+                    🖼️ كادر A4 كامل (ورق + حبر + كادر)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoServiceName('كادر 13x18 مع صورة');
+                      setPhotoCategory('frames_and_enlargements');
+                      setPhotoPaperSize('13x18');
+                      setPhotosPerSheet('1');
+                      const frame13 = (materials || []).find(m => m.category === 'frame' && (m.name.includes('13x18') || m.name.includes('13'))) || (materials || []).find(m => m.category === 'frame');
+                      if (frame13) setPhotoFrameMatId(frame13.id);
+                      setPhotoPrice('700');
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-purple-300 hover:bg-purple-100 text-purple-900 text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
+                  >
+                    🖼️ كادر 13x18 (ورق + حبر + كادر)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoServiceName('طباعة صور شمسية (8 صور هوية)');
+                      setPhotoCategory('id_and_regular_photos');
+                      setPhotoPaperSize('A4');
+                      setPhotosPerSheet('8');
+                      setPhotoFrameMatId('');
+                      setPhotoPrice('300');
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-sky-300 hover:bg-sky-100 text-sky-900 text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
+                  >
+                    📷 صور شمسية 8 صور (ورقة A4)
+                  </button>
+                </div>
+              </div>
+
               <div>
-                <label className="text-slate-700 block mb-1 font-bold">اسم الخدمة أو مقاس الصورة</label>
+                <label className="text-slate-700 block mb-1 font-bold">اسم الخدمة أو المنتج الارتباطي *</label>
                 <input
                   type="text"
                   required
                   value={photoServiceName}
                   onChange={(e) => setPhotoServiceName(e.target.value)}
-                  placeholder="مثال: طباعة صورة عائلية A4 فاخرة"
+                  placeholder="مثال: كادر A4 كامل مع صورة / طباعة صورة عائلية..."
                   className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B]"
                 />
+              </div>
+
+              {/* Official Category Selector */}
+              <div>
+                <label className="text-slate-700 block mb-1 font-bold">التصنيف والقسم في الاستوديو *</label>
+                <select
+                  value={photoCategory}
+                  onChange={(e) => setPhotoCategory(e.target.value as OfficialServiceCategory)}
+                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B] cursor-pointer"
+                >
+                  {OFFICIAL_SERVICE_CATEGORIES.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Frame Material Selector (العنصر الارتباطي الناقص: الكادر والإطار) */}
+              <div className="space-y-1 p-3 bg-purple-50/70 border border-purple-200 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <label className="text-purple-950 font-bold text-xs flex items-center gap-1.5">
+                    <Frame className="w-4 h-4 text-purple-700" />
+                    <span>الكادر أو الإطار المربوط (الورق + الحبر + الكادر):</span>
+                  </label>
+                  {photoFrameMatId && (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoFrameMatId('')}
+                      className="text-[10px] text-rose-600 hover:underline font-bold cursor-pointer"
+                    >
+                      إلغاء الكادر (صورة فقط)
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={photoFrameMatId}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setPhotoFrameMatId(val);
+                    if (val) {
+                      setPhotoCategory('frames_and_enlargements');
+                    }
+                  }}
+                  className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-[#292A34] font-bold text-xs focus:outline-none focus:border-purple-600 cursor-pointer"
+                >
+                  <option value="">-- بدون كادر (طباعة صورة فقط: ورق + حبر) --</option>
+                  {(materials || []).filter(m => m.category === 'frame').map(f => (
+                    <option key={f.id} value={f.id}>
+                      كادر: {f.name} (تكلفة الشراء: {formatCurrency(f.unitCost)} | المخزون: {f.currentStock} قطعة)
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-purple-700 block">
+                  عند اختيار كادر، سيتم خصم الكادر والورقة والحبر تلقائياً من رصيد المخزن عند كل عملية بيع.
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1668,7 +1789,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B]"
                   >
                     {(materials || []).filter(m => m.category === 'paper').map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.unitCost} دج/ورقة)</option>
+                      <option key={p.id} value={p.id}>{p.name} ({formatCurrency(p.unitCost)}/ورقة)</option>
                     ))}
                   </select>
                 </div>
@@ -1696,7 +1817,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B]"
                   >
                     {(materials || []).filter(m => m.category === 'ink').map(i => (
-                      <option key={i.id} value={i.id}>{i.name} ({i.unitCost} دج/مل)</option>
+                      <option key={i.id} value={i.id}>{i.name} ({formatCurrency(i.unitCost)}/مل)</option>
                     ))}
                   </select>
                 </div>
@@ -1716,7 +1837,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               </div>
 
               <div>
-                <label className="text-slate-700 block mb-1 font-bold">سعر بيع الصورة الواحدة للزبون (دج)</label>
+                <label className="text-slate-700 block mb-1 font-bold">سعر بيع الصورة / الكادر للزبون (كامل المبلغ دج) *</label>
                 <input
                   type="number"
                   min="1"
@@ -1732,13 +1853,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 <div className="flex items-center justify-between">
                   <label className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
                     <Camera className="w-4 h-4 text-[#E31C2B]" />
-                    <span>صورة توضيحية لخدمة الطباعة (اختياري)</span>
+                    <span>صورة توضيحية لخدمة الطباعة والكادر (اختياري)</span>
                   </label>
                   {photoImageUrl && (
                     <button
                       type="button"
                       onClick={() => setPhotoImageUrl('')}
-                      className="text-[10px] text-rose-600 hover:underline flex items-center gap-0.5"
+                      className="text-[10px] text-rose-600 hover:underline flex items-center gap-0.5 cursor-pointer"
                     >
                       <X className="w-3 h-3" />
                       <span>إلغاء الصورة</span>
@@ -1754,6 +1875,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         alt="Preview" 
                         className="w-full h-full object-cover" 
                         referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&auto=format&fit=crop&q=80';
+                        }}
                       />
                     ) : (
                       <div className="text-center p-1 text-slate-400">
@@ -1807,62 +1932,70 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </div>
               </div>
 
-              {/* Dynamic Formula Calculation Box */}
+              {/* Dynamic Formula Calculation Box with TOTAL SUM (La Somme) */}
               <div className="bg-[#1e1f27] text-white p-4 rounded-xl space-y-3 border border-slate-700">
                 <div className="flex items-center justify-between text-xs border-b border-slate-700/80 pb-2">
                   <div className="flex items-center gap-1.5 text-amber-400 font-bold">
                     <Calculator className="w-4 h-4" />
-                    <span>الاحتساب التلقائي لتكلفة وصافي ربح المنتج الارتباطي:</span>
+                    <span>توضيح التقسيم والاحتساب التلقائي (ورق + حبر {selectedFrameMat ? '+ كادر' : ''}):</span>
                   </div>
                   <span className="text-[11px] text-slate-300 font-mono">
                     {numPhotosPerSheet} صور / ورقة
                   </span>
                 </div>
 
-                {/* Section A: تكاليف الورقة الواحدة بالكامل مع إبراز تكلفة الحبر للورقة */}
+                {/* Section A: تفصيل العناصر الارتباطية الثلاثة */}
                 <div className="space-y-1.5 bg-[#252733] p-2.5 rounded-xl border border-slate-700">
-                  <div className="flex items-center justify-between text-[11px] text-slate-300 font-bold">
-                    <span>تحليل تكلفة الورقة الكاملة (ورق خام + استهلاك الحبر):</span>
-                    <span className="text-[10px] text-amber-300 font-normal">مقاس: {photoPaperSize}</span>
+                  <div className="text-[11px] text-slate-300 font-bold">
+                    عناصر التكلفة للقطعة الواحدة (التقسيم الدقيق):
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="bg-amber-950/60 border border-amber-500/50 p-2 rounded-lg">
-                      <span className="text-[10px] text-amber-300 font-bold block">تكلفة الحبر للورقة الواحدة</span>
-                      <span className="font-mono font-black text-amber-400 text-sm">{formatCurrency(sheetInkCost)}</span>
-                      <span className="text-[9px] text-amber-200/70 block mt-0.5 font-mono">({formatCurrency(unitInkCost)} × {numPhotosPerSheet})</span>
-                    </div>
+                  <div className={`grid ${selectedFrameMat ? 'grid-cols-3' : 'grid-cols-2'} gap-2 text-center text-xs`}>
                     <div className="bg-slate-800/90 border border-slate-700 p-2 rounded-lg">
-                      <span className="text-[10px] text-slate-400 block">تكلفة الورقة الخام</span>
-                      <span className="font-mono font-bold text-slate-200 text-sm">{formatCurrency(sheetPaperCost)}</span>
+                      <span className="text-[10px] text-slate-400 block">1. تكلفة الورق / صورة</span>
+                      <span className="font-mono font-bold text-slate-200 text-sm">{formatCurrency(unitPaperCost)}</span>
                       <span className="text-[9px] text-slate-400 block mt-0.5 font-mono truncate">{selectedPaperMat?.name?.split(' ')?.[0] || 'الورق'}</span>
                     </div>
-                    <div className="bg-slate-800/90 border border-slate-700 p-2 rounded-lg">
-                      <span className="text-[10px] text-slate-400 block">إجمالي تكلفة الورقة كاملة</span>
-                      <span className="font-mono font-black text-white text-sm">{formatCurrency(totalSheetCost)}</span>
-                      <span className="text-[9px] text-slate-400 block mt-0.5">ورق + حبر</span>
+
+                    <div className="bg-amber-950/60 border border-amber-500/50 p-2 rounded-lg">
+                      <span className="text-[10px] text-amber-300 font-bold block">2. تكلفة الحبر / صورة</span>
+                      <span className="font-mono font-black text-amber-400 text-sm">{formatCurrency(unitInkCost)}</span>
+                      <span className="text-[9px] text-amber-200/70 block mt-0.5 font-mono">({formatCurrency(sheetInkCost)} / ورقة)</span>
                     </div>
+
+                    {selectedFrameMat && (
+                      <div className="bg-purple-950/60 border border-purple-500/50 p-2 rounded-lg">
+                        <span className="text-[10px] text-purple-300 font-bold block">3. تكلفة الكادر / الإطار</span>
+                        <span className="font-mono font-black text-purple-300 text-sm">{formatCurrency(unitFrameCost)}</span>
+                        <span className="text-[9px] text-purple-200/70 block mt-0.5 truncate">{selectedFrameMat.name}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Section B: تكلفة وأرباح الصورة الواحدة */}
+                {/* Section B: المجموع الإجمالي للتكلفة (La Somme) + سعر البيع + صافي الربح */}
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="bg-slate-800 p-2 rounded-lg border border-slate-700/60">
-                    <span className="text-[10px] text-slate-400 block">تكلفة الورق / صورة</span>
-                    <span className="font-mono font-bold text-slate-200">{formatCurrency(unitPaperCost)}</span>
+                  <div className="bg-rose-950/60 border border-rose-500/50 p-2.5 rounded-xl">
+                    <span className="text-[10px] text-rose-300 font-bold block">مجموع التكلفة (La Somme)</span>
+                    <span className="font-mono font-black text-rose-200 text-sm">{formatCurrency(totalFormulaCost)}</span>
+                    <span className="text-[9px] text-rose-300/70 block mt-0.5">ورق + حبر {selectedFrameMat ? '+ كادر' : ''}</span>
                   </div>
-                  <div className="bg-slate-800 p-2 rounded-lg border border-slate-700/60">
-                    <span className="text-[10px] text-slate-400 block">تكلفة الحبر / صورة</span>
-                    <span className="font-mono font-bold text-slate-200">{formatCurrency(unitInkCost)}</span>
+
+                  <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700/80">
+                    <span className="text-[10px] text-slate-400 block">سعر البيع الكامل</span>
+                    <span className="font-mono font-black text-white text-sm">{formatCurrency(sellingPricePerPhoto)}</span>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">كامل المبلغ</span>
                   </div>
-                  <div className="bg-emerald-950/80 border border-emerald-500/40 p-2 rounded-lg">
-                    <span className="text-[10px] text-emerald-400 font-bold block">صافي الربح للصورة</span>
-                    <span className="font-mono font-black text-emerald-300">+{formatCurrency(netFormulaProfit)}</span>
+
+                  <div className="bg-emerald-950/80 border border-emerald-500/50 p-2.5 rounded-xl">
+                    <span className="text-[10px] text-emerald-400 font-bold block">صافي الربح المحقق</span>
+                    <span className="font-mono font-black text-emerald-300 text-sm">+{formatCurrency(netFormulaProfit)}</span>
+                    <span className="text-[9px] text-emerald-400/80 block mt-0.5 font-bold">%{formulaMargin} هامش</span>
                   </div>
                 </div>
 
-                <div className="text-[10px] text-slate-400 text-center flex items-center justify-between pt-1 border-t border-slate-700">
-                  <span>هامش الربح الصافي: <strong className="text-emerald-400 font-bold">%{formulaMargin}</strong></span>
-                  <span className="text-amber-400 font-medium">خصم تلقائي للورق والحبر من المخزن</span>
+                <div className="text-[10px] text-slate-300 text-center flex items-center justify-between pt-1 border-t border-slate-700">
+                  <span>القسم: <strong className="text-amber-400 font-bold">{OFFICIAL_SERVICE_CATEGORIES.find(c => c.id === photoCategory)?.label || photoCategory}</strong></span>
+                  <span className="text-emerald-400 font-medium">خصم آلي متزامن للمواد والكادر عند البيع</span>
                 </div>
               </div>
 
@@ -1870,7 +2003,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAddPhotoLinkModal(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold"
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -2300,17 +2433,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-slate-700 block mb-1 font-bold">التصنيف</label>
+                  <label className="text-slate-700 block mb-1 font-bold">التصنيف والقسم في الاستوديو *</label>
                   <select
                     value={editProductCategory}
-                    onChange={(e) => setEditProductCategory(e.target.value as ServiceItem['category'])}
+                    onChange={(e) => setEditProductCategory(e.target.value as any)}
                     className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold cursor-pointer"
                   >
-                    <option value="retail_goods">سلعة بيع مباشر</option>
-                    <option value="photo_printing">طباعة وتكبير صور</option>
-                    <option value="document_printing">طباعة مستندات</option>
-                    <option value="id_photo">صور هوية وجواز</option>
-                    <option value="custom">خدمة مخصصة / خاصة</option>
+                    {OFFICIAL_SERVICE_CATEGORIES.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.label}</option>
+                    ))}
                   </select>
                 </div>
 

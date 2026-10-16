@@ -29,13 +29,16 @@ import {
   Tooltip, 
   CartesianGrid 
 } from 'recharts';
-import { Order, Material, WasteRecord, Expense, Shift, Staff, AttendanceRecord } from '../../types';
+import { Order, Material, WasteRecord, Expense, Shift, Staff, AttendanceRecord, ServiceItem } from '../../types';
 import { TabType } from '../Navigation';
 import { formatCurrency, formatDate, formatTime, getItemUnitCost } from '../../utils/formatters';
+import { generateSystemAlerts } from '../../utils/alertsGenerator';
+import { BellRing, UserX, AlertCircle } from 'lucide-react';
 
 interface DashboardViewProps {
   orders: Order[];
   materials: Material[];
+  services?: ServiceItem[];
   wasteRecords: WasteRecord[];
   expenses: Expense[];
   shifts: Shift[];
@@ -52,6 +55,7 @@ type PeriodFilter = 'today' | 'week' | 'month' | 'all';
 export const DashboardView: React.FC<DashboardViewProps> = ({
   orders = [],
   materials = [],
+  services = [],
   wasteRecords = [],
   expenses = [],
   shifts = [],
@@ -131,6 +135,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const criticalMaterials = useMemo(() => {
     return materials.filter(m => m.currentStock <= m.minThreshold);
   }, [materials]);
+
+  // 6 System Alerts Engine
+  const systemAlerts = useMemo(() => {
+    return generateSystemAlerts({
+      materials,
+      services,
+      shifts,
+      allStaff,
+      attendanceLogs,
+      expenses,
+      orders,
+    });
+  }, [materials, services, shifts, allStaff, attendanceLogs, expenses, orders]);
 
   // Active shift info
   const activeShift = useMemo(() => {
@@ -312,6 +329,251 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
+      </div>
+
+      {/* =========================================================================
+          OPERATIONAL MONITORING & SMART ALERTS CENTER (6 INTELLIGENT ALERTS)
+      ========================================================================= */}
+      <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-slate-900 text-white">
+              <BellRing className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-black text-[#292A34]">مركز التنبيهات والرقابة الذكية</h3>
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-black ${
+                  systemAlerts.counts.total > 0 ? 'bg-[#E31C2B] text-white animate-pulse' : 'bg-emerald-600 text-white'
+                }`}>
+                  {systemAlerts.counts.total > 0 ? `${systemAlerts.counts.total} تنبيه بحاجة لمتابعة` : 'كافة العمليات طبيعية'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                متابعة لحظية ومؤتمتة لـ: نقص المخزون، فوارق الصندوق، غياب العمال، المصروفات الشاذة، والعمليات غير المكتملة
+              </p>
+            </div>
+          </div>
+
+          <div className="text-xs text-slate-400 font-medium">
+            تحديث تلقائي مستمر
+          </div>
+        </div>
+
+        {/* 6 Smart Alert Tiles Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          
+          {/* 1. Low Stock Alert Tile */}
+          <div 
+            onClick={() => onNavigateTab('inventory')}
+            className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-2.5 ${
+              systemAlerts.counts.low_stock > 0
+                ? 'bg-rose-50/60 border-rose-300 hover:border-[#E31C2B] hover:shadow-xs'
+                : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg ${
+                  systemAlerts.counts.low_stock > 0 ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <span className="font-bold text-xs text-slate-800">نقص في المخزون</span>
+              </div>
+              <span className={`text-xs font-mono font-black px-2 py-0.5 rounded-full ${
+                systemAlerts.counts.low_stock > 0 ? 'bg-[#E31C2B] text-white' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {systemAlerts.counts.low_stock > 0 ? `${systemAlerts.counts.low_stock} نواقص` : 'آمن 0'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 line-clamp-2">
+              {systemAlerts.counts.low_stock > 0 
+                ? 'مواد خام أو سلع بيع مباشر وصلت لحد الأمان الأدنى أو نفدت تماماً.'
+                : 'جميع الأوراق، الأحبار، والسلع فوق حد الأمان المعتمد.'}
+            </p>
+            <div className="text-[10px] font-bold text-[#E31C2B] flex items-center gap-1 pt-1 border-t border-slate-200/60">
+              <span>فتح شاشة المخزون وإعادة التموين</span>
+              <ChevronRight className="w-3 h-3 rotate-180" />
+            </div>
+          </div>
+
+          {/* 2. Cash Discrepancy Tile */}
+          <div 
+            onClick={() => onNavigateTab('shifts')}
+            className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-2.5 ${
+              systemAlerts.counts.cash_discrepancy > 0
+                ? 'bg-amber-50/80 border-amber-300 hover:border-amber-500 hover:shadow-xs'
+                : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg ${
+                  systemAlerts.counts.cash_discrepancy > 0 ? 'bg-amber-500 text-black' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  <Wallet className="w-4 h-4" />
+                </div>
+                <span className="font-bold text-xs text-slate-800">فرق في الصندوق</span>
+              </div>
+              <span className={`text-xs font-mono font-black px-2 py-0.5 rounded-full ${
+                systemAlerts.counts.cash_discrepancy > 0 ? 'bg-amber-500 text-black' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {systemAlerts.counts.cash_discrepancy > 0 ? `${systemAlerts.counts.cash_discrepancy} فوارق` : 'متطابق 0'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 line-clamp-2">
+              {systemAlerts.counts.cash_discrepancy > 0
+                ? 'تم رصد عجز أو فائض بين النقد الفعلي والرصيد المتوقع في إغلاق الورديات.'
+                : 'حسابات الصندوق متطابقة بالكامل دون أي عجز أو فائض.'}
+            </p>
+            <div className="text-[10px] font-bold text-amber-700 flex items-center gap-1 pt-1 border-t border-slate-200/60">
+              <span>جرد الصندوق وسجل الورديات</span>
+              <ChevronRight className="w-3 h-3 rotate-180" />
+            </div>
+          </div>
+
+          {/* 3. Absent Worker Tile */}
+          <div 
+            onClick={() => onNavigateTab('hr')}
+            className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-2.5 ${
+              systemAlerts.counts.absent_worker > 0
+                ? 'bg-purple-50/60 border-purple-300 hover:border-purple-500 hover:shadow-xs'
+                : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg ${
+                  systemAlerts.counts.absent_worker > 0 ? 'bg-purple-600 text-white' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  <UserX className="w-4 h-4" />
+                </div>
+                <span className="font-bold text-xs text-slate-800">عامل غائب</span>
+              </div>
+              <span className={`text-xs font-mono font-black px-2 py-0.5 rounded-full ${
+                systemAlerts.counts.absent_worker > 0 ? 'bg-purple-600 text-white' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {systemAlerts.counts.absent_worker > 0 ? `${systemAlerts.counts.absent_worker} غائب` : 'حضور كامل'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 line-clamp-2">
+              {systemAlerts.counts.absent_worker > 0
+                ? 'موظفون مسجلون بالجدول لم يسجلوا بدء الدوام أو الحضور اليوم.'
+                : 'جميع العمال المسجلين متواجدون وسجلوا حضورهم في الوقت المحدد.'}
+            </p>
+            <div className="text-[10px] font-bold text-purple-700 flex items-center gap-1 pt-1 border-t border-slate-200/60">
+              <span>فتح سجل حضور ودوام العمال</span>
+              <ChevronRight className="w-3 h-3 rotate-180" />
+            </div>
+          </div>
+
+          {/* 4. Unusual Expense Tile */}
+          <div 
+            onClick={() => onNavigateTab('accounting')}
+            className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-2.5 ${
+              systemAlerts.counts.unusual_expense > 0
+                ? 'bg-orange-50/70 border-orange-300 hover:border-orange-500 hover:shadow-xs'
+                : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg ${
+                  systemAlerts.counts.unusual_expense > 0 ? 'bg-orange-600 text-white' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <span className="font-bold text-xs text-slate-800">مصروف غير معتاد</span>
+              </div>
+              <span className={`text-xs font-mono font-black px-2 py-0.5 rounded-full ${
+                systemAlerts.counts.unusual_expense > 0 ? 'bg-orange-600 text-white' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {systemAlerts.counts.unusual_expense > 0 ? `${systemAlerts.counts.unusual_expense} شاذ` : 'طبيعي 0'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 line-clamp-2">
+              {systemAlerts.counts.unusual_expense > 0
+                ? 'تم قيد مصروفات نقدية تفوق 5,000 دج تتطلب مراجعة الفاتورة والسبب.'
+                : 'كافة المصروفات النثرية تقع ضمن النطاق التشغيلي الروتيني.'}
+            </p>
+            <div className="text-[10px] font-bold text-orange-700 flex items-center gap-1 pt-1 border-t border-slate-200/60">
+              <span>مراجعة جدول المصروفات النثرية</span>
+              <ChevronRight className="w-3 h-3 rotate-180" />
+            </div>
+          </div>
+
+          {/* 5. Incomplete Operation Tile */}
+          <div 
+            onClick={() => onNavigateTab('orders')}
+            className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-2.5 ${
+              systemAlerts.counts.incomplete_operation > 0
+                ? 'bg-sky-50/70 border-sky-300 hover:border-sky-500 hover:shadow-xs'
+                : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg ${
+                  systemAlerts.counts.incomplete_operation > 0 ? 'bg-sky-600 text-white' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  <Clock className="w-4 h-4" />
+                </div>
+                <span className="font-bold text-xs text-slate-800">عملية غير مكتملة</span>
+              </div>
+              <span className={`text-xs font-mono font-black px-2 py-0.5 rounded-full ${
+                systemAlerts.counts.incomplete_operation > 0 ? 'bg-sky-600 text-white' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {systemAlerts.counts.incomplete_operation > 0 ? `${systemAlerts.counts.incomplete_operation} معلقة` : 'مكتملة 0'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 line-clamp-2">
+              {systemAlerts.counts.incomplete_operation > 0
+                ? 'تذاكر قيد التجهيز أو معاملات بها رصيد متبقي غير مدفوع بالكامل.'
+                : 'جميع طلبات الزبائن تم تسليمها واستيفاء قيمتها المالية.'}
+            </p>
+            <div className="text-[10px] font-bold text-sky-700 flex items-center gap-1 pt-1 border-t border-slate-200/60">
+              <span>فتح سجل التذاكر والمعاملات</span>
+              <ChevronRight className="w-3 h-3 rotate-180" />
+            </div>
+          </div>
+
+          {/* 6. Abnormal Revenue Drop Tile */}
+          <div 
+            onClick={() => onNavigateTab('accounting')}
+            className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between space-y-2.5 ${
+              systemAlerts.counts.revenue_drop > 0
+                ? 'bg-red-50/80 border-red-300 hover:border-red-600 hover:shadow-xs'
+                : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg ${
+                  systemAlerts.counts.revenue_drop > 0 ? 'bg-[#E31C2B] text-white' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  <TrendingUp className="w-4 h-4 rotate-180 text-rose-300" />
+                </div>
+                <span className="font-bold text-xs text-slate-800">انخفاض غير طبيعي في المداخيل</span>
+              </div>
+              <span className={`text-xs font-mono font-black px-2 py-0.5 rounded-full ${
+                systemAlerts.counts.revenue_drop > 0 ? 'bg-[#E31C2B] text-white' : 'bg-emerald-100 text-emerald-800'
+              }`}>
+                {systemAlerts.counts.revenue_drop > 0 ? 'انخفاض ملحوظ' : 'مستقر وممتاز'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 line-clamp-2">
+              {systemAlerts.counts.revenue_drop > 0
+                ? 'معدل مبيعات اليوم أقل بكثير من المتوسط المعتاد للاستوديو.'
+                : 'التدفقات النقدية ومعدل الطلبات في المسار الطبيعي المتوقع.'}
+            </p>
+            <div className="text-[10px] font-bold text-[#E31C2B] flex items-center gap-1 pt-1 border-t border-slate-200/60">
+              <span>تقرير التدفق المالي والأرباح</span>
+              <ChevronRight className="w-3 h-3 rotate-180" />
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* Quick Actions Bar */}

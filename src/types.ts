@@ -110,7 +110,7 @@ export const OFFICIAL_SERVICE_CATEGORIES: { id: OfficialServiceCategory; label: 
  * Normalizes any category string into one of the 5 official studio categories.
  */
 export function normalizeServiceCategory(cat?: string, name?: string): OfficialServiceCategory {
-  // If explicitly provided as one of the 5 official categories, respect it directly!
+  // If explicitly provided as one of the 5 official categories or Arabic equivalents, respect it directly!
   if (cat) {
     const c = cat.toLowerCase().trim();
     if (c === 'id_and_regular_photos') return 'id_and_regular_photos';
@@ -119,12 +119,22 @@ export function normalizeServiceCategory(cat?: string, name?: string): OfficialS
     if (c === 'printing_services') return 'printing_services';
     if (c === 'studio_sessions') return 'studio_sessions';
     
-    // Legacy category mappings
-    if (c === 'id_photos' || c === 'id_photo') return 'id_and_regular_photos';
-    if (c === 'frames' || c === 'prints' || c === 'photo_printing') return 'frames_and_enlargements';
-    if (c === 'retail_goods') return 'goods_and_accessories';
-    if (c === 'lamination' || c === 'digital' || c === 'document_printing') return 'printing_services';
-    if (c === 'packages') return 'studio_sessions';
+    // Arabic category names matching
+    if (c.includes('شمسية') || c.includes('شمسيه') || c.includes('اخراج الصور') || c.includes('إخراج الصور') || c.includes('id_photo') || c.includes('id_photos')) {
+      return 'id_and_regular_photos';
+    }
+    if (c.includes('كوادر') || c.includes('إطارات') || c.includes('اطارات') || c.includes('تكبير') || c.includes('frames') || c.includes('برواز')) {
+      return 'frames_and_enlargements';
+    }
+    if (c.includes('سلع') || c.includes('إكسسوارات') || c.includes('اكسسوارات') || c.includes('retail_goods')) {
+      return 'goods_and_accessories';
+    }
+    if (c.includes('طباعة') || c.includes('طباعه') || c.includes('prints') || c.includes('lamination') || c.includes('digital') || c.includes('document_printing')) {
+      return 'printing_services';
+    }
+    if (c.includes('جلسة') || c.includes('جلسه') || c.includes('استوديو') || c.includes('studio') || c.includes('packages')) {
+      return 'studio_sessions';
+    }
   }
 
   // Fallback to name-based heuristic only if category was unspecified or unrecognized
@@ -139,7 +149,7 @@ export function normalizeServiceCategory(cat?: string, name?: string): OfficialS
     if (n.includes('جلسة') || n.includes('جلسه') || n.includes('استوديو') || n.includes('عرس') || n.includes('جلسات')) {
       return 'studio_sessions';
     }
-    if (n.includes('طباعة مستند') || n.includes('فوطوكوبي') || n.includes('فوتوكوبي') || n.includes('تغليف حراري')) {
+    if (n.includes('طباعة مستند') || n.includes('فوطوكوبي') || n.includes('فوتوكوبي') || n.includes('تغليف حراري') || n.includes('طباعة') || n.includes('طباعه')) {
       return 'printing_services';
     }
   }

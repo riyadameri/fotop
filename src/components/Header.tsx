@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Camera, 
   Clock, 
@@ -27,7 +27,6 @@ import {
   Volume2,
   VolumeX,
   Maximize2,
-  Minimize2,
   Image as ImageIcon,
   Upload,
   Sparkles,
@@ -35,7 +34,13 @@ import {
   Sliders,
   Database,
   RefreshCw,
-  Timer
+  Timer,
+  UserX,
+  ReceiptText,
+  TrendingDown,
+  AlertOctagon,
+  ArrowLeft,
+  Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Staff, Shift, Material, AttendanceRecord, ServiceItem, Store, Order, Expense, SystemAlert, SystemAlertType } from '../types';
@@ -633,8 +638,32 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Left / End: Unified Burger Menu (Replaces all scattered loose buttons) */}
+          {/* Left / End: Unified Burger Menu + Smart Alerts Bell */}
           <div className="flex items-center gap-1.5 sm:gap-2 justify-end shrink-0">
+            
+            {/* Dedicated Smart Alerts Bell Button */}
+            <div className="relative">
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                onClick={handleOpenAlerts}
+                className={`relative h-9 px-2.5 rounded-xl border flex items-center gap-1.5 cursor-pointer transition-all shadow-xs ${
+                  totalAlertCount > 0
+                    ? 'bg-rose-950/80 border-rose-700 text-rose-200 hover:bg-rose-900 hover:text-white'
+                    : 'bg-[#23242e] border-slate-700/80 text-slate-300 hover:bg-slate-700/80 hover:text-white'
+                }`}
+                title="تنبيهات النظام الذكية والرقابة (6 تصنيفات)"
+              >
+                <Bell className={`w-4 h-4 ${totalAlertCount > 0 ? 'text-[#ff5252] animate-bounce' : 'text-slate-400'}`} />
+                {totalAlertCount > 0 ? (
+                  <span className="font-mono font-black text-xs bg-[#E31C2B] text-white px-1.5 py-0.2 rounded-full min-w-5 text-center shadow-xs">
+                    {totalAlertCount}
+                  </span>
+                ) : (
+                  <span className="hidden xl:inline text-[11px] font-bold text-slate-400">0</span>
+                )}
+              </motion.button>
+            </div>
+
             <div className="relative" ref={burgerMenuRef}>
               
               {/* The Burger Button */}
@@ -981,27 +1010,32 @@ export const Header: React.FC<HeaderProps> = ({
 
       </div>
 
-      {/* Notifications Popover Dropdown (Shared for both Compact and Full modes) */}
+      {/* 6 INTELLIGENT SYSTEM ALERTS POPOVER (تنبيهات النظام الذكية الستة) */}
       {showNotificationPopover && (
         <>
           <div 
             className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 sm:hidden"
             onClick={() => setShowNotificationPopover(false)}
           />
-          <div className="fixed sm:absolute inset-x-3 sm:inset-x-auto top-[78px] sm:top-full sm:left-4 sm:right-auto mt-1 sm:mt-2 w-auto sm:w-96 max-h-[85vh] overflow-y-auto bg-[#23242e] border border-slate-700 rounded-2xl shadow-2xl p-3.5 z-50 text-white animate-in fade-in zoom-in-95" dir="rtl">
+          <div className="fixed sm:absolute inset-x-3 sm:inset-x-auto top-[78px] sm:top-full sm:left-4 sm:right-auto mt-1 sm:mt-2 w-auto sm:w-[460px] max-h-[85vh] overflow-y-auto bg-[#23242e] border border-slate-700 rounded-2xl shadow-2xl p-4 z-50 text-white animate-in fade-in zoom-in-95" dir="rtl">
           
           {/* Popover Header */}
-          <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-700">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-700">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-[#E31C2B]/20 text-[#ff6b6b] rounded-lg">
-                <ShieldAlert className="w-4 h-4" />
+              <div className="p-2 bg-[#E31C2B]/20 text-[#ff6b6b] rounded-xl border border-red-500/30">
+                <BellRing className="w-5 h-5 text-[#E31C2B] animate-pulse" />
               </div>
               <div>
-                <h4 className="text-xs font-black text-white">تنبيهات حد الأمان والمخزون</h4>
-                <p className="text-[10px] text-slate-400">
-                  {totalLowStockCount > 0 
-                    ? `${totalLowStockCount} مادة وسلعة وصلت للحد الحرج` 
-                    : 'المخزون متوازن وبمستوى ممتاز'}
+                <h4 className="text-sm font-black text-white flex items-center gap-1.5">
+                  <span>مركز التنبيهات والرقابة الذكية</span>
+                  {totalAlertCount > 0 && (
+                    <span className="text-[10px] bg-[#E31C2B] text-white px-2 py-0.5 rounded-full font-black">
+                      {totalAlertCount} تنبيهات
+                    </span>
+                  )}
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  مراقبة فورية للمخزون، الصندوق، دوام العمال، المصروفات، والعمليات
                 </p>
               </div>
             </div>
@@ -1013,108 +1047,176 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
 
-          {/* List of Low Stock Items */}
-          {totalLowStockCount > 0 ? (
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
-              {lowStockMaterials.map(mat => {
-                const deficit = Math.max(0, mat.minThreshold - mat.currentStock);
-                const unitLabel = mat.unit === 'sheet' ? 'ورقة' : mat.unit === 'ml' ? 'مل' : 'قطعة';
-                const stockRatio = mat.minThreshold > 0 ? Math.min(100, Math.round((mat.currentStock / mat.minThreshold) * 100)) : 0;
-                const isZero = mat.currentStock <= 0;
+          {/* 6 Category Filter Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 no-scrollbar border-b border-slate-800 text-[11px]">
+            <button
+              onClick={() => setAlertActiveCategory('all')}
+              className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors cursor-pointer ${
+                alertActiveCategory === 'all' ? 'bg-[#E31C2B] text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              الكل ({totalAlertCount})
+            </button>
+            <button
+              onClick={() => setAlertActiveCategory('low_stock')}
+              className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors cursor-pointer ${
+                alertActiveCategory === 'low_stock' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              نقص المخزون ({systemAlerts.counts.low_stock})
+            </button>
+            <button
+              onClick={() => setAlertActiveCategory('cash_discrepancy')}
+              className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors cursor-pointer ${
+                alertActiveCategory === 'cash_discrepancy' ? 'bg-rose-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              فرق الصندوق ({systemAlerts.counts.cash_discrepancy})
+            </button>
+            <button
+              onClick={() => setAlertActiveCategory('absent_worker')}
+              className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors cursor-pointer ${
+                alertActiveCategory === 'absent_worker' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              عامل غائب ({systemAlerts.counts.absent_worker})
+            </button>
+            <button
+              onClick={() => setAlertActiveCategory('unusual_expense')}
+              className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors cursor-pointer ${
+                alertActiveCategory === 'unusual_expense' ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              مصروف مرتفع ({systemAlerts.counts.unusual_expense})
+            </button>
+            <button
+              onClick={() => setAlertActiveCategory('incomplete_operation')}
+              className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors cursor-pointer ${
+                alertActiveCategory === 'incomplete_operation' ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              عملية معلقة ({systemAlerts.counts.incomplete_operation})
+            </button>
+            <button
+              onClick={() => setAlertActiveCategory('revenue_drop')}
+              className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors cursor-pointer ${
+                alertActiveCategory === 'revenue_drop' ? 'bg-red-700 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              هبوط مداخيل ({systemAlerts.counts.revenue_drop})
+            </button>
+          </div>
 
-                return (
-                  <div 
-                    key={mat.id}
-                    className="bg-[#171820] border border-rose-900/60 hover:border-[#E31C2B] p-2.5 rounded-xl transition-all"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-bold text-xs text-white flex items-center gap-1.5">
-                          <span>{mat.name}</span>
-                          {isZero ? (
-                            <span className="text-[9px] bg-rose-950 text-rose-300 px-1.5 py-0.2 rounded font-black border border-rose-800">
-                              نفد تماماً (0)
-                            </span>
-                          ) : (
-                            <span className="text-[9px] bg-amber-950 text-amber-300 px-1.5 py-0.2 rounded font-black border border-amber-800">
-                              تحت حد الأمان
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          المتبقي: <span className="font-mono text-rose-400 font-black">{mat.currentStock}</span> {unitLabel} | حد الأمان الأدنى: <span className="font-mono text-slate-300">{mat.minThreshold}</span> {unitLabel}
-                        </div>
-                      </div>
+          {/* Alert Cards List */}
+          {(() => {
+            const displayAlerts = systemAlerts.alerts.filter(a => {
+              if (alertActiveCategory === 'all') return true;
+              return a.type === alertActiveCategory;
+            });
 
-                      <span className="text-[10px] font-mono font-bold text-amber-400 bg-black/40 px-1.5 py-0.5 rounded">
-                        عجز: {deficit} {unitLabel}
-                      </span>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full rounded-full transition-all ${isZero ? 'bg-rose-600' : 'bg-amber-500'}`}
-                        style={{ width: `${Math.max(5, stockRatio)}%` }}
-                      />
-                    </div>
+            if (displayAlerts.length === 0) {
+              return (
+                <div className="py-8 text-center space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6" />
                   </div>
-                );
-              })}
+                  <p className="text-sm font-bold text-emerald-400">لا توجد تنبيهات مسجلة في هذا القسم!</p>
+                  <p className="text-xs text-slate-400">كافة العمليات والمؤشرات تسير بصورة طبيعية ومستقرة.</p>
+                </div>
+              );
+            }
 
-              {lowStockProducts.map(prod => {
-                const deficit = Math.max(0, (prod.minThreshold || 3) - (prod.currentStock || 0));
-                const isZero = (prod.currentStock || 0) <= 0;
+            return (
+              <div className="space-y-2.5 max-h-[55vh] overflow-y-auto pr-1 custom-scrollbar">
+                {displayAlerts.map(alert => {
+                  const isCritical = alert.severity === 'critical';
+                  const isWarning = alert.severity === 'warning';
 
-                return (
-                  <div 
-                    key={prod.id}
-                    className="bg-[#171820] border border-amber-900/60 hover:border-amber-500 p-2.5 rounded-xl transition-all"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-bold text-xs text-white flex items-center gap-1.5">
-                          <span>{prod.name}</span>
-                          <span className="text-[9px] bg-blue-950 text-blue-300 px-1.5 py-0.2 rounded font-black border border-blue-800">
-                            سلعة مباشرة
-                          </span>
+                  return (
+                    <div 
+                      key={alert.id}
+                      className={`p-3 rounded-xl border transition-all ${
+                        isCritical
+                          ? 'bg-rose-950/40 border-rose-700 hover:border-rose-500'
+                          : isWarning
+                          ? 'bg-amber-950/40 border-amber-700/80 hover:border-amber-500'
+                          : 'bg-slate-800/60 border-slate-700 hover:border-slate-500'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2">
+                          <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                            isCritical ? 'bg-rose-500/20 text-rose-300' : isWarning ? 'bg-amber-500/20 text-amber-300' : 'bg-sky-500/20 text-sky-300'
+                          }`}>
+                            {alert.type === 'low_stock' && <PackagePlus className="w-4 h-4" />}
+                            {alert.type === 'cash_discrepancy' && <AlertOctagon className="w-4 h-4" />}
+                            {alert.type === 'absent_worker' && <UserX className="w-4 h-4" />}
+                            {alert.type === 'unusual_expense' && <Wallet className="w-4 h-4" />}
+                            {alert.type === 'incomplete_operation' && <ReceiptText className="w-4 h-4" />}
+                            {alert.type === 'revenue_drop' && <TrendingDown className="w-4 h-4" />}
+                          </div>
+
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h5 className="font-black text-xs text-white">{alert.title}</h5>
+                              <span className={`text-[9px] px-1.5 py-0.2 rounded font-black ${
+                                isCritical ? 'bg-rose-900 text-rose-200' : isWarning ? 'bg-amber-900 text-amber-200' : 'bg-slate-700 text-slate-300'
+                              }`}>
+                                {alert.type === 'low_stock' ? 'نقص مخزون' :
+                                 alert.type === 'cash_discrepancy' ? 'فارق بالصندوق' :
+                                 alert.type === 'absent_worker' ? 'غياب عامل' :
+                                 alert.type === 'unusual_expense' ? 'مصروف غير معتاد' :
+                                 alert.type === 'incomplete_operation' ? 'عملية معلقة' : 'مداخيل غير طبيعية'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                              {alert.description}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          المتبقي: <span className="font-mono text-rose-400 font-black">{prod.currentStock || 0}</span> قطعة | حد الأمان: <span className="font-mono text-slate-300">{prod.minThreshold || 3}</span>
-                        </div>
+
+                        {/* Quick Action Button */}
+                        {alert.actionTab && (
+                          <button
+                            onClick={() => {
+                              setShowNotificationPopover(false);
+                              if (onNavigateTab) {
+                                onNavigateTab(alert.actionTab);
+                              } else if (alert.actionTab === 'inventory' && onNavigateToInventory) {
+                                onNavigateToInventory(true);
+                              }
+                            }}
+                            className="shrink-0 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border border-white/15"
+                            title={alert.actionLabel}
+                          >
+                            <span>{alert.actionLabel || 'متابعة'}</span>
+                            <ArrowLeft className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
-
-                      <span className="text-[10px] font-mono font-bold text-amber-400 bg-black/40 px-1.5 py-0.5 rounded">
-                        عجز: {deficit}
-                      </span>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="py-6 text-center space-y-2">
-              <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5" />
+                  );
+                })}
               </div>
-              <p className="text-xs font-bold text-emerald-400">كافة المواد في المستوى الآمن!</p>
-              <p className="text-[10px] text-slate-400">لا توجد نواقص أو مواد بحاجة لإعادة شحن حالياً.</p>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Popover Footer Action */}
-          <div className="pt-2.5 mt-2.5 border-t border-slate-700">
+          <div className="pt-3 mt-3 border-t border-slate-700 flex items-center justify-between gap-2">
+            <span className="text-[11px] text-slate-400">
+              إجمالي التنبيهات النشطة: <strong className="text-white font-mono">{totalAlertCount}</strong>
+            </span>
             <button
               onClick={() => {
                 setShowNotificationPopover(false);
-                if (onNavigateToInventory) {
-                  onNavigateToInventory(true);
+                if (onNavigateTab) {
+                  onNavigateTab('dashboard');
                 }
               }}
-              className="w-full py-2 px-3 bg-[#E31C2B] hover:bg-[#c91422] text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-[#E31C2B]/30"
+              className="py-1.5 px-3 bg-[#E31C2B] hover:bg-[#c91422] text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-[#E31C2B]/30"
             >
-              <PackagePlus className="w-4 h-4" />
-              <span>فتح نظام المخزون وإعادة التعبئة</span>
+              <span>فتح لوحة القيادة والمتابعة</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

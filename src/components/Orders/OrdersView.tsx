@@ -933,10 +933,15 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                             </div>
                           </td>
 
-                          {/* Financial Total */}
+                          {/* Financial Total (كامل المبلغ / La Somme) */}
                           <td className="p-3.5">
-                            <div className="font-mono font-black text-sm text-[#292A34]">
-                              {formatCurrency(order.total)}
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-mono font-black text-sm text-[#292A34]">
+                                {formatCurrency(order.total)}
+                              </span>
+                              <span className="text-[9px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-bold">
+                                كامل المبلغ
+                              </span>
                             </div>
                             <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-0.5">
                               {order.paymentMethod === 'cash' ? (
@@ -1131,14 +1136,21 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
                         </div>
                       </div>
 
-                      {/* Total & Action Buttons */}
+                      {/* Total (كامل المبلغ / La Somme) & Net Profit & Action Buttons */}
                       <div className="flex items-center justify-between pt-2.5 border-t border-slate-200">
                         <div>
-                          <div className="font-mono font-black text-base text-[#292A34]">
-                            {formatCurrency(order.total)}
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-base text-[#292A34]">
+                              {formatCurrency(order.total)}
+                            </span>
+                            {isManager && (
+                              <span className="text-[10px] font-mono font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded-md">
+                                الربح: +{formatCurrency(profit)}
+                              </span>
+                            )}
                           </div>
-                          <div className="text-[10px] text-slate-500 font-mono">
-                            {order.paymentMethod === 'cash' ? 'نقداً' : 'بطاقة CIB'} • {order.paidAmount >= order.total ? 'مدفوع بالكامل' : `متبقي ${formatCurrency(order.total - order.paidAmount)}`}
+                          <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                            كامل المبلغ: {formatCurrency(order.total)} • {order.paymentMethod === 'cash' ? 'نقداً' : 'بطاقة CIB'} • {order.paidAmount >= order.total ? 'مدفوع بالكامل' : `متبقي ${formatCurrency(order.total - order.paidAmount)}`}
                           </div>
                         </div>
 

@@ -226,6 +226,15 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   // Date filters helper
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
+  const currentMonthStr = todayStr.substring(0, 7);
+
+  const periodLabel = useMemo(() => {
+    if (periodPreset === 'today') return 'اليوم';
+    if (periodPreset === 'week') return 'آخر 7 أيام';
+    if (periodPreset === 'month') return `الشهر الحالي (${currentMonthStr})`;
+    if (periodPreset === 'custom') return `توقيت مخصص (من ${customStartDate || '...'} إلى ${customEndDate || '...'})`;
+    return 'كامل السجلات';
+  }, [periodPreset, currentMonthStr, customStartDate, customEndDate]);
 
   // Helper to test if a record date matches the selected period
   const matchesDateRange = (isoString: string) => {
@@ -313,6 +322,32 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
     return filteredExpenses.reduce((sum, e) => sum + e.amount, 0);
   }, [filteredExpenses]);
 
+  // Breakdown of petty expenses for the period
+  const expensesCategoryBreakdown = useMemo(() => {
+    let materialsCost = 0;
+    let maintenanceCost = 0;
+    let teaCoffeeCost = 0;
+    let payrollCost = 0;
+    let otherCost = 0;
+
+    for (const exp of filteredExpenses) {
+      if (exp.category === 'materials') materialsCost += exp.amount;
+      else if (exp.category === 'maintenance') maintenanceCost += exp.amount;
+      else if (exp.category === 'tea_coffee') teaCoffeeCost += exp.amount;
+      else if (exp.category === 'salaries' || exp.category === 'payroll') payrollCost += exp.amount;
+      else otherCost += exp.amount;
+    }
+
+    return {
+      materialsCost,
+      maintenanceCost,
+      teaCoffeeCost,
+      payrollCost,
+      otherCost,
+      total: materialsCost + maintenanceCost + teaCoffeeCost + payrollCost + otherCost
+    };
+  }, [filteredExpenses]);
+
   // Net Profit Formula: Revenue - BOM - Waste - Expenses
   const netProfit = useMemo(() => {
     return totalRevenue - totalBOMCost - totalWasteLoss - totalExpenses;
@@ -333,7 +368,6 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   }, [orders, materials, expenses, wasteRecords, todayStr]);
 
   // Automated This Month's Net Profit Calculations (Deducting BOM Materials + Expenses)
-  const currentMonthStr = todayStr.substring(0, 7);
   const monthMetrics = useMemo(() => {
     const mOrders = (orders || []).filter(o => o.createdAt.startsWith(currentMonthStr));
     const gross = mOrders.reduce((sum, o) => sum + o.total, 0);
@@ -1239,9 +1273,12 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                     </div>
 
                     <div className="text-left font-mono">
-                      <div className="text-[10px] text-slate-400 font-bold">صافي الربح</div>
-                      <div className="text-emerald-600 font-black text-xs">
-                        +{formatCurrency(st.netProfit)}
+                      <div className="text-[10px] text-slate-500 font-bold">كامل المبلغ (المبيعات)</div>
+                      <div className="text-[#292A34] font-black text-sm">
+                        {formatCurrency(st.revenue)}
+                      </div>
+                      <div className="text-[10px] text-emerald-700 font-black mt-0.5 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                        الربح: +{formatCurrency(st.netProfit)}
                       </div>
                     </div>
                   </div>
@@ -1621,20 +1658,169 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
           TAB 4: PETTY EXPENSES LOG
       ===================================================================== */}
       {managerTab === 'expenses' && (
-        <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-sm space-y-5">
+          
+          {/* Header & Add Button */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
-              <h3 className="text-base font-black text-[#292A34]">سجل المصروفات والنفقات النثرية</h3>
-              <p className="text-xs text-slate-500 font-medium">تسجيل الفواتير، الصيانة، ومصاريف الاستوديو اليومية</p>
+              <h3 className="text-base font-black text-[#292A34] flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-[#E31C2B]" />
+                <span>سجل ومجموع المصروفات النثرية</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">
+                تصفية المصروفات بحسب الفترة الزمنية (من ─ إلى)، واحتساب المجموع الإجمالي (La Somme) بدقة
+              </p>
             </div>
 
-            <button
-              onClick={() => setShowExpenseModal(true)}
-              className="px-3.5 py-2 bg-[#E31C2B] hover:bg-[#c91422] text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ إضافة مصروف</span>
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                onClick={() => setShowExpenseModal(true)}
+                className="px-4 py-2 bg-[#E31C2B] hover:bg-[#c91422] text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm shadow-[#E31C2B]/30 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ إضافة مصروف جديد</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Period Filter Bar (من .. إلى) */}
+          <div className="bg-[#F9FAFB] border border-slate-200 p-3.5 rounded-xl space-y-3">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-black text-slate-700 flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5 text-[#E31C2B]" />
+                  <span>الفترة المحددة:</span>
+                </span>
+
+                <button
+                  onClick={() => setPeriodPreset('today')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    periodPreset === 'today' ? 'bg-[#E31C2B] text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                  }`}
+                >
+                  اليوم
+                </button>
+
+                <button
+                  onClick={() => setPeriodPreset('week')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    periodPreset === 'week' ? 'bg-[#292A34] text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                  }`}
+                >
+                  آخر 7 أيام
+                </button>
+
+                <button
+                  onClick={() => setPeriodPreset('month')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    periodPreset === 'month' ? 'bg-[#292A34] text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                  }`}
+                >
+                  الشهر الحالي ({currentMonthStr})
+                </button>
+
+                <button
+                  onClick={() => setPeriodPreset('custom')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    periodPreset === 'custom' ? 'bg-[#E31C2B] text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                  }`}
+                >
+                  توقيت مخصص (من ─ إلى)
+                </button>
+
+                <button
+                  onClick={() => setPeriodPreset('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    periodPreset === 'all' ? 'bg-[#292A34] text-white shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                  }`}
+                >
+                  كامل السجل
+                </button>
+              </div>
+
+              {/* Worker Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-600">المسجل:</span>
+                <select
+                  value={selectedStaffFilter}
+                  onChange={(e) => setSelectedStaffFilter(e.target.value)}
+                  className="bg-white border border-slate-300 rounded-xl px-2.5 py-1 text-xs font-bold text-[#292A34] cursor-pointer"
+                >
+                  <option value="all">جميع العمال</option>
+                  {allStaff.map(st => (
+                    <option key={st.id} value={st.id}>{st.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Custom Date Inputs Range (من .. إلى) */}
+            {periodPreset === 'custom' && (
+              <div className="flex items-center gap-3 pt-2 border-t border-slate-200 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-600">من تاريخ:</span>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="bg-white border border-slate-300 rounded-xl px-3 py-1 text-xs font-mono font-bold text-[#292A34]"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-600">إلى تاريخ:</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="bg-white border border-slate-300 rounded-xl px-3 py-1 text-xs font-mono font-bold text-[#292A34]"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* DEDICATED SUMMARY BANNER: مجموع المصروفات النثرية (La Somme) */}
+          <div className="bg-gradient-to-r from-[#292A34] to-[#1c1d24] text-white p-5 rounded-2xl shadow-md border-r-4 border-rose-500 space-y-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-black text-rose-400 bg-rose-950/80 px-2.5 py-1 rounded-full border border-rose-800/80 inline-flex items-center gap-1.5">
+                  <Wallet className="w-3.5 h-3.5" />
+                  <span>مجموع المصروفات النثرية للفترة المحددة (La Somme)</span>
+                </span>
+                <div className="text-2xl sm:text-3xl font-black font-mono text-rose-300 mt-2">
+                  -{formatCurrency(totalExpenses)}
+                </div>
+                <div className="text-[11px] text-slate-400 mt-0.5">
+                  الفترة: <span className="font-bold text-slate-200">{periodLabel}</span> {periodPreset === 'custom' && `(من ${customStartDate} إلى ${customEndDate})`}
+                </div>
+              </div>
+
+              <div className="text-right sm:text-left bg-slate-900/60 p-3 rounded-xl border border-slate-700/80">
+                <span className="text-[11px] text-slate-400 block font-bold">عدد العمليات المسجلة</span>
+                <span className="text-lg font-black font-mono text-white">{filteredExpenses.length} مصروف</span>
+                <span className="text-[10px] text-slate-400 block">تم سحبها من الصندوق</span>
+              </div>
+            </div>
+
+            {/* Category Breakdown Chips */}
+            <div className="pt-2 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="bg-white/5 p-2 rounded-xl border border-white/10">
+                <span className="text-[10px] text-slate-400 block">شراء مواد خام:</span>
+                <strong className="font-mono text-rose-300 font-black">{formatCurrency(expensesCategoryBreakdown.materialsCost)}</strong>
+              </div>
+              <div className="bg-white/5 p-2 rounded-xl border border-white/10">
+                <span className="text-[10px] text-slate-400 block">صيانة طابعات وأجهزة:</span>
+                <strong className="font-mono text-rose-300 font-black">{formatCurrency(expensesCategoryBreakdown.maintenanceCost)}</strong>
+              </div>
+              <div className="bg-white/5 p-2 rounded-xl border border-white/10">
+                <span className="text-[10px] text-slate-400 block">ضيافة وشاي:</span>
+                <strong className="font-mono text-rose-300 font-black">{formatCurrency(expensesCategoryBreakdown.teaCoffeeCost)}</strong>
+              </div>
+              <div className="bg-white/5 p-2 rounded-xl border border-white/10">
+                <span className="text-[10px] text-slate-400 block">نثريات ومصاريف أخرى:</span>
+                <strong className="font-mono text-rose-300 font-black">{formatCurrency(expensesCategoryBreakdown.otherCost + expensesCategoryBreakdown.payrollCost)}</strong>
+              </div>
+            </div>
           </div>
 
           {/* Desktop Table */}
@@ -1651,7 +1837,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
-                {expenses.map(e => (
+                {filteredExpenses.map(e => (
                   <tr key={e.id} className="hover:bg-slate-50">
                     <td className="p-3 font-mono text-slate-500">{formatDate(e.createdAt)} {formatTime(e.createdAt)}</td>
                     <td className="p-3 font-bold text-[#292A34]">
@@ -1699,7 +1885,7 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
 
           {/* Mobile Cards */}
           <div className="md:hidden space-y-3">
-            {expenses.map(e => (
+            {filteredExpenses.map(e => (
               <div key={e.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2">
                 <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
                   <span className="font-bold text-xs text-[#292A34]">{e.title}</span>
