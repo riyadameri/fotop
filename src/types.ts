@@ -58,7 +58,36 @@ export const DEFAULT_STORES: Store[] = [
 
 export interface BOMItem {
   materialId: string;
-  quantity: number; // e.g. 1 sheet, 0.4 ml
+  quantity: number; // e.g. 1 sheet, 0.4 ml, 1 piece
+  itemKind?: 'raw_material' | 'merchandise'; // نوع المادة: خام أم سلعة/بضاعة تجارية
+  name?: string; // اسم المادة أو السلعة
+  unitCost?: number; // سعر التكلفة
+  unit?: string; // الوحدة (ورقة، مل، قطعة...)
+}
+
+export interface AssociativeComponent {
+  id: string; // معرف فريد للمكون في القائمة
+  kind: 'raw_material' | 'merchandise'; // مادة خام أم سلعة تجارية
+  itemId: string; // معرف المادة من المخزن أو السلعة
+  name: string;
+  consumptionMode: 'direct' | 'yield'; // استهلاك مباشر (بالقطعة) أو إنتاجية ومشاركة (صور/ورقة، صور/عبوة)
+  quantity: number; // الكمية المستهلكة
+  yieldCount: number; // عدد الصور أو الوحدات المنتجة في حال وضع الإنتاجية
+  unit: string;
+  unitCost: number;
+}
+
+export interface AssociativeModelTemplate {
+  id: string;
+  name: string;
+  customCategory: string; // التصنيف الخاص بالنموذج (مثلاً: ألبومات وهدايا، مطبوعات حرارية، تخرج ومدارس)
+  officialCategory: OfficialServiceCategory;
+  defaultPrice: number;
+  description: string;
+  icon?: string;
+  paperSize?: 'A4' | 'A3' | '10x15' | '13x18' | 'custom';
+  components: AssociativeComponent[];
+  isCustom?: boolean; // هل تم إنشاؤه وحفظه من قبل المستخدم
 }
 
 export interface PhotoLinkConfig {
@@ -73,6 +102,9 @@ export interface PhotoLinkConfig {
   frameMaterialId?: string; // مادة الكادر أو البرواز من المخزن
   framePerPhoto?: number;   // عدد الكوادر لكل وحدة (افتراضياً 1)
   laminationMaterialId?: string; // مادة التغليف الحراري (اختياري)
+  customCategoryName?: string; // اسم التصنيف الخاص بالمنتج الارتباطي
+  templateModelId?: string; // معرف النموذج الارتباطي
+  components?: AssociativeComponent[]; // قائمة المكونات الاستهلاكية التفصيلية (خام وسلع)
 }
 
 // التصنيفات الرسمية المعتمدة لاستوديو التصوير
@@ -162,6 +194,7 @@ export interface ServiceItem {
   name: string;
   itemType: 'direct_sale' | 'custom_photo_service' | 'standard_service';
   category: ServiceCategory;
+  customCategoryName?: string; // اسم التصنيف الخاص (المخصص من قبل المستخدم)
   buyCost: number; // سعر الشراء / تكلفة الوحدة المباشرة (للبيع المباشر أو التكلفة الأساسية)
   price: number; // سعر البيع
   currentStock?: number; // للمنتجات والسلع المادية المباعة مباشرة

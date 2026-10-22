@@ -528,6 +528,18 @@ export function App() {
           return mat;
         });
       });
+
+      // Also deduct from services inventory if the deducted component is a direct-sale merchandise good!
+      setServices(prevServices => {
+        return (prevServices || []).map(srv => {
+          const deduction = orderData.materialsDeducted?.find(d => d.materialId === srv.id);
+          if (deduction && typeof srv.currentStock === 'number') {
+            const updatedStock = Math.max(0, Number((srv.currentStock - deduction.quantity).toFixed(2)));
+            return { ...srv, currentStock: updatedStock };
+          }
+          return srv;
+        });
+      });
     }
 
     if (activeShift) {

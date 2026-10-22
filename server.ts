@@ -842,9 +842,21 @@ async function startServer() {
         }
         return mat;
       });
+
+      // Also deduct from services if the component is a merchandise good
+      db.services = db.services.map(srv => {
+        const deduction = newOrder.materialsDeducted.find(d => d.materialId === srv.id);
+        if (deduction && typeof srv.currentStock === 'number') {
+          return {
+            ...srv,
+            currentStock: Math.max(0, Number((srv.currentStock - deduction.quantity).toFixed(2))),
+          };
+        }
+        return srv;
+      });
     }
 
-    // Deduct stock for direct sale services if applicable
+    // Deduct stock for direct sale services if sold as primary cart items
     if (newOrder.items && newOrder.items.length > 0) {
       db.services = db.services.map(srv => {
         const cartMatch = newOrder.items.find(it => it.service.id === srv.id);

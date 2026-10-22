@@ -38,53 +38,68 @@ export function formatTime(isoDateString: string): string {
   }
 }
 
-// Compute Service Unit Material Cost based on active BOM and material unit costs
-export function calculateServiceBOMCost(bom: BOMItem[], materials: Material[]): number {
+// Compute Service Unit Material Cost based on active BOM and material unit costs (supports raw materials and merchandise goods)
+export function calculateServiceBOMCost(bom: BOMItem[], materials: Material[], services: ServiceItem[] = []): number {
   if (!bom || bom.length === 0) return 0;
   let cost = 0;
   for (const item of bom) {
     const mat = materials.find(m => m.id === item.materialId);
     if (mat) {
       cost += mat.unitCost * item.quantity;
+    } else {
+      const good = services.find(s => s.id === item.materialId);
+      if (good) {
+        cost += (good.buyCost || 0) * item.quantity;
+      } else if (typeof item.unitCost === 'number') {
+        cost += item.unitCost * item.quantity;
+      }
     }
   }
   return Number(cost.toFixed(2));
 }
 
 // Compute accurate item unit cost whether it is direct_sale or a custom service with BOM
-export function getItemUnitCost(service: ServiceItem, materials: Material[] = []): number {
+export function getItemUnitCost(service: ServiceItem, materials: Material[] = [], services: ServiceItem[] = []): number {
   if (!service) return 0;
   if (service.itemType === 'direct_sale') {
     return Number(service.buyCost || 0);
   }
-  const bomCost = calculateServiceBOMCost(service.bom || [], materials);
+  const bomCost = calculateServiceBOMCost(service.bom || [], materials, services);
   return bomCost > 0 ? bomCost : Number(service.buyCost || 0);
 }
 
 // Compute net profit for one unit of a service/item
-export function getItemProfit(service: ServiceItem, materials: Material[] = []): number {
+export function getItemProfit(service: ServiceItem, materials: Material[] = [], services: ServiceItem[] = []): number {
   if (!service) return 0;
-  const cost = getItemUnitCost(service, materials);
+  const cost = getItemUnitCost(service, materials, services);
   return Math.max(0, service.price - cost);
 }
 
 // Compute profit margin percentage
-export function getItemProfitMargin(service: ServiceItem, materials: Material[] = []): number {
+export function getItemProfitMargin(service: ServiceItem, materials: Material[] = [], services: ServiceItem[] = []): number {
   if (!service || !service.price || service.price <= 0) return 0;
-  const profit = getItemProfit(service, materials);
+  const profit = getItemProfit(service, materials, services);
   return Math.round((profit / service.price) * 100);
 }
 
 // Compute BOM human-readable summary
-export function getBOMSummaryText(bom: BOMItem[], materials: Material[]): string {
+export function getBOMSummaryText(bom: BOMItem[], materials: Material[], services: ServiceItem[] = []): string {
   if (!bom || bom.length === 0) return 'بدون استهلاك مواد (خدمة رقمية / عمالة فقط)';
   
   return bom
     .map(item => {
       const mat = materials.find(m => m.id === item.materialId);
-      const name = mat ? mat.name.split('(')[0].trim() : 'مادة';
-      const unit = mat?.unit === 'sheet' ? 'ورقة' : mat?.unit === 'ml' ? 'مل' : 'قطعة';
-      return `${item.quantity} ${unit} ${name}`;
+      if (mat) {
+        const name = mat.name.split('(')[0].trim();
+        const unit = mat.unit === 'sheet' ? 'ورقة' : mat.unit === 'ml' ? 'مل' : 'قطعة';
+        return `${item.quantity} ${unit} ${name} (خام)`;
+      }
+      const good = services.find(s => s.id === item.materialId);
+      if (good) {
+        const name = good.name.split('(')[0].trim();
+        return `${item.quantity} قطعة ${name} (سلعة)`;
+      }
+      return `${item.quantity} ${item.name || 'مكون'}`;
     })
     .join(' + ');
 }

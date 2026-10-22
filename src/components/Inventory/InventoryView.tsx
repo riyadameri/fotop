@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { 
   Layers, 
@@ -32,7 +32,13 @@ import {
   ImagePlus,
   X,
   Filter,
-  Frame
+  Frame,
+  BookmarkPlus,
+  Tag,
+  Bookmark,
+  Layers2,
+  Info,
+  PlusCircle
 } from 'lucide-react';
 import { 
   Material, 
@@ -45,10 +51,306 @@ import {
   OFFICIAL_SERVICE_CATEGORIES,
   OfficialServiceCategory,
   normalizeServiceCategory,
-  BOMItem
+  BOMItem,
+  AssociativeComponent,
+  AssociativeModelTemplate
 } from '../../types';
 import { formatCurrency, formatNumber, exportToCSV, calculateServiceBOMCost } from '../../utils/formatters';
 import { compressAndResizeImage } from '../../utils/imageCompressor';
+
+export const DEFAULT_CUSTOM_CATEGORIES: string[] = [
+  'ألبومات وهدايا تذكارية',
+  'مطبوعات حرارية وسابليميشن',
+  'دروع وميداليات التخرج',
+  'لوحات خشب وكانفاس',
+  'باكيجات أعراس ومناسبات',
+  'هدايا إعلانية ودعائية'
+];
+
+export const DEFAULT_ASSOCIATIVE_MODELS: AssociativeModelTemplate[] = [
+  {
+    id: 'tpl_a4_frame',
+    name: 'كادر A4 فاخر مع صورة',
+    customCategory: 'كوادر وتكبير الصور',
+    officialCategory: 'frames_and_enlargements',
+    defaultPrice: 1200,
+    description: 'كادر خشبي مقاس A4 متكامل مع طباعة صورة فوتوغرافية عالية الدقة',
+    paperSize: 'A4',
+    icon: '🖼️',
+    components: [
+      {
+        id: 'comp_paper_a4',
+        kind: 'raw_material',
+        itemId: 'mat_paper_a4',
+        name: 'ورق صور فوتوغرافي A4',
+        consumptionMode: 'yield',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'ورقة',
+        unitCost: 15
+      },
+      {
+        id: 'comp_ink_a4',
+        kind: 'raw_material',
+        itemId: 'mat_ink_black',
+        name: 'حبر فوتوغرافي عالي الدقة',
+        consumptionMode: 'yield',
+        quantity: 1,
+        yieldCount: 150,
+        unit: 'مل',
+        unitCost: 15
+      },
+      {
+        id: 'comp_frame_a4',
+        kind: 'raw_material',
+        itemId: 'mat_frame_a4',
+        name: 'كادر خشب فاخر مقاس A4',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'قطعة',
+        unitCost: 350
+      }
+    ]
+  },
+  {
+    id: 'tpl_13x18_frame',
+    name: 'كادر 13x18 مع صورة',
+    customCategory: 'كوادر وتكبير الصور',
+    officialCategory: 'frames_and_enlargements',
+    defaultPrice: 700,
+    description: 'كادر أنيق مقاس 13x18 سم مع طباعة صورة',
+    paperSize: '13x18',
+    icon: '🖼️',
+    components: [
+      {
+        id: 'comp_paper_13x18',
+        kind: 'raw_material',
+        itemId: 'mat_paper_13x18',
+        name: 'ورق صور 13x18',
+        consumptionMode: 'yield',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'ورقة',
+        unitCost: 12
+      },
+      {
+        id: 'comp_ink_13x18',
+        kind: 'raw_material',
+        itemId: 'mat_ink_black',
+        name: 'حبر فوتوغرافي',
+        consumptionMode: 'yield',
+        quantity: 1,
+        yieldCount: 200,
+        unit: 'مل',
+        unitCost: 15
+      },
+      {
+        id: 'comp_frame_13x18',
+        kind: 'raw_material',
+        itemId: 'mat_frame_13x18',
+        name: 'كادر 13x18',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'قطعة',
+        unitCost: 200
+      }
+    ]
+  },
+  {
+    id: 'tpl_id_photos',
+    name: 'طباعة صور شمسية (8 صور هوية)',
+    customCategory: 'إخراج الصور الشمسية والعادية',
+    officialCategory: 'id_and_regular_photos',
+    defaultPrice: 300,
+    description: 'ورقة كاملة تحتوي على 8 صور بيومترية للهوية وجواز السفر',
+    paperSize: 'A4',
+    icon: '📷',
+    components: [
+      {
+        id: 'comp_paper_id',
+        kind: 'raw_material',
+        itemId: 'mat_paper_a4',
+        name: 'ورق صور فوتوغرافي A4',
+        consumptionMode: 'yield',
+        quantity: 1,
+        yieldCount: 8,
+        unit: 'ورقة',
+        unitCost: 15
+      },
+      {
+        id: 'comp_ink_id',
+        kind: 'raw_material',
+        itemId: 'mat_ink_black',
+        name: 'حبر فوتوغرافي',
+        consumptionMode: 'yield',
+        quantity: 1,
+        yieldCount: 600,
+        unit: 'مل',
+        unitCost: 15
+      }
+    ]
+  },
+  {
+    id: 'tpl_gift_box',
+    name: 'بوكس ألبوم هدايا (ألبوم + صور + تغليف)',
+    customCategory: 'ألبومات وهدايا تذكارية',
+    officialCategory: 'goods_and_accessories',
+    defaultPrice: 2800,
+    description: 'ألبوم صور فاخر مدمج مع طباعة 20 صورة وتغليف هدايا وشريط ستان',
+    paperSize: '10x15',
+    icon: '🎁',
+    components: [
+      {
+        id: 'comp_paper_gift',
+        kind: 'raw_material',
+        itemId: 'mat_paper_10x15',
+        name: 'ورق صور فوتوغرافي 10x15',
+        consumptionMode: 'direct',
+        quantity: 20,
+        yieldCount: 1,
+        unit: 'ورقة',
+        unitCost: 8
+      },
+      {
+        id: 'comp_album_gift',
+        kind: 'merchandise',
+        itemId: '',
+        name: 'ألبوم صور كلاسيكي فاخر',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'قطعة',
+        unitCost: 900
+      },
+      {
+        id: 'comp_ribbon_gift',
+        kind: 'raw_material',
+        itemId: '',
+        name: 'كيس وتغليف هدايا فاخر',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'قطعة',
+        unitCost: 50
+      }
+    ]
+  },
+  {
+    id: 'tpl_mug_print',
+    name: 'كوب حراري شخصي مطبوع (ماغ)',
+    customCategory: 'مطبوعات حرارية وسابليميشن',
+    officialCategory: 'printing_services',
+    defaultPrice: 850,
+    description: 'كوب سيراميك أبيض مع طباعة حرارية ملونة ومقاومة للغسيل',
+    paperSize: 'custom',
+    icon: '☕',
+    components: [
+      {
+        id: 'comp_mug_blank',
+        kind: 'merchandise',
+        itemId: '',
+        name: 'كوب سيراميك أبيض جاهز للطباعة',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'قطعة',
+        unitCost: 220
+      },
+      {
+        id: 'comp_sublimation_paper',
+        kind: 'raw_material',
+        itemId: '',
+        name: 'ورق نقل حراري سبليميشن',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'ورقة',
+        unitCost: 35
+      }
+    ]
+  },
+  {
+    id: 'tpl_graduation_shield',
+    name: 'درع تخرج فاخر مع علبة قطيفة',
+    customCategory: 'دروع وميداليات التخرج',
+    officialCategory: 'goods_and_accessories',
+    defaultPrice: 3200,
+    description: 'درع تخرج فاخر مع صفيحة ميتاليك حرارية وعلبة مخملية شياكة',
+    paperSize: 'custom',
+    icon: '🎓',
+    components: [
+      {
+        id: 'comp_shield_blank',
+        kind: 'merchandise',
+        itemId: '',
+        name: 'درع خشبي/كريستال تخرج جاهز',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'قطعة',
+        unitCost: 1100
+      },
+      {
+        id: 'comp_metal_sheet',
+        kind: 'raw_material',
+        itemId: '',
+        name: 'صفيحة ميتاليك ذهبية للطباعة',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'قطعة',
+        unitCost: 250
+      },
+      {
+        id: 'comp_velvet_box',
+        kind: 'merchandise',
+        itemId: '',
+        name: 'علبة قطيفة مخملية للدرع',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'قطعة',
+        unitCost: 450
+      }
+    ]
+  },
+  {
+    id: 'tpl_sublimation_tshirt',
+    name: 'تيشيرت شخصي مطبوع صورة/لوغو',
+    customCategory: 'مطبوعات حرارية وسابليميشن',
+    officialCategory: 'printing_services',
+    defaultPrice: 1500,
+    description: 'تيشيرت بوليستر مريح مع طباعة حرارية عالية الثبات للغسيل',
+    paperSize: 'A4',
+    icon: '👕',
+    components: [
+      {
+        id: 'comp_tshirt_blank',
+        kind: 'merchandise',
+        itemId: '',
+        name: 'تيشيرت بوليستر أبيض عالي الجودة',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'قطعة',
+        unitCost: 450
+      },
+      {
+        id: 'comp_sublimation_sheet',
+        kind: 'raw_material',
+        itemId: '',
+        name: 'ورق طباعة حرارية سبليميشن A4',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'ورقة',
+        unitCost: 35
+      }
+    ]
+  }
+];
 
 interface InventoryViewProps {
   materials: Material[];
@@ -141,9 +443,85 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [directDescription, setDirectDescription] = useState<string>('');
   const [directImageUrl, setDirectImageUrl] = useState<string>('');
 
-  // Add Associative Photo Item Modal State (BOM Photo & Ink & Frame Builder)
+  // Custom Categories & Associative Model Templates State
+  const [customCategories, setCustomCategories] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('fotop_custom_categories');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+    return DEFAULT_CUSTOM_CATEGORIES;
+  });
+
+  const [modelTemplates, setModelTemplates] = useState<AssociativeModelTemplate[]>(() => {
+    try {
+      const saved = localStorage.getItem('fotop_associative_models');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+    return DEFAULT_ASSOCIATIVE_MODELS;
+  });
+
+  const handleAddCustomCategory = (newCat: string): string => {
+    const trimmed = newCat.trim();
+    if (!trimmed) return '';
+    if (!customCategories.includes(trimmed)) {
+      const updated = [...customCategories, trimmed];
+      setCustomCategories(updated);
+      try {
+        localStorage.setItem('fotop_custom_categories', JSON.stringify(updated));
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    return trimmed;
+  };
+
+  const handleDeleteCustomCategory = (catToDelete: string) => {
+    const updated = customCategories.filter(c => c !== catToDelete);
+    setCustomCategories(updated);
+    try {
+      localStorage.setItem('fotop_custom_categories', JSON.stringify(updated));
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const handleSaveModelTemplate = (newTpl: AssociativeModelTemplate) => {
+    const updated = [newTpl, ...modelTemplates.filter(t => t.id !== newTpl.id)];
+    setModelTemplates(updated);
+    try {
+      localStorage.setItem('fotop_associative_models', JSON.stringify(updated));
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const handleDeleteModelTemplate = (templateId: string) => {
+    const updated = modelTemplates.filter(t => t.id !== templateId);
+    setModelTemplates(updated);
+    try {
+      localStorage.setItem('fotop_associative_models', JSON.stringify(updated));
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  // Add Associative Photo Item Modal State (BOM Photo & Ink & Frame & Merchandise Builder)
   const [showAddPhotoLinkModal, setShowAddPhotoLinkModal] = useState<boolean>(false);
-  const [photoServiceName, setPhotoServiceName] = useState<string>('كادر A4 مع صورة');
+  const [showAddTemplateModal, setShowAddTemplateModal] = useState<boolean>(false);
+  const [photoServiceName, setPhotoServiceName] = useState<string>('كادر A4 فاخر مع صورة');
+  const [photoCustomCategory, setPhotoCustomCategory] = useState<string>('كوادر وتكبير الصور');
+  const [newCustomCategoryInput, setNewCustomCategoryInput] = useState<string>('');
+  const [showNewCatInput, setShowNewCatInput] = useState<boolean>(false);
   const [photoCategory, setPhotoCategory] = useState<OfficialServiceCategory>('frames_and_enlargements');
   const [photoPaperSize, setPhotoPaperSize] = useState<'A4' | 'A3' | '10x15' | '13x18' | 'custom'>('A4');
   const [photoPaperMatId, setPhotoPaperMatId] = useState<string>((materials || []).find(m => m.category === 'paper')?.id || '');
@@ -151,8 +529,376 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [photoInkMatId, setPhotoInkMatId] = useState<string>((materials || []).find(m => m.category === 'ink')?.id || '');
   const [photoInkYield, setPhotoInkYield] = useState<string>('150');
   const [photoFrameMatId, setPhotoFrameMatId] = useState<string>((materials || []).find(m => m.category === 'frame')?.id || '');
-  const [photoPrice, setPhotoPrice] = useState<string>('450');
+  const [photoPrice, setPhotoPrice] = useState<string>('1200');
   const [photoImageUrl, setPhotoImageUrl] = useState<string>('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('tpl_a4_frame');
+  const [saveAsTemplate, setSaveAsTemplate] = useState<boolean>(false);
+
+  // Dedicated Associative Model Template & Custom Category Builder State
+  const [templateTab, setTemplateTab] = useState<'create' | 'manage'>('create');
+  const [tplBuilderName, setTplBuilderName] = useState<string>('درع تخرج فاخر مع صفيحة ميتاليك');
+  const [tplBuilderCustomCategory, setTplBuilderCustomCategory] = useState<string>(customCategories[0] || 'دروع وميداليات التخرج');
+  const [tplBuilderNewCatInput, setTplBuilderNewCatInput] = useState<string>('');
+  const [tplBuilderShowNewCat, setTplBuilderShowNewCat] = useState<boolean>(false);
+  const [tplBuilderOfficialCategory, setTplBuilderOfficialCategory] = useState<OfficialServiceCategory>('goods_and_accessories');
+  const [tplBuilderDefaultPrice, setTplBuilderDefaultPrice] = useState<string>('3200');
+  const [tplBuilderDescription, setTplBuilderDescription] = useState<string>('درع تخرج فاخر مع صفيحة ميتاليك حرارية وعلبة مخملية شياكة');
+  const [tplBuilderPaperSize, setTplBuilderPaperSize] = useState<'A4' | 'A3' | '10x15' | '13x18' | 'custom'>('custom');
+  const [tplBuilderIcon, setTplBuilderIcon] = useState<string>('🎓');
+  const [tplBuilderComponents, setTplBuilderComponents] = useState<AssociativeComponent[]>(() => {
+    return DEFAULT_ASSOCIATIVE_MODELS[4]?.components || [];
+  });
+
+  // Active associative consumable components (raw materials & merchandise goods)
+  const [associativeComponents, setAssociativeComponents] = useState<AssociativeComponent[]>(() => {
+    return DEFAULT_ASSOCIATIVE_MODELS[0]?.components || [];
+  });
+
+  // Apply a template to the builder
+  const applyModelTemplate = (tpl: AssociativeModelTemplate) => {
+    setSelectedTemplateId(tpl.id);
+    setPhotoServiceName(tpl.name);
+    setPhotoCustomCategory(tpl.customCategory || customCategories[0] || 'نماذج مخصصة');
+    setPhotoCategory(tpl.officialCategory);
+    setPhotoPaperSize(tpl.paperSize || 'A4');
+    setPhotoPrice(String(tpl.defaultPrice));
+    
+    // Resolve components against current materials and services
+    const resolvedComponents = (tpl.components || []).map((comp, idx) => {
+      let resolvedId = comp.itemId;
+      let resolvedCost = comp.unitCost;
+      let resolvedUnit = comp.unit;
+      let resolvedName = comp.name;
+
+      if (comp.kind === 'raw_material') {
+        const mat = materials.find(m => m.id === comp.itemId) 
+          || materials.find(m => m.name.toLowerCase().includes(comp.name.toLowerCase()))
+          || materials.find(m => m.name.toLowerCase().includes('a4') && comp.name.toLowerCase().includes('a4'))
+          || materials.find(m => m.category === 'paper');
+        if (mat) {
+          resolvedId = mat.id;
+          resolvedCost = mat.unitCost;
+          resolvedUnit = mat.unit === 'sheet' ? 'ورقة' : mat.unit === 'ml' ? 'مل' : 'قطعة';
+          resolvedName = mat.name;
+        }
+      } else {
+        const good = services.find(s => s.id === comp.itemId)
+          || services.find(s => s.name.toLowerCase().includes(comp.name.toLowerCase()))
+          || services.find(s => s.itemType === 'direct_sale');
+        if (good) {
+          resolvedId = good.id;
+          resolvedCost = good.buyCost || 0;
+          resolvedUnit = 'قطعة';
+          resolvedName = good.name;
+        }
+      }
+
+      return {
+        ...comp,
+        id: comp.id || `comp_${Date.now()}_${idx}`,
+        itemId: resolvedId,
+        name: resolvedName,
+        unit: resolvedUnit,
+        unitCost: resolvedCost
+      };
+    });
+
+    setAssociativeComponents(resolvedComponents);
+
+    // Sync legacy paper/frame states if matched
+    const paper = resolvedComponents.find(c => c.kind === 'raw_material' && (c.name.includes('ورق') || c.unit === 'ورقة'));
+    if (paper) {
+      setPhotoPaperMatId(paper.itemId);
+      setPhotosPerSheet(String(paper.yieldCount || 1));
+    }
+    const ink = resolvedComponents.find(c => c.kind === 'raw_material' && (c.name.includes('حبر') || c.unit === 'مل'));
+    if (ink) {
+      setPhotoInkMatId(ink.itemId);
+      setPhotoInkYield(String(ink.yieldCount || 150));
+    }
+    const frame = resolvedComponents.find(c => c.kind === 'raw_material' && (c.name.includes('كادر') || c.name.includes('إطار')));
+    if (frame) {
+      setPhotoFrameMatId(frame.itemId);
+    } else {
+      setPhotoFrameMatId('');
+    }
+  };
+
+  const handleAddAssociativeComponent = (kind: 'raw_material' | 'merchandise' = 'raw_material') => {
+    if (kind === 'raw_material') {
+      const defaultMat = materials[0];
+      const newComp: AssociativeComponent = {
+        id: `comp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        kind: 'raw_material',
+        itemId: defaultMat?.id || '',
+        name: defaultMat?.name || 'مادة خام جديدة',
+        consumptionMode: defaultMat?.unit === 'sheet' || defaultMat?.unit === 'ml' ? 'yield' : 'direct',
+        quantity: 1,
+        yieldCount: defaultMat?.unit === 'sheet' ? 1 : defaultMat?.unit === 'ml' ? 150 : 1,
+        unit: defaultMat ? (defaultMat.unit === 'sheet' ? 'ورقة' : defaultMat.unit === 'ml' ? 'مل' : 'قطعة') : 'قطعة',
+        unitCost: defaultMat?.unitCost || 0
+      };
+      setAssociativeComponents(prev => [...prev, newComp]);
+    } else {
+      const defaultGood = services.find(s => s.itemType === 'direct_sale') || services[0];
+      const newComp: AssociativeComponent = {
+        id: `comp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        kind: 'merchandise',
+        itemId: defaultGood?.id || '',
+        name: defaultGood?.name || 'سلعة تجارية جديدة',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'قطعة',
+        unitCost: defaultGood?.buyCost || 0
+      };
+      setAssociativeComponents(prev => [...prev, newComp]);
+    }
+  };
+
+  const handleUpdateComponent = (id: string, updates: Partial<AssociativeComponent>) => {
+    setAssociativeComponents(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const updated = { ...c, ...updates };
+
+      // If itemId changed, sync name, unitCost, unit
+      if (updates.itemId && updates.itemId !== c.itemId) {
+        if (updated.kind === 'raw_material') {
+          const mat = materials.find(m => m.id === updates.itemId);
+          if (mat) {
+            updated.name = mat.name;
+            updated.unitCost = mat.unitCost;
+            updated.unit = mat.unit === 'sheet' ? 'ورقة' : mat.unit === 'ml' ? 'مل' : 'قطعة';
+          }
+        } else {
+          const good = services.find(s => s.id === updates.itemId);
+          if (good) {
+            updated.name = good.name;
+            updated.unitCost = good.buyCost || 0;
+            updated.unit = 'قطعة';
+          }
+        }
+      }
+
+      // If kind changed
+      if (updates.kind && updates.kind !== c.kind) {
+        if (updates.kind === 'raw_material') {
+          const mat = materials[0];
+          updated.itemId = mat?.id || '';
+          updated.name = mat?.name || 'مادة خام';
+          updated.unitCost = mat?.unitCost || 0;
+          updated.unit = mat ? (mat.unit === 'sheet' ? 'ورقة' : mat.unit === 'ml' ? 'مل' : 'قطعة') : 'قطعة';
+          updated.consumptionMode = mat?.unit === 'sheet' || mat?.unit === 'ml' ? 'yield' : 'direct';
+          updated.yieldCount = mat?.unit === 'sheet' ? 1 : 150;
+        } else {
+          const good = services.find(s => s.itemType === 'direct_sale') || services[0];
+          updated.itemId = good?.id || '';
+          updated.name = good?.name || 'سلعة تجارية';
+          updated.unitCost = good?.buyCost || 0;
+          updated.unit = 'قطعة';
+          updated.consumptionMode = 'direct';
+          updated.quantity = 1;
+          updated.yieldCount = 1;
+        }
+      }
+
+      return updated;
+    }));
+  };
+
+  const handleRemoveComponent = (id: string) => {
+    setAssociativeComponents(prev => prev.filter(c => c.id !== id));
+  };
+
+  // Live calculation for template builder components
+  const calculatedTemplateComponents = useMemo(() => {
+    return tplBuilderComponents.map(comp => {
+      let currentCost = comp.unitCost;
+      let availableStock = 0;
+      let actualName = comp.name;
+      let unitLabel = comp.unit;
+
+      if (comp.kind === 'raw_material') {
+        const mat = materials.find(m => m.id === comp.itemId) 
+          || materials.find(m => m.name.toLowerCase() === comp.name.toLowerCase());
+        if (mat) {
+          currentCost = mat.unitCost;
+          availableStock = mat.currentStock;
+          actualName = mat.name;
+          unitLabel = mat.unit === 'sheet' ? 'ورقة' : mat.unit === 'ml' ? 'مل' : 'قطعة';
+        }
+      } else {
+        const good = services.find(s => s.id === comp.itemId) 
+          || services.find(s => s.name.toLowerCase() === comp.name.toLowerCase());
+        if (good) {
+          currentCost = good.buyCost || 0;
+          availableStock = good.currentStock ?? 0;
+          actualName = good.name;
+          unitLabel = 'قطعة';
+        }
+      }
+
+      const perUnitQuantity = comp.consumptionMode === 'yield'
+        ? (Number(comp.quantity || 1) / Math.max(1, Number(comp.yieldCount || 1)))
+        : Number(comp.quantity || 1);
+
+      const subtotalCost = perUnitQuantity * currentCost;
+
+      return {
+        ...comp,
+        name: actualName,
+        unit: unitLabel,
+        unitCost: currentCost,
+        availableStock,
+        perUnitQuantity,
+        subtotalCost
+      };
+    });
+  }, [tplBuilderComponents, materials, services]);
+
+  const tplTotalRawCost = useMemo(() => {
+    return calculatedTemplateComponents
+      .filter(c => c.kind === 'raw_material')
+      .reduce((sum, c) => sum + c.subtotalCost, 0);
+  }, [calculatedTemplateComponents]);
+
+  const tplTotalGoodsCost = useMemo(() => {
+    return calculatedTemplateComponents
+      .filter(c => c.kind === 'merchandise')
+      .reduce((sum, c) => sum + c.subtotalCost, 0);
+  }, [calculatedTemplateComponents]);
+
+  const tplTotalCost = tplTotalRawCost + tplTotalGoodsCost;
+  const tplSellingPrice = Number(tplBuilderDefaultPrice) || 0;
+  const tplNetProfit = Math.max(0, tplSellingPrice - tplTotalCost);
+  const tplMargin = tplSellingPrice > 0 ? ((tplNetProfit / tplSellingPrice) * 100).toFixed(1) : '0';
+
+  const handleAddTemplateComponent = (kind: 'raw_material' | 'merchandise' = 'raw_material') => {
+    if (kind === 'raw_material') {
+      const defaultMat = materials[0];
+      const newComp: AssociativeComponent = {
+        id: `tpl_comp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        kind: 'raw_material',
+        itemId: defaultMat?.id || '',
+        name: defaultMat?.name || 'مادة خام جديدة',
+        consumptionMode: defaultMat?.unit === 'sheet' || defaultMat?.unit === 'ml' ? 'yield' : 'direct',
+        quantity: 1,
+        yieldCount: defaultMat?.unit === 'sheet' ? 1 : defaultMat?.unit === 'ml' ? 150 : 1,
+        unit: defaultMat ? (defaultMat.unit === 'sheet' ? 'ورقة' : defaultMat.unit === 'ml' ? 'مل' : 'قطعة') : 'قطعة',
+        unitCost: defaultMat?.unitCost || 0
+      };
+      setTplBuilderComponents(prev => [...prev, newComp]);
+    } else {
+      const defaultGood = services.find(s => s.itemType === 'direct_sale') || services[0];
+      const newComp: AssociativeComponent = {
+        id: `tpl_comp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        kind: 'merchandise',
+        itemId: defaultGood?.id || '',
+        name: defaultGood?.name || 'سلعة تجارية جديدة',
+        consumptionMode: 'direct',
+        quantity: 1,
+        yieldCount: 1,
+        unit: 'قطعة',
+        unitCost: defaultGood?.buyCost || 0
+      };
+      setTplBuilderComponents(prev => [...prev, newComp]);
+    }
+  };
+
+  const handleUpdateTemplateComponent = (id: string, updates: Partial<AssociativeComponent>) => {
+    setTplBuilderComponents(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const updated = { ...c, ...updates };
+
+      if (updates.itemId && updates.itemId !== c.itemId) {
+        if (updated.kind === 'raw_material') {
+          const mat = materials.find(m => m.id === updates.itemId);
+          if (mat) {
+            updated.name = mat.name;
+            updated.unitCost = mat.unitCost;
+            updated.unit = mat.unit === 'sheet' ? 'ورقة' : mat.unit === 'ml' ? 'مل' : 'قطعة';
+          }
+        } else {
+          const good = services.find(s => s.id === updates.itemId);
+          if (good) {
+            updated.name = good.name;
+            updated.unitCost = good.buyCost || 0;
+            updated.unit = 'قطعة';
+          }
+        }
+      }
+
+      if (updates.kind && updates.kind !== c.kind) {
+        if (updates.kind === 'raw_material') {
+          const mat = materials[0];
+          updated.itemId = mat?.id || '';
+          updated.name = mat?.name || 'مادة خام';
+          updated.unitCost = mat?.unitCost || 0;
+          updated.unit = mat ? (mat.unit === 'sheet' ? 'ورقة' : mat.unit === 'ml' ? 'مل' : 'قطعة') : 'قطعة';
+          updated.consumptionMode = mat?.unit === 'sheet' || mat?.unit === 'ml' ? 'yield' : 'direct';
+          updated.yieldCount = mat?.unit === 'sheet' ? 1 : 150;
+        } else {
+          const good = services.find(s => s.itemType === 'direct_sale') || services[0];
+          updated.itemId = good?.id || '';
+          updated.name = good?.name || 'سلعة تجارية';
+          updated.unitCost = good?.buyCost || 0;
+          updated.unit = 'قطعة';
+          updated.consumptionMode = 'direct';
+          updated.quantity = 1;
+          updated.yieldCount = 1;
+        }
+      }
+
+      return updated;
+    }));
+  };
+
+  const handleRemoveTemplateComponent = (id: string) => {
+    setTplBuilderComponents(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleSaveNewTemplate = (applyAsProductImmediately: boolean = false) => {
+    if (!tplBuilderName.trim()) {
+      alert('يرجى كتابة اسم النموذج الارتباطي');
+      return;
+    }
+
+    const finalCategory = tplBuilderCustomCategory.trim() || 'نماذج مخصصة';
+    handleAddCustomCategory(finalCategory);
+
+    const newTemplate: AssociativeModelTemplate = {
+      id: `tpl_custom_${Date.now()}`,
+      name: tplBuilderName.trim(),
+      customCategory: finalCategory,
+      officialCategory: tplBuilderOfficialCategory,
+      defaultPrice: Number(tplBuilderDefaultPrice) || 0,
+      description: tplBuilderDescription.trim() || `نموذج ارتباطي مخصص [${finalCategory}] يشمل استهلاك (${calculatedTemplateComponents.map(c => c.name).join(' + ')})`,
+      icon: tplBuilderIcon || '✨',
+      paperSize: tplBuilderPaperSize,
+      isCustom: true,
+      components: calculatedTemplateComponents.map(c => ({
+        id: c.id,
+        kind: c.kind,
+        itemId: c.itemId,
+        name: c.name,
+        consumptionMode: c.consumptionMode,
+        quantity: c.quantity,
+        yieldCount: c.yieldCount,
+        unit: c.unit,
+        unitCost: c.unitCost
+      }))
+    };
+
+    handleSaveModelTemplate(newTemplate);
+
+    if (applyAsProductImmediately) {
+      applyModelTemplate(newTemplate);
+      setShowAddTemplateModal(false);
+      setShowAddPhotoLinkModal(true);
+    } else {
+      setShowAddTemplateModal(false);
+    }
+  };
 
   // Products Category Filter
   const [productSelectedCategory, setProductSelectedCategory] = useState<string>('all');
@@ -230,6 +976,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [editProductStoreId, setEditProductStoreId] = useState<string>('all');
   const [editProductDescription, setEditProductDescription] = useState<string>('');
   const [editProductImageUrl, setEditProductImageUrl] = useState<string>('');
+  const [editProductCustomCategory, setEditProductCustomCategory] = useState<string>('');
 
   // Preset studio product images for fast 1-click selection
   const PRODUCT_IMAGE_PRESETS = [
@@ -295,11 +1042,18 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setEditProductDescription(prod.description || '');
     setEditProductImageUrl(prod.imageUrl || '');
     setEditProductFrameMatId(prod.photoConfig?.frameMaterialId || '');
+    setEditProductCustomCategory(prod.customCategoryName || '');
   };
 
   const handleSaveProductEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
+
+    // Ensure custom category is in list if non-empty
+    const trimmedCustomCat = editProductCustomCategory.trim();
+    if (trimmedCustomCat) {
+      handleAddCustomCategory(trimmedCustomCat);
+    }
 
     let updatedBom: BOMItem[] = [...(editingProduct.bom || [])];
     if (editingProduct.photoConfig) {
@@ -317,6 +1071,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       ...editingProduct,
       name: editProductName.trim() || editingProduct.name,
       category: editProductCategory,
+      customCategoryName: trimmedCustomCat || undefined,
       itemType: editProductItemType,
       storeId: editProductStoreId !== 'all' ? editProductStoreId : (editingProduct.storeId || defaultBranch),
       storeName: stores?.find(st => st.id === (editProductStoreId !== 'all' ? editProductStoreId : (editingProduct.storeId || defaultBranch)))?.name || editingProduct.storeName,
@@ -330,7 +1085,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       photoConfig: editingProduct.photoConfig ? {
         ...editingProduct.photoConfig,
         frameMaterialId: editProductFrameMatId || undefined,
-        framePerPhoto: editProductFrameMatId ? 1 : 0
+        framePerPhoto: editProductFrameMatId ? 1 : 0,
+        customCategoryName: trimmedCustomCat || undefined
       } : undefined
     };
 
@@ -367,34 +1123,99 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const totalInventoryValue = (materials || []).reduce((acc, m) => acc + (m.currentStock * m.unitCost), 0);
 
-  // Live calculation for associative photo formula modal (Paper + Ink + Frame)
+  // Live calculation for associative components (raw materials & merchandise goods)
+  const calculatedComponents = useMemo(() => {
+    return associativeComponents.map(comp => {
+      let currentCost = comp.unitCost;
+      let availableStock = 0;
+      let actualName = comp.name;
+      let unitLabel = comp.unit;
+
+      if (comp.kind === 'raw_material') {
+        const mat = materials.find(m => m.id === comp.itemId) 
+          || materials.find(m => m.name.toLowerCase() === comp.name.toLowerCase());
+        if (mat) {
+          currentCost = mat.unitCost;
+          availableStock = mat.currentStock;
+          actualName = mat.name;
+          unitLabel = mat.unit === 'sheet' ? 'ورقة' : mat.unit === 'ml' ? 'مل' : 'قطعة';
+        }
+      } else {
+        const good = services.find(s => s.id === comp.itemId) 
+          || services.find(s => s.name.toLowerCase() === comp.name.toLowerCase());
+        if (good) {
+          currentCost = good.buyCost || 0;
+          availableStock = good.currentStock ?? 0;
+          actualName = good.name;
+          unitLabel = 'قطعة';
+        }
+      }
+
+      const perUnitQuantity = comp.consumptionMode === 'yield'
+        ? (Number(comp.quantity || 1) / Math.max(1, Number(comp.yieldCount || 1)))
+        : Number(comp.quantity || 1);
+
+      const subtotalCost = perUnitQuantity * currentCost;
+
+      return {
+        ...comp,
+        name: actualName,
+        unit: unitLabel,
+        unitCost: currentCost,
+        availableStock,
+        perUnitQuantity,
+        subtotalCost
+      };
+    });
+  }, [associativeComponents, materials, services]);
+
+  const totalRawCost = useMemo(() => {
+    return calculatedComponents
+      .filter(c => c.kind === 'raw_material')
+      .reduce((sum, c) => sum + c.subtotalCost, 0);
+  }, [calculatedComponents]);
+
+  const totalGoodsCost = useMemo(() => {
+    return calculatedComponents
+      .filter(c => c.kind === 'merchandise')
+      .reduce((sum, c) => sum + c.subtotalCost, 0);
+  }, [calculatedComponents]);
+
+  const totalAssociativeCost = totalRawCost + totalGoodsCost;
+  const sellingPricePerPhoto = Number(photoPrice) || 0;
+  const netAssociativeProfit = Math.max(0, sellingPricePerPhoto - totalAssociativeCost);
+  const associativeMargin = sellingPricePerPhoto > 0 ? ((netAssociativeProfit / sellingPricePerPhoto) * 100).toFixed(1) : '0';
+
+  // Legacy variables for backwards compatibility
   const selectedPaperMat = (materials || []).find(m => m.id === (photoPaperMatId || (materials || [])[0]?.id));
   const selectedInkMat = (materials || []).find(m => m.id === (photoInkMatId || (materials || []).find(x => x.category === 'ink')?.id));
   const selectedFrameMat = (materials || []).find(m => m.id === photoFrameMatId);
 
   const numPhotosPerSheet = Math.max(1, Number(photosPerSheet) || 1);
   const numInkYield = Math.max(1, Number(photoInkYield) || 1);
-  const sellingPricePerPhoto = Number(photoPrice) || 0;
 
   const unitPaperCost = selectedPaperMat ? (selectedPaperMat.unitCost / numPhotosPerSheet) : 0;
   const unitInkCost = selectedInkMat ? (selectedInkMat.unitCost * (100 / numInkYield)) : 0;
   const unitFrameCost = selectedFrameMat ? selectedFrameMat.unitCost : 0;
-  const totalItemCost = unitPaperCost + unitInkCost + unitFrameCost;
+  const totalItemCost = totalAssociativeCost > 0 ? totalAssociativeCost : (unitPaperCost + unitInkCost + unitFrameCost);
 
-  const sheetInkCost = unitInkCost * numPhotosPerSheet; // تكلفة الحبر للورقة الواحدة
-  const sheetPaperCost = selectedPaperMat ? selectedPaperMat.unitCost : 0; // تكلفة الورقة الخام
-  const totalSheetCost = sheetPaperCost + sheetInkCost; // إجمالي تكلفة إنتاج الورقة الواحدة (ورق + حبر)
+  const sheetInkCost = unitInkCost * numPhotosPerSheet;
+  const sheetPaperCost = selectedPaperMat ? selectedPaperMat.unitCost : 0;
+  const totalSheetCost = sheetPaperCost + sheetInkCost;
   const totalFormulaCost = totalItemCost;
-  const netFormulaProfit = Math.max(0, sellingPricePerPhoto - totalItemCost);
-  const formulaMargin = sellingPricePerPhoto > 0 ? ((netFormulaProfit / sellingPricePerPhoto) * 100).toFixed(1) : '0';
+  const netFormulaProfit = netAssociativeProfit;
+  const formulaMargin = associativeMargin;
 
   // Filtered Products List for SubTab 'products'
   const filteredProducts = (services || []).filter(s => {
     const normCat = normalizeServiceCategory(s.category, s.name);
-    const matchesCat = productSelectedCategory === 'all' || normCat === productSelectedCategory;
+    const matchesCat = productSelectedCategory === 'all' 
+      || normCat === productSelectedCategory
+      || s.customCategoryName === productSelectedCategory;
     const matchesSearch = searchQuery === '' || 
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.description.toLowerCase().includes(searchQuery.toLowerCase());
+      s.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.customCategoryName && s.customCategoryName.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCat && matchesSearch;
   });
 
@@ -554,44 +1375,74 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const handleCreatePhotoLinkService = (e: React.FormEvent) => {
     e.preventDefault();
-    const paperId = photoPaperMatId || (materials || []).find(m => m.category === 'paper')?.id;
-    const inkId = photoInkMatId || (materials || []).find(m => m.category === 'ink')?.id;
-    if (!photoServiceName.trim() || !paperId || !inkId) return;
+    if (!photoServiceName.trim()) return;
 
     const targetStore = defaultBranch;
     const storeObj = stores?.find(s => s.id === targetStore);
-    const frameMat = (materials || []).find(m => m.id === photoFrameMatId);
 
-    const bomList: BOMItem[] = [
-      { materialId: paperId, quantity: Number((1 / numPhotosPerSheet).toFixed(2)) },
-      { materialId: inkId, quantity: Number((100 / numInkYield).toFixed(2)) }
-    ];
-    if (photoFrameMatId) {
-      bomList.push({ materialId: photoFrameMatId, quantity: 1 });
+    // Ensure custom category is registered
+    const finalCustomCategory = photoCustomCategory.trim();
+    if (finalCustomCategory) {
+      handleAddCustomCategory(finalCustomCategory);
     }
+
+    // Build BOM from all calculated consumable components (raw materials & merchandise goods)
+    const bomList: BOMItem[] = calculatedComponents.map(c => ({
+      materialId: c.itemId,
+      quantity: Number(c.perUnitQuantity.toFixed(3)),
+      itemKind: c.kind,
+      name: c.name,
+      unitCost: c.unitCost,
+      unit: c.unit
+    }));
+
+    // Find primary paper, ink, frame for backward compatibility with photo print cards
+    const paperComp = calculatedComponents.find(c => c.kind === 'raw_material' && (c.name.includes('ورق') || c.unit === 'ورقة'));
+    const inkComp = calculatedComponents.find(c => c.kind === 'raw_material' && (c.name.includes('حبر') || c.unit === 'مل'));
+    const frameComp = calculatedComponents.find(c => c.kind === 'raw_material' && (c.name.includes('كادر') || c.name.includes('إطار')));
+
+    const paperId = paperComp?.itemId || photoPaperMatId || (materials || []).find(m => m.category === 'paper')?.id || '';
+    const inkId = inkComp?.itemId || photoInkMatId || (materials || []).find(m => m.category === 'ink')?.id || '';
+    const frameId = frameComp?.itemId || photoFrameMatId || undefined;
 
     const photoConfig: PhotoLinkConfig = {
       paperSize: photoPaperSize,
       paperMaterialId: paperId,
-      photosPerSheet: numPhotosPerSheet,
+      photosPerSheet: paperComp ? Math.max(1, paperComp.yieldCount) : numPhotosPerSheet,
       inkMaterialId: inkId,
-      inkYieldPhotos: numInkYield,
-      inkPerPhotoMl: Number((100 / numInkYield).toFixed(2)),
+      inkYieldPhotos: inkComp ? Math.max(1, inkComp.yieldCount) : numInkYield,
+      inkPerPhotoMl: inkComp ? Number((100 / Math.max(1, inkComp.yieldCount)).toFixed(2)) : undefined,
       pricePerPhoto: sellingPricePerPhoto,
-      frameMaterialId: photoFrameMatId || undefined,
-      framePerPhoto: photoFrameMatId ? 1 : 0
+      frameMaterialId: frameId,
+      framePerPhoto: frameComp ? frameComp.quantity : (photoFrameMatId ? 1 : 0),
+      customCategoryName: finalCustomCategory || undefined,
+      templateModelId: selectedTemplateId || undefined,
+      components: calculatedComponents.map(c => ({
+        id: c.id,
+        kind: c.kind,
+        itemId: c.itemId,
+        name: c.name,
+        consumptionMode: c.consumptionMode,
+        quantity: c.quantity,
+        yieldCount: c.yieldCount,
+        unit: c.unit,
+        unitCost: c.unitCost
+      }))
     };
+
+    const componentNamesSummary = calculatedComponents.map(c => `${c.name} (${c.kind === 'raw_material' ? 'خام' : 'سلعة'})`).join(' + ');
 
     const newService: ServiceItem = {
       id: `photo_link_${Date.now()}`,
       name: photoServiceName.trim(),
       itemType: 'custom_photo_service',
       category: photoCategory || 'frames_and_enlargements',
-      buyCost: Number(totalFormulaCost.toFixed(1)),
+      customCategoryName: finalCustomCategory || undefined,
+      buyCost: Number(totalAssociativeCost.toFixed(1)),
       price: sellingPricePerPhoto,
-      description: photoFrameMatId
-        ? `كادر مع صورة مقاس ${photoPaperSize} (ورق + حبر + كادر ${frameMat?.name || ''})`
-        : `طباعة مقاس ${photoPaperSize} مع خصم تلقائي للورق والحبر (${numPhotosPerSheet} صورة/ورقة)`,
+      description: finalCustomCategory
+        ? `منتج ارتباطي [${finalCustomCategory}]: يشمل استهلاك (${componentNamesSummary})`
+        : `منتج ارتباطي مركب: يشمل استهلاك (${componentNamesSummary})`,
       imageIcon: 'Image',
       imageUrl: photoImageUrl.trim() || undefined,
       bom: bomList,
@@ -603,10 +1454,39 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     };
 
     onAddService(newService);
+
+    // If user asked to also save this composition as a reusable template model
+    if (saveAsTemplate) {
+      const newTemplate: AssociativeModelTemplate = {
+        id: `tpl_custom_${Date.now()}`,
+        name: photoServiceName.trim(),
+        customCategory: finalCustomCategory || 'نماذج مخصصة',
+        officialCategory: photoCategory,
+        defaultPrice: sellingPricePerPhoto,
+        description: newService.description,
+        paperSize: photoPaperSize,
+        icon: '✨',
+        isCustom: true,
+        components: calculatedComponents.map(c => ({
+          id: c.id,
+          kind: c.kind,
+          itemId: c.itemId,
+          name: c.name,
+          consumptionMode: c.consumptionMode,
+          quantity: c.quantity,
+          yieldCount: c.yieldCount,
+          unit: c.unit,
+          unitCost: c.unitCost
+        }))
+      };
+      handleSaveModelTemplate(newTemplate);
+    }
+
     setShowAddPhotoLinkModal(false);
     setPhotoServiceName('');
     setPhotoImageUrl('');
     setPhotoFrameMatId('');
+    setSaveAsTemplate(false);
   };
 
   const handleExportCSV = () => {
@@ -899,14 +1779,24 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             <span>+ إضافة سلعة للبيع</span>
           </button>
 
+          {/* Add Reusable Model Template & Custom Category Button */}
+          <button
+            onClick={() => setShowAddTemplateModal(true)}
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+            title="إنشاء نموذج ارتباطي جديد وتحديد تصنيفه الخاص والمواد الاستهلاكية الداخلة فيه (خام وسلع)"
+          >
+            <Sparkles className="w-4 h-4 text-slate-950" />
+            <span>+ نموذج ارتباطي وتصنيف مخصص</span>
+          </button>
+
           {/* Add Associative Photo Item Button */}
           <button
             onClick={() => setShowAddPhotoLinkModal(true)}
             className="px-3.5 py-2 bg-[#292A34] hover:bg-[#373946] text-amber-300 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
-            title="ربط حبر صوري بورق حجم معين بعدد صور محدد واحتساب التكلفة وصافي الربح آلياً"
+            title="إنشاء منتج ارتباطي متكامل مع تحديد المواد الاستهلاكية (خام وسلع) وحساب التكلفة وصافي الربح"
           >
             <Link2 className="w-4 h-4 text-amber-400" />
-            <span>+ منتج ارتباطي (ورق + حبر)</span>
+            <span>+ منتج ارتباطي (خام + سلع)</span>
           </button>
 
           {/* Add Raw Material */}
@@ -1223,6 +2113,28 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </button>
               );
             })}
+
+            {/* Custom Categories filter buttons */}
+            {customCategories.map(cat => {
+              const count = (services || []).filter(s => s.customCategoryName === cat).length;
+              if (count === 0 && productSelectedCategory !== cat) return null;
+              const isSelected = productSelectedCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setProductSelectedCategory(cat)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
+                  }`}
+                >
+                  <Tag className="w-3 h-3 text-amber-500" />
+                  <span>{cat}</span>
+                  <span className="text-[10px] font-mono px-1 rounded-full bg-amber-200/60 text-amber-950 font-bold">{count}</span>
+                </button>
+              );
+            })}
           </div>
 
           {filteredProducts.length === 0 ? (
@@ -1234,7 +2146,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredProducts.map(s => {
-                const rawCost = s.itemType === 'direct_sale' ? (s.buyCost || 0) : calculateServiceBOMCost(s.bom, materials);
+                const rawCost = s.itemType === 'direct_sale' ? (s.buyCost || 0) : calculateServiceBOMCost(s.bom, materials, services);
                 const profit = Math.max(0, s.price - rawCost);
                 const margin = s.price > 0 ? ((profit / s.price) * 100).toFixed(0) : '0';
 
@@ -1309,10 +2221,36 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                   {s.storeId === 'store_labhour' ? 'الأبحور' : 'سيدي عامر'}
                                 </span>
                               )}
+                              {s.customCategoryName && (
+                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                  <Tag className="w-2.5 h-2.5 text-amber-700" />
+                                  <span>{s.customCategoryName}</span>
+                                </span>
+                              )}
                             </div>
-                            <span className="text-[10px] text-slate-500 font-medium">
-                              {s.itemType === 'direct_sale' ? 'سلعة بيع مباشر' : s.photoConfig ? `طباعة صور ارتباطية (${s.photoConfig.paperSize})` : 'خدمة مخصصة'}
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                {s.itemType === 'direct_sale' ? 'سلعة بيع مباشر' : s.photoConfig ? `طباعة صور ارتباطية (${s.photoConfig.paperSize})` : 'خدمة مخصصة'}
+                              </span>
+                              {/* Consumable Components Preview (خام وسلع) */}
+                              {s.photoConfig?.components && s.photoConfig.components.length > 0 && (
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {s.photoConfig.components.map((comp, cIdx) => (
+                                    <span 
+                                      key={cIdx} 
+                                      className={`text-[8.5px] px-1.5 py-0.2 rounded font-bold border ${
+                                        comp.kind === 'raw_material'
+                                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                                          : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                      }`}
+                                      title={`${comp.name} - ${comp.kind === 'raw_material' ? 'مادة خام مستهلكة' : 'سلعة تجارية مستهلكة'}`}
+                                    >
+                                      {comp.kind === 'raw_material' ? '🧪' : '🛍️'} {comp.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -1661,253 +2599,428 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 2: ADD ASSOCIATIVE PHOTO ITEM (Photo Paper + Ink Formula Engine) */}
+      {/* MODAL 2: ADD ASSOCIATIVE PRODUCT & MODEL ENGINE (Raw Materials + Merchandise Goods + Custom Categories) */}
       {showAddPhotoLinkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-          <div className="bg-white border border-slate-300 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
+          <div className="bg-white border border-slate-300 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
             <div className="bg-[#292A34] text-white px-5 py-3.5 flex items-center justify-between border-b-2 border-amber-400">
               <div className="flex items-center gap-2 font-black text-sm">
                 <Link2 className="w-5 h-5 text-amber-400" />
-                <span>إنشاء منتج ارتباطي (ورق + حبر + استهلاك تلقائي)</span>
+                <span>منشئ المنتجات والنماذج الارتباطية (مواد خام وسلع تجارية)</span>
               </div>
               <button 
                 onClick={() => setShowAddPhotoLinkModal(false)}
-                className="text-slate-400 hover:text-white font-bold"
+                className="text-slate-400 hover:text-white font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleCreatePhotoLinkService} className="p-5 space-y-4 text-xs font-medium max-h-[85vh] overflow-y-auto">
-              {/* Quick Presets Bar */}
-              <div className="bg-amber-50/70 border border-amber-200 p-2.5 rounded-xl space-y-1.5">
-                <span className="text-[11px] font-black text-amber-900 block">✨ نماذج ارتباطية جاهزة بنقرة واحدة:</span>
+              
+              {/* 1. Interactive Models & Presets Bar */}
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200 p-3 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-amber-950 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>نماذج ارتباطية جاهزة بنقرة واحدة (اختر للتحميل الفوري):</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPhotoServiceName('');
+                      setPhotoPrice('1000');
+                      setAssociativeComponents([]);
+                    }}
+                    className="text-[10px] text-amber-900 hover:text-rose-600 font-bold underline cursor-pointer"
+                  >
+                    تفريغ البدء من الصفر
+                  </button>
+                </div>
+
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhotoServiceName('كادر A4 فاخر مع صورة');
-                      setPhotoCategory('frames_and_enlargements');
-                      setPhotoPaperSize('A4');
-                      setPhotosPerSheet('1');
-                      const frameA4 = (materials || []).find(m => m.category === 'frame' && (m.name.includes('A4') || m.sku.includes('A4'))) || (materials || []).find(m => m.category === 'frame');
-                      if (frameA4) setPhotoFrameMatId(frameA4.id);
-                      const paperA4 = (materials || []).find(m => m.category === 'paper' && (m.name.includes('A4') || m.sku.includes('A4'))) || (materials || []).find(m => m.category === 'paper');
-                      if (paperA4) setPhotoPaperMatId(paperA4.id);
-                      setPhotoPrice('1200');
-                    }}
-                    className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
-                  >
-                    🖼️ كادر A4 كامل (ورق + حبر + كادر)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhotoServiceName('كادر 13x18 مع صورة');
-                      setPhotoCategory('frames_and_enlargements');
-                      setPhotoPaperSize('13x18');
-                      setPhotosPerSheet('1');
-                      const frame13 = (materials || []).find(m => m.category === 'frame' && (m.name.includes('13x18') || m.name.includes('13'))) || (materials || []).find(m => m.category === 'frame');
-                      if (frame13) setPhotoFrameMatId(frame13.id);
-                      setPhotoPrice('700');
-                    }}
-                    className="px-2.5 py-1 rounded-lg bg-white border border-purple-300 hover:bg-purple-100 text-purple-900 text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
-                  >
-                    🖼️ كادر 13x18 (ورق + حبر + كادر)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhotoServiceName('طباعة صور شمسية (8 صور هوية)');
-                      setPhotoCategory('id_and_regular_photos');
-                      setPhotoPaperSize('A4');
-                      setPhotosPerSheet('8');
-                      setPhotoFrameMatId('');
-                      setPhotoPrice('300');
-                    }}
-                    className="px-2.5 py-1 rounded-lg bg-white border border-sky-300 hover:bg-sky-100 text-sky-900 text-[10px] font-bold cursor-pointer transition-colors shadow-2xs"
-                  >
-                    📷 صور شمسية 8 صور (ورقة A4)
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-slate-700 block mb-1 font-bold">اسم الخدمة أو المنتج الارتباطي *</label>
-                <input
-                  type="text"
-                  required
-                  value={photoServiceName}
-                  onChange={(e) => setPhotoServiceName(e.target.value)}
-                  placeholder="مثال: كادر A4 كامل مع صورة / طباعة صورة عائلية..."
-                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B]"
-                />
-              </div>
-
-              {/* Official Category Selector */}
-              <div>
-                <label className="text-slate-700 block mb-1 font-bold">التصنيف والقسم في الاستوديو *</label>
-                <select
-                  value={photoCategory}
-                  onChange={(e) => setPhotoCategory(e.target.value as OfficialServiceCategory)}
-                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B] cursor-pointer"
-                >
-                  {OFFICIAL_SERVICE_CATEGORIES.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Frame Material Selector (العنصر الارتباطي الناقص: الكادر والإطار) */}
-              <div className="space-y-1 p-3 bg-purple-50/70 border border-purple-200 rounded-xl">
-                <div className="flex items-center justify-between">
-                  <label className="text-purple-950 font-bold text-xs flex items-center gap-1.5">
-                    <Frame className="w-4 h-4 text-purple-700" />
-                    <span>الكادر أو الإطار المربوط (الورق + الحبر + الكادر):</span>
-                  </label>
-                  {photoFrameMatId && (
-                    <button
-                      type="button"
-                      onClick={() => setPhotoFrameMatId('')}
-                      className="text-[10px] text-rose-600 hover:underline font-bold cursor-pointer"
-                    >
-                      إلغاء الكادر (صورة فقط)
-                    </button>
-                  )}
-                </div>
-                <select
-                  value={photoFrameMatId}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setPhotoFrameMatId(val);
-                    if (val) {
-                      setPhotoCategory('frames_and_enlargements');
-                    }
-                  }}
-                  className="w-full bg-white border border-purple-300 rounded-xl px-3 py-2 text-[#292A34] font-bold text-xs focus:outline-none focus:border-purple-600 cursor-pointer"
-                >
-                  <option value="">-- بدون كادر (طباعة صورة فقط: ورق + حبر) --</option>
-                  {(materials || []).filter(m => m.category === 'frame').map(f => (
-                    <option key={f.id} value={f.id}>
-                      كادر: {f.name} (تكلفة الشراء: {formatCurrency(f.unitCost)} | المخزون: {f.currentStock} قطعة)
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[10px] text-purple-700 block">
-                  عند اختيار كادر، سيتم خصم الكادر والورقة والحبر تلقائياً من رصيد المخزن عند كل عملية بيع.
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-700 block mb-1 font-bold">نوع ومقاس الورق المربوط</label>
-                  <select
-                    value={photoPaperMatId}
-                    onChange={(e) => setPhotoPaperMatId(e.target.value)}
-                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B]"
-                  >
-                    {(materials || []).filter(m => m.category === 'paper').map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({formatCurrency(p.unitCost)}/ورقة)</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-slate-700 block mb-1 font-bold">كم صورة في الورقة الواحدة؟</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={photosPerSheet}
-                    onChange={(e) => setPhotosPerSheet(e.target.value)}
-                    placeholder="1 لـ A4، أو 4/8 للصور الشمسية"
-                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-[#E31C2B]"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-700 block mb-1 font-bold">الحبر الصوري المربوط</label>
-                  <select
-                    value={photoInkMatId}
-                    onChange={(e) => setPhotoInkMatId(e.target.value)}
-                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold focus:outline-none focus:border-[#E31C2B]"
-                  >
-                    {(materials || []).filter(m => m.category === 'ink').map(i => (
-                      <option key={i.id} value={i.id}>{i.name} ({formatCurrency(i.unitCost)}/مل)</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-slate-700 block mb-1 font-bold">عدد الصور الإجمالي الذي يطبعه الحبر</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={photoInkYield}
-                    onChange={(e) => setPhotoInkYield(e.target.value)}
-                    placeholder="مثال: 150 صورة / عبوة"
-                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-[#E31C2B]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-slate-700 block mb-1 font-bold">سعر بيع الصورة / الكادر للزبون (كامل المبلغ دج) *</label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={photoPrice}
-                  onChange={(e) => setPhotoPrice(e.target.value)}
-                  className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-black text-sm focus:outline-none focus:border-[#E31C2B]"
-                />
-              </div>
-
-              {/* Product Image Section */}
-              <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                <div className="flex items-center justify-between">
-                  <label className="text-slate-700 font-bold text-xs flex items-center gap-1.5">
-                    <Camera className="w-4 h-4 text-[#E31C2B]" />
-                    <span>صورة توضيحية لخدمة الطباعة والكادر (اختياري)</span>
-                  </label>
-                  {photoImageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setPhotoImageUrl('')}
-                      className="text-[10px] text-rose-600 hover:underline flex items-center gap-0.5 cursor-pointer"
-                    >
-                      <X className="w-3 h-3" />
-                      <span>إلغاء الصورة</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex gap-3 items-start">
-                  <div className="w-20 h-20 rounded-xl bg-white border border-slate-300 overflow-hidden shrink-0 flex items-center justify-center relative shadow-xs">
-                    {photoImageUrl ? (
-                      <img 
-                        src={photoImageUrl} 
-                        alt="Preview" 
-                        className="w-full h-full object-cover" 
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          e.currentTarget.onerror = null;
-                          e.currentTarget.src = 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&auto=format&fit=crop&q=80';
-                        }}
-                      />
-                    ) : (
-                      <div className="text-center p-1 text-slate-400">
-                        <ImageIcon className="w-6 h-6 mx-auto mb-0.5 text-slate-300" />
-                        <span className="text-[9px] block font-bold">بدون صورة</span>
+                  {modelTemplates.map((tpl) => {
+                    const isSelected = selectedTemplateId === tpl.id;
+                    return (
+                      <div key={tpl.id} className="relative group inline-flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => applyModelTemplate(tpl)}
+                          className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold cursor-pointer transition-all flex items-center gap-1.5 shadow-2xs border ${
+                            isSelected
+                              ? 'bg-amber-600 text-white border-amber-700 shadow-sm'
+                              : 'bg-white hover:bg-amber-100 text-amber-900 border-amber-300'
+                          }`}
+                          title={tpl.description}
+                        >
+                          <span>{tpl.icon || '📦'}</span>
+                          <span>{tpl.name}</span>
+                          <span className={`font-mono text-[9px] px-1 rounded ${isSelected ? 'bg-amber-700 text-amber-100' : 'bg-amber-100 text-amber-900'}`}>
+                            {formatCurrency(tpl.defaultPrice)}
+                          </span>
+                        </button>
+                        {tpl.isCustom && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteModelTemplate(tpl.id);
+                            }}
+                            className="mr-0.5 text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                            title="حذف هذا النموذج المخصص"
+                          >
+                            ✕
+                          </button>
+                        )}
                       </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 2. Product Name & Category Selectors */}
+              <div className="space-y-3">
+                <div>
+                  <label className="text-slate-800 block mb-1 font-bold">اسم المنتج أو الخدمة الارتباطية *</label>
+                  <input
+                    type="text"
+                    required
+                    value={photoServiceName}
+                    onChange={(e) => setPhotoServiceName(e.target.value)}
+                    placeholder="مثال: كادر A4 كامل مع صورة / بوكس ألبوم هدايا / كوب حراري شخصي..."
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold text-sm focus:outline-none focus:border-[#E31C2B]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  
+                  {/* Custom Category with inline adder */}
+                  <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-amber-950 font-bold text-xs flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-amber-600" />
+                        <span>التصنيف الخاص بالمنتج (Custom Category):</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowNewCatInput(!showNewCatInput)}
+                        className="text-[10px] text-amber-800 hover:text-amber-950 font-bold flex items-center gap-1 underline cursor-pointer"
+                      >
+                        <PlusCircle className="w-3 h-3" />
+                        <span>{showNewCatInput ? 'إلغاء' : '+ تصنيف جديد'}</span>
+                      </button>
+                    </div>
+
+                    {!showNewCatInput ? (
+                      <div className="relative">
+                        <select
+                          value={photoCustomCategory}
+                          onChange={(e) => setPhotoCustomCategory(e.target.value)}
+                          className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-[#292A34] font-bold text-xs focus:outline-none focus:border-amber-600 cursor-pointer"
+                        >
+                          {customCategories.map((cat, idx) => (
+                            <option key={idx} value={cat}>🏷️ {cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 animate-in fade-in">
+                        <input
+                          type="text"
+                          value={newCustomCategoryInput}
+                          onChange={(e) => setNewCustomCategoryInput(e.target.value)}
+                          placeholder="اكتب اسم التصنيف الجديد..."
+                          className="flex-1 bg-white border border-amber-400 rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#292A34] focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (newCustomCategoryInput.trim()) {
+                              const created = handleAddCustomCategory(newCustomCategoryInput);
+                              if (created) {
+                                setPhotoCustomCategory(created);
+                                setNewCustomCategoryInput('');
+                                setShowNewCatInput(false);
+                              }
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-2xs"
+                        >
+                          حفظ
+                        </button>
+                      </div>
+                    )}
+                    <span className="text-[10px] text-amber-800 block">
+                      يسمح لك هذا التصنيف بتجميع وفرز منتجاتك الارتباطية في قائمة مخصصة.
+                    </span>
+                  </div>
+
+                  {/* Official Studio Category */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                    <label className="text-slate-800 font-bold text-xs flex items-center gap-1.5">
+                      <Layers2 className="w-3.5 h-3.5 text-slate-600" />
+                      <span>القسم والتصنيف الرسمي في الاستوديو:</span>
+                    </label>
+                    <select
+                      value={photoCategory}
+                      onChange={(e) => setPhotoCategory(e.target.value as OfficialServiceCategory)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold text-xs focus:outline-none focus:border-[#E31C2B] cursor-pointer"
+                    >
+                      {OFFICIAL_SERVICE_CATEGORIES.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.label}</option>
+                      ))}
+                    </select>
+                    <span className="text-[10px] text-slate-500 block">
+                      التصنيف المحاسبي المعتمد للإحصائيات وتقارير المبيعات.
+                    </span>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* 3. Consumable Materials & Goods Engine (تحديد المواد الاستهلاكية: خام أم سلع) */}
+              <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                  <div>
+                    <h4 className="text-xs font-black text-[#292A34] flex items-center gap-1.5">
+                      <Boxes className="w-4 h-4 text-[#E31C2B]" />
+                      <span>المواد الاستهلاكية الداخلة في هذا المنتج (خام وسلع تجارية):</span>
+                    </h4>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      حدد كل مادة تُخصم تلقائياً من رصيد المخزن أو السلع عند كل عملية بيع
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleAddAssociativeComponent('raw_material')}
+                      className="px-2.5 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-blue-600" />
+                      <span>+ إضافة مادة خام 🧪</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddAssociativeComponent('merchandise')}
+                      className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                    >
+                      <Plus className="w-3 h-3 text-emerald-600" />
+                      <span>+ إضافة سلعة تجارية 🛍️</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Components List */}
+                {associativeComponents.length === 0 ? (
+                  <div className="p-6 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300 space-y-1.5">
+                    <Boxes className="w-8 h-8 mx-auto text-slate-300" />
+                    <p className="font-bold text-xs">لم تتم إضافة أي مادة استهلاكية بعد.</p>
+                    <p className="text-[11px] text-slate-400">انقر على الأزرار أعلاه لإضافة مواد خام (ورق، حبر، كادر...) أو سلع تجارية (أكواب، ألبومات...).</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {associativeComponents.map((comp, idx) => {
+                      const calculated = calculatedComponents.find(c => c.id === comp.id);
+                      const isRaw = comp.kind === 'raw_material';
+
+                      return (
+                        <div key={comp.id || idx} className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            
+                            {/* Kind Selector Switch */}
+                            <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateComponent(comp.id, { kind: 'raw_material' })}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                  isRaw ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-blue-700'
+                                }`}
+                              >
+                                🧪 مادة خام
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateComponent(comp.id, { kind: 'merchandise' })}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                  !isRaw ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-emerald-700'
+                                }`}
+                              >
+                                🛍️ سلعة تجارية
+                              </button>
+                            </div>
+
+                            {/* Item Selector Dropdown */}
+                            <div className="flex-1 min-w-[200px]">
+                              {isRaw ? (
+                                <select
+                                  value={comp.itemId}
+                                  onChange={(e) => handleUpdateComponent(comp.id, { itemId: e.target.value })}
+                                  className="w-full bg-[#F0F0F0] border border-blue-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 cursor-pointer"
+                                >
+                                  <option value="">-- اختر مادة خام من المخزن --</option>
+                                  {materials.map(m => (
+                                    <option key={m.id} value={m.id}>
+                                      {m.name} ({formatCurrency(m.unitCost)}/{m.unit === 'sheet' ? 'ورقة' : m.unit === 'ml' ? 'مل' : 'قطعة'} | متاح: {m.currentStock})
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <select
+                                  value={comp.itemId}
+                                  onChange={(e) => handleUpdateComponent(comp.id, { itemId: e.target.value })}
+                                  className="w-full bg-[#F0F0F0] border border-emerald-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                                >
+                                  <option value="">-- اختر سلعة تجارية من القائمة --</option>
+                                  {services.filter(s => s.itemType === 'direct_sale').map(s => (
+                                    <option key={s.id} value={s.id}>
+                                      {s.name} (تكلفة الشراء: {formatCurrency(s.buyCost || 0)} | متاح: {s.currentStock ?? 0} قطعة)
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+
+                            {/* Remove button */}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveComponent(comp.id)}
+                              className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 cursor-pointer"
+                              title="حذف هذا المكون الاستهلاكي"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Consumption Mode & Quantities */}
+                          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1.5 border-t border-slate-100 items-center">
+                            
+                            {/* Mode toggle */}
+                            <div className="sm:col-span-5 flex items-center gap-1">
+                              <span className="text-[10px] text-slate-500 font-bold ml-1">نمط الاستهلاك:</span>
+                              <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateComponent(comp.id, { consumptionMode: 'direct', yieldCount: 1 })}
+                                  className={`px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                                    comp.consumptionMode === 'direct' ? 'bg-[#292A34] text-white shadow-2xs' : 'text-slate-600'
+                                  }`}
+                                >
+                                  📦 مباشر (بالقطعة)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateComponent(comp.id, { consumptionMode: 'yield', yieldCount: comp.yieldCount > 1 ? comp.yieldCount : 8 })}
+                                  className={`px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                                    comp.consumptionMode === 'yield' ? 'bg-[#292A34] text-white shadow-2xs' : 'text-slate-600'
+                                  }`}
+                                >
+                                  🔄 إنتاجية وتوزيع
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Numbers input */}
+                            <div className="sm:col-span-4 flex items-center gap-1.5">
+                              {comp.consumptionMode === 'direct' ? (
+                                <div className="flex items-center gap-1 w-full">
+                                  <label className="text-[10px] text-slate-500 font-bold whitespace-nowrap">الكمية:</label>
+                                  <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.1"
+                                    value={comp.quantity}
+                                    onChange={(e) => handleUpdateComponent(comp.id, { quantity: Number(e.target.value) || 1 })}
+                                    className="w-20 bg-[#F0F0F0] border border-slate-300 rounded-lg px-2 py-1 text-center font-mono font-bold text-xs"
+                                  />
+                                  <span className="text-[10px] text-slate-400 font-bold">{comp.unit}</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 w-full">
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={comp.quantity}
+                                    onChange={(e) => handleUpdateComponent(comp.id, { quantity: Number(e.target.value) || 1 })}
+                                    className="w-12 bg-[#F0F0F0] border border-slate-300 rounded-lg px-1 py-1 text-center font-mono font-bold text-xs"
+                                    title="كمية المادة المستهلكة (مثلاً 1 ورقة أو 1 عبوة)"
+                                  />
+                                  <span className="text-[10px] text-slate-500 font-bold">تنتج</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={comp.yieldCount}
+                                    onChange={(e) => handleUpdateComponent(comp.id, { yieldCount: Number(e.target.value) || 1 })}
+                                    className="w-14 bg-[#F0F0F0] border border-slate-300 rounded-lg px-1 py-1 text-center font-mono font-bold text-xs"
+                                    title="عدد الوحدات أو الصور الناتجة"
+                                  />
+                                  <span className="text-[10px] text-slate-500 font-bold">وحدات</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Cost display */}
+                            <div className="sm:col-span-3 text-left bg-slate-50 p-1 rounded-lg border border-slate-200">
+                              <span className="text-[9px] text-slate-400 block font-bold">التكلفة للقطعة:</span>
+                              <span className="font-mono font-black text-slate-800 text-xs">
+                                {formatCurrency(calculated?.subtotalCost || 0)}
+                              </span>
+                            </div>
+
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Selling Price & Product Image */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                
+                {/* Selling Price */}
+                <div>
+                  <label className="text-slate-800 block mb-1 font-bold">سعر بيع المنتج النهائي للزبون (دج) *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={photoPrice}
+                    onChange={(e) => setPhotoPrice(e.target.value)}
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-black text-base focus:outline-none focus:border-[#E31C2B]"
+                  />
+                  <span className="text-[10px] text-slate-500 block mt-1">
+                    السعر الإجمالي الذي يدفعه الزبون شاملاً كل المواد والسلع
+                  </span>
+                </div>
+
+                {/* Product Image preview & upload */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-slate-800 font-bold text-xs flex items-center gap-1.5">
+                      <Camera className="w-4 h-4 text-[#E31C2B]" />
+                      <span>صورة توضيحية للمنتج (اختياري)</span>
+                    </label>
+                    {photoImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setPhotoImageUrl('')}
+                        className="text-[10px] text-rose-600 hover:underline font-bold cursor-pointer"
+                      >
+                        إلغاء
+                      </button>
                     )}
                   </div>
 
-                  <div className="flex-1 space-y-2">
-                    <label className="w-full px-3 py-1.5 bg-white border border-slate-300 hover:border-[#E31C2B] rounded-xl cursor-pointer text-[11px] font-bold text-slate-700 hover:text-[#E31C2B] flex items-center justify-center gap-1.5 shadow-2xs transition-colors">
+                  <div className="flex gap-2 items-center">
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-300 overflow-hidden shrink-0 flex items-center justify-center shadow-2xs">
+                      {photoImageUrl ? (
+                        <img src={photoImageUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <ImageIcon className="w-5 h-5 text-slate-400" />
+                      )}
+                    </div>
+                    <label className="flex-1 px-3 py-2 bg-white border border-slate-300 hover:border-[#E31C2B] rounded-xl cursor-pointer text-[11px] font-bold text-slate-700 hover:text-[#E31C2B] flex items-center justify-center gap-1.5 shadow-2xs transition-colors">
                       <Upload className="w-3.5 h-3.5 text-[#E31C2B]" />
                       <span>رفع صورة من الجهاز</span>
                       <input
@@ -1917,106 +3030,78 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         onChange={(e) => handleImageFileUpload(e, setPhotoImageUrl)}
                       />
                     </label>
-
-                    <input
-                      type="url"
-                      value={photoImageUrl}
-                      onChange={(e) => setPhotoImageUrl(e.target.value)}
-                      placeholder="أو الصق رابط صورة ويب (https://...)"
-                      className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-[#292A34] focus:outline-none focus:border-[#E31C2B]"
-                    />
                   </div>
                 </div>
 
-                {/* Quick Presets */}
-                <div className="pt-1">
-                  <span className="text-[10px] text-slate-500 font-bold block mb-1">نماذج مقترحة:</span>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-                    {PRODUCT_IMAGE_PRESETS.map((preset, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setPhotoImageUrl(preset.url)}
-                        className={`relative rounded-lg overflow-hidden border p-0.5 group text-left cursor-pointer transition-all ${
-                          photoImageUrl === preset.url ? 'border-[#E31C2B] ring-2 ring-red-500' : 'border-slate-200 hover:border-slate-400'
-                        }`}
-                        title={preset.name}
-                      >
-                        <img src={preset.url} alt={preset.name} className="w-full h-10 object-cover rounded" referrerPolicy="no-referrer" />
-                        <span className="text-[8px] line-clamp-1 text-slate-700 font-medium px-0.5 mt-0.5 block">{preset.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
 
-              {/* Dynamic Formula Calculation Box with TOTAL SUM (La Somme) */}
-              <div className="bg-[#1e1f27] text-white p-4 rounded-xl space-y-3 border border-slate-700">
+              {/* 5. Comprehensive Financial Summary Box (La Somme, Costs, Margins) */}
+              <div className="bg-[#1e1f27] text-white p-4 rounded-xl space-y-3 border border-slate-700 shadow-md">
                 <div className="flex items-center justify-between text-xs border-b border-slate-700/80 pb-2">
                   <div className="flex items-center gap-1.5 text-amber-400 font-bold">
                     <Calculator className="w-4 h-4" />
-                    <span>توضيح التقسيم والاحتساب التلقائي (ورق + حبر {selectedFrameMat ? '+ كادر' : ''}):</span>
+                    <span>الملخص المالي واحتساب التكلفة الإجمالية (La Somme):</span>
                   </div>
                   <span className="text-[11px] text-slate-300 font-mono">
-                    {numPhotosPerSheet} صور / ورقة
+                    {associativeComponents.length} عناصر استهلاكية مربوطة
                   </span>
                 </div>
 
-                {/* Section A: تفصيل العناصر الارتباطية الثلاثة */}
-                <div className="space-y-1.5 bg-[#252733] p-2.5 rounded-xl border border-slate-700">
-                  <div className="text-[11px] text-slate-300 font-bold">
-                    عناصر التكلفة للقطعة الواحدة (التقسيم الدقيق):
+                {/* Subtotals breakdown: Raw Materials vs Merchandise Goods */}
+                <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                  <div className="bg-slate-800/90 border border-blue-500/40 p-2 rounded-lg">
+                    <span className="text-[10px] text-blue-300 font-bold block">1. تكلفة المواد الخام (المخزن)</span>
+                    <span className="font-mono font-bold text-blue-200 text-sm mt-0.5 block">{formatCurrency(totalRawCost)}</span>
                   </div>
-                  <div className={`grid ${selectedFrameMat ? 'grid-cols-3' : 'grid-cols-2'} gap-2 text-center text-xs`}>
-                    <div className="bg-slate-800/90 border border-slate-700 p-2 rounded-lg">
-                      <span className="text-[10px] text-slate-400 block">1. تكلفة الورق / صورة</span>
-                      <span className="font-mono font-bold text-slate-200 text-sm">{formatCurrency(unitPaperCost)}</span>
-                      <span className="text-[9px] text-slate-400 block mt-0.5 font-mono truncate">{selectedPaperMat?.name?.split(' ')?.[0] || 'الورق'}</span>
-                    </div>
 
-                    <div className="bg-amber-950/60 border border-amber-500/50 p-2 rounded-lg">
-                      <span className="text-[10px] text-amber-300 font-bold block">2. تكلفة الحبر / صورة</span>
-                      <span className="font-mono font-black text-amber-400 text-sm">{formatCurrency(unitInkCost)}</span>
-                      <span className="text-[9px] text-amber-200/70 block mt-0.5 font-mono">({formatCurrency(sheetInkCost)} / ورقة)</span>
-                    </div>
-
-                    {selectedFrameMat && (
-                      <div className="bg-purple-950/60 border border-purple-500/50 p-2 rounded-lg">
-                        <span className="text-[10px] text-purple-300 font-bold block">3. تكلفة الكادر / الإطار</span>
-                        <span className="font-mono font-black text-purple-300 text-sm">{formatCurrency(unitFrameCost)}</span>
-                        <span className="text-[9px] text-purple-200/70 block mt-0.5 truncate">{selectedFrameMat.name}</span>
-                      </div>
-                    )}
+                  <div className="bg-slate-800/90 border border-emerald-500/40 p-2 rounded-lg">
+                    <span className="text-[10px] text-emerald-300 font-bold block">2. تكلفة السلع التجارية (البضاعة)</span>
+                    <span className="font-mono font-bold text-emerald-200 text-sm mt-0.5 block">{formatCurrency(totalGoodsCost)}</span>
                   </div>
                 </div>
 
-                {/* Section B: المجموع الإجمالي للتكلفة (La Somme) + سعر البيع + صافي الربح */}
+                {/* Section B: Grand Total Cost (La Somme) + Price + Profit */}
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                  <div className="bg-rose-950/60 border border-rose-500/50 p-2.5 rounded-xl">
+                  <div className="bg-rose-950/70 border border-rose-500/60 p-2.5 rounded-xl">
                     <span className="text-[10px] text-rose-300 font-bold block">مجموع التكلفة (La Somme)</span>
-                    <span className="font-mono font-black text-rose-200 text-sm">{formatCurrency(totalFormulaCost)}</span>
-                    <span className="text-[9px] text-rose-300/70 block mt-0.5">ورق + حبر {selectedFrameMat ? '+ كادر' : ''}</span>
+                    <span className="font-mono font-black text-rose-200 text-sm">{formatCurrency(totalAssociativeCost)}</span>
+                    <span className="text-[9px] text-rose-300/80 block mt-0.5 font-bold">خام + سلع</span>
                   </div>
 
                   <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700/80">
-                    <span className="text-[10px] text-slate-400 block">سعر البيع الكامل</span>
+                    <span className="text-[10px] text-slate-400 block font-bold">سعر البيع النهائي</span>
                     <span className="font-mono font-black text-white text-sm">{formatCurrency(sellingPricePerPhoto)}</span>
-                    <span className="text-[9px] text-slate-400 block mt-0.5">كامل المبلغ</span>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">كامل المبلغ للزبون</span>
                   </div>
 
-                  <div className="bg-emerald-950/80 border border-emerald-500/50 p-2.5 rounded-xl">
+                  <div className="bg-emerald-950/80 border border-emerald-500/60 p-2.5 rounded-xl">
                     <span className="text-[10px] text-emerald-400 font-bold block">صافي الربح المحقق</span>
-                    <span className="font-mono font-black text-emerald-300 text-sm">+{formatCurrency(netFormulaProfit)}</span>
-                    <span className="text-[9px] text-emerald-400/80 block mt-0.5 font-bold">%{formulaMargin} هامش</span>
+                    <span className="font-mono font-black text-emerald-300 text-sm">+{formatCurrency(netAssociativeProfit)}</span>
+                    <span className="text-[9px] text-emerald-400/80 block mt-0.5 font-bold">%{associativeMargin} هامش الربح</span>
                   </div>
                 </div>
 
                 <div className="text-[10px] text-slate-300 text-center flex items-center justify-between pt-1 border-t border-slate-700">
-                  <span>القسم: <strong className="text-amber-400 font-bold">{OFFICIAL_SERVICE_CATEGORIES.find(c => c.id === photoCategory)?.label || photoCategory}</strong></span>
-                  <span className="text-emerald-400 font-medium">خصم آلي متزامن للمواد والكادر عند البيع</span>
+                  <span>التصنيف الخاص: <strong className="text-amber-400 font-bold">{photoCustomCategory || 'غير محدد'}</strong></span>
+                  <span className="text-emerald-400 font-medium">خصم متزامن للمواد الخام والسلع عند البيع بالـ POS</span>
                 </div>
               </div>
 
+              {/* 6. Save as Template Checkbox */}
+              <div className="bg-amber-50/80 border border-amber-300/80 rounded-xl p-3 flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="saveAsTemplateCheckbox"
+                  checked={saveAsTemplate}
+                  onChange={(e) => setSaveAsTemplate(e.target.checked)}
+                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <label htmlFor="saveAsTemplateCheckbox" className="text-xs text-amber-950 font-bold cursor-pointer">
+                  ✨ حفظ هذه التركيبة أيضاً كـ <strong>نموذج ارتباطي دائم (Template Model)</strong> للرجوع إليه وتطبيقه بنقرة واحدة مستقبلاً
+                </label>
+              </div>
+
+              {/* Footer Buttons */}
               <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-200">
                 <button
                   type="button"
@@ -2027,12 +3112,655 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#E31C2B] hover:bg-[#c91422] text-white font-black shadow-md shadow-[#E31C2B]/30 cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-[#E31C2B] hover:bg-[#c91422] text-white font-black shadow-md shadow-[#E31C2B]/30 cursor-pointer transition-transform active:scale-95 flex items-center gap-1.5"
                 >
-                  حفظ المنتج الارتباطي
+                  <Check className="w-4 h-4" />
+                  <span>حفظ المنتج الارتباطي</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: ASSOCIATIVE MODEL TEMPLATES & CUSTOM CATEGORIES ENGINE */}
+      {showAddTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
+          <div className="bg-white border border-slate-300 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
+            
+            {/* Modal Header */}
+            <div className="bg-[#292A34] text-white px-5 py-3.5 flex items-center justify-between border-b-2 border-amber-400 shrink-0">
+              <div className="flex items-center gap-2 font-black text-sm">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+                <span>منشئ النماذج الارتباطية والتصنيفات المخصصة</span>
+              </div>
+              <button 
+                onClick={() => setShowAddTemplateModal(false)}
+                className="text-slate-400 hover:text-white font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Sub-Tab Navigation Header inside Modal */}
+            <div className="bg-slate-100 p-2 border-b border-slate-200 flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setTemplateTab('create')}
+                className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  templateTab === 'create'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>1. تصميم نموذج ارتباطي جديد</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setTemplateTab('manage')}
+                className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  templateTab === 'manage'
+                    ? 'bg-[#292A34] text-white shadow-xs'
+                    : 'bg-white text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <Tag className="w-3.5 h-3.5" />
+                <span>2. إدارة التصنيفات ({customCategories.length}) والنماذج ({modelTemplates.length})</span>
+              </button>
+            </div>
+
+            {/* TAB 1: CREATE NEW MODEL TEMPLATE */}
+            {templateTab === 'create' && (
+              <div className="p-5 space-y-4 text-xs font-medium overflow-y-auto">
+                <div className="bg-amber-50/80 border border-amber-200 p-3 rounded-xl">
+                  <p className="text-amber-950 font-bold text-xs leading-relaxed">
+                    💡 <strong>ما هو النموذج الارتباطي؟</strong> هو قالب جاهز يمكنك من ربط أي مادة خام (ورق، حبر، براويز، صفيحة ميتاليك...) مع أي سلعة تجارية (أكواب، تيشيرت، ألبوم، دروع...) وتحديد نمط استهلاكها وتصنيفها الخاص، لتتمكن من إنشاء منتجات جاهزة للبيع بنقرة واحدة مستقبلاً!
+                  </p>
+                </div>
+
+                {/* 1. Model Name & Emoji Icon */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                  <div className="sm:col-span-9">
+                    <label className="text-slate-800 block mb-1 font-bold">اسم النموذج الارتباطي *</label>
+                    <input
+                      type="text"
+                      required
+                      value={tplBuilderName}
+                      onChange={(e) => setTplBuilderName(e.target.value)}
+                      placeholder="مثال: درع تخرج فاخر مع صفيحة ميتاليك / بوكس ألبوم هدايا..."
+                      className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold text-sm focus:outline-none focus:border-amber-600"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <label className="text-slate-800 block mb-1 font-bold">أيقونة النموذج</label>
+                    <div className="flex items-center gap-1 flex-wrap bg-[#F0F0F0] p-1 rounded-xl border border-slate-300">
+                      {['🎓', '🎁', '🖼️', '☕', '👕', '🏆', '📦', '✨'].map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => setTplBuilderIcon(emoji)}
+                          className={`w-7 h-7 rounded-lg text-sm flex items-center justify-center cursor-pointer transition-transform ${
+                            tplBuilderIcon === emoji ? 'bg-amber-500 text-white scale-110 shadow-xs' : 'hover:bg-slate-200'
+                          }`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Custom Category & Official Category */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  
+                  {/* Custom Category with inline adder */}
+                  <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-amber-950 font-bold text-xs flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-amber-600" />
+                        <span>التصنيف الخاص بالنموذج (Custom Category):</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setTplBuilderShowNewCat(!tplBuilderShowNewCat)}
+                        className="text-[10px] text-amber-800 hover:text-amber-950 font-bold underline cursor-pointer"
+                      >
+                        {tplBuilderShowNewCat ? 'إلغاء' : '+ تصنيف جديد'}
+                      </button>
+                    </div>
+
+                    {!tplBuilderShowNewCat ? (
+                      <select
+                        value={tplBuilderCustomCategory}
+                        onChange={(e) => setTplBuilderCustomCategory(e.target.value)}
+                        className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-[#292A34] font-bold text-xs focus:outline-none focus:border-amber-600 cursor-pointer"
+                      >
+                        {customCategories.map((cat, idx) => (
+                          <option key={idx} value={cat}>🏷️ {cat}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-1.5 animate-in fade-in">
+                        <input
+                          type="text"
+                          value={tplBuilderNewCatInput}
+                          onChange={(e) => setTplBuilderNewCatInput(e.target.value)}
+                          placeholder="اكتب اسم التصنيف الجديد..."
+                          className="flex-1 bg-white border border-amber-400 rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#292A34] focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (tplBuilderNewCatInput.trim()) {
+                              const created = handleAddCustomCategory(tplBuilderNewCatInput);
+                              if (created) {
+                                setTplBuilderCustomCategory(created);
+                                setTplBuilderNewCatInput('');
+                                setTplBuilderShowNewCat(false);
+                              }
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer shadow-2xs"
+                        >
+                          حفظ
+                        </button>
+                      </div>
+                    )}
+                    <span className="text-[10px] text-amber-800 block">
+                      سيتم ربط هذا النموذج بهذا التصنيف لتنظيم الفرز تلقائياً.
+                    </span>
+                  </div>
+
+                  {/* Official Category */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                    <label className="text-slate-800 font-bold text-xs flex items-center gap-1.5">
+                      <Layers2 className="w-3.5 h-3.5 text-slate-600" />
+                      <span>القسم المحاسبي المعتمد في الاستوديو:</span>
+                    </label>
+                    <select
+                      value={tplBuilderOfficialCategory}
+                      onChange={(e) => setTplBuilderOfficialCategory(e.target.value as OfficialServiceCategory)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold text-xs focus:outline-none focus:border-[#E31C2B] cursor-pointer"
+                    >
+                      {OFFICIAL_SERVICE_CATEGORIES.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.label}</option>
+                      ))}
+                    </select>
+                    <span className="text-[10px] text-slate-500 block">
+                      القسم المعتمد في التقارير المحاسبية والمبيعات.
+                    </span>
+                  </div>
+
+                </div>
+
+                {/* 3. Consumable Materials & Goods Engine (تحديد المواد الاستهلاكية: خام وسلع) */}
+                <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                    <div>
+                      <h4 className="text-xs font-black text-[#292A34] flex items-center gap-1.5">
+                        <Boxes className="w-4 h-4 text-[#E31C2B]" />
+                        <span>المواد الاستهلاكية الداخلة في هذا النموذج (خام وسلع تجارية):</span>
+                      </h4>
+                      <p className="text-[10px] text-slate-500 font-medium">
+                        حدد المواد المستهلكة (مواد خام من المخزن أو سلع تجارية) وطريقة الاستهلاك
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleAddTemplateComponent('raw_material')}
+                        className="px-2.5 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      >
+                        <Plus className="w-3 h-3 text-blue-600" />
+                        <span>+ إضافة مادة خام 🧪</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddTemplateComponent('merchandise')}
+                        className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px] flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                      >
+                        <Plus className="w-3 h-3 text-emerald-600" />
+                        <span>+ إضافة سلعة تجارية 🛍️</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Components List */}
+                  {tplBuilderComponents.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300 space-y-1.5">
+                      <Boxes className="w-8 h-8 mx-auto text-slate-300" />
+                      <p className="font-bold text-xs">لم تتم إضافة أي مكون استهلاكي في هذا النموذج بعد.</p>
+                      <p className="text-[11px] text-slate-400">انقر على الأزرار أعلاه لتحديد المواد الخام (ورق، حبر، كادر...) أو السلع التجارية (أكواب، دروع، ألبومات...).</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {tplBuilderComponents.map((comp, idx) => {
+                        const calculated = calculatedTemplateComponents.find(c => c.id === comp.id);
+                        const isRaw = comp.kind === 'raw_material';
+
+                        return (
+                          <div key={comp.id || idx} className="bg-white p-3 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              
+                              {/* Kind Selector Switch */}
+                              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateTemplateComponent(comp.id, { kind: 'raw_material' })}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                    isRaw ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-blue-700'
+                                  }`}
+                                >
+                                  🧪 مادة خام
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateTemplateComponent(comp.id, { kind: 'merchandise' })}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                    !isRaw ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600 hover:text-emerald-700'
+                                  }`}
+                                >
+                                  🛍️ سلعة تجارية
+                                </button>
+                              </div>
+
+                              {/* Item Selector Dropdown */}
+                              <div className="flex-1 min-w-[200px]">
+                                {isRaw ? (
+                                  <select
+                                    value={comp.itemId}
+                                    onChange={(e) => handleUpdateTemplateComponent(comp.id, { itemId: e.target.value })}
+                                    className="w-full bg-[#F0F0F0] border border-blue-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:border-blue-500 cursor-pointer"
+                                  >
+                                    <option value="">-- اختر مادة خام من المخزن --</option>
+                                    {materials.map(m => (
+                                      <option key={m.id} value={m.id}>
+                                        {m.name} ({formatCurrency(m.unitCost)}/{m.unit === 'sheet' ? 'ورقة' : m.unit === 'ml' ? 'مل' : 'قطعة'} | متاح: {m.currentStock})
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <select
+                                    value={comp.itemId}
+                                    onChange={(e) => handleUpdateTemplateComponent(comp.id, { itemId: e.target.value })}
+                                    className="w-full bg-[#F0F0F0] border border-emerald-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-500 cursor-pointer"
+                                  >
+                                    <option value="">-- اختر سلعة تجارية من القائمة --</option>
+                                    {services.filter(s => s.itemType === 'direct_sale').map(s => (
+                                      <option key={s.id} value={s.id}>
+                                        {s.name} (تكلفة الشراء: {formatCurrency(s.buyCost || 0)} | متاح: {s.currentStock ?? 0} قطعة)
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+
+                              {/* Remove button */}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveTemplateComponent(comp.id)}
+                                className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 cursor-pointer"
+                                title="حذف هذا المكون من النموذج"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Consumption Mode & Quantities */}
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1.5 border-t border-slate-100 items-center">
+                              
+                              {/* Mode toggle */}
+                              <div className="sm:col-span-5 flex items-center gap-1">
+                                <span className="text-[10px] text-slate-500 font-bold ml-1">نمط الاستهلاك:</span>
+                                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateTemplateComponent(comp.id, { consumptionMode: 'direct', yieldCount: 1 })}
+                                    className={`px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                                      comp.consumptionMode === 'direct' ? 'bg-[#292A34] text-white shadow-2xs' : 'text-slate-600'
+                                    }`}
+                                  >
+                                    📦 مباشر (بالقطعة)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateTemplateComponent(comp.id, { consumptionMode: 'yield', yieldCount: comp.yieldCount > 1 ? comp.yieldCount : 8 })}
+                                    className={`px-2 py-0.5 rounded text-[9px] font-bold cursor-pointer transition-all ${
+                                      comp.consumptionMode === 'yield' ? 'bg-[#292A34] text-white shadow-2xs' : 'text-slate-600'
+                                    }`}
+                                  >
+                                    🔄 إنتاجية وتوزيع
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Numbers input */}
+                              <div className="sm:col-span-4 flex items-center gap-1.5">
+                                {comp.consumptionMode === 'direct' ? (
+                                  <div className="flex items-center gap-1 w-full">
+                                    <label className="text-[10px] text-slate-500 font-bold whitespace-nowrap">الكمية:</label>
+                                    <input
+                                      type="number"
+                                      min="0.01"
+                                      step="0.1"
+                                      value={comp.quantity}
+                                      onChange={(e) => handleUpdateTemplateComponent(comp.id, { quantity: Number(e.target.value) || 1 })}
+                                      className="w-20 bg-[#F0F0F0] border border-slate-300 rounded-lg px-2 py-1 text-center font-mono font-bold text-xs"
+                                    />
+                                    <span className="text-[10px] text-slate-400 font-bold">{comp.unit}</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1 w-full">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={comp.quantity}
+                                      onChange={(e) => handleUpdateTemplateComponent(comp.id, { quantity: Number(e.target.value) || 1 })}
+                                      className="w-12 bg-[#F0F0F0] border border-slate-300 rounded-lg px-1 py-1 text-center font-mono font-bold text-xs"
+                                      title="كمية المادة المستهلكة"
+                                    />
+                                    <span className="text-[10px] text-slate-500 font-bold">تنتج</span>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={comp.yieldCount}
+                                      onChange={(e) => handleUpdateTemplateComponent(comp.id, { yieldCount: Number(e.target.value) || 1 })}
+                                      className="w-14 bg-[#F0F0F0] border border-slate-300 rounded-lg px-1 py-1 text-center font-mono font-bold text-xs"
+                                      title="عدد الوحدات أو الصور المنتجة"
+                                    />
+                                    <span className="text-[10px] text-slate-500 font-bold">وحدات</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Cost display */}
+                              <div className="sm:col-span-3 text-left bg-slate-50 p-1 rounded-lg border border-slate-200">
+                                <span className="text-[9px] text-slate-400 block font-bold">التكلفة للوحدة:</span>
+                                <span className="font-mono font-black text-slate-800 text-xs">
+                                  {formatCurrency(calculated?.subtotalCost || 0)}
+                                </span>
+                              </div>
+
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. Default Price & Size */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                  <div>
+                    <label className="text-slate-800 block mb-1 font-bold">سعر البيع الافتراضي للزبون (دج) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={tplBuilderDefaultPrice}
+                      onChange={(e) => setTplBuilderDefaultPrice(e.target.value)}
+                      className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-black text-base focus:outline-none focus:border-amber-600"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-slate-800 block mb-1 font-bold">مقاس أو صيغة النموذج</label>
+                    <select
+                      value={tplBuilderPaperSize}
+                      onChange={(e) => setTplBuilderPaperSize(e.target.value as any)}
+                      className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-bold text-xs focus:outline-none focus:border-amber-600 cursor-pointer"
+                    >
+                      <option value="custom">مخصص (حسب الطلب)</option>
+                      <option value="A4">A4 (21x29.7 سم)</option>
+                      <option value="A3">A3 (30x42 سم)</option>
+                      <option value="10x15">10x15 سم (عادي)</option>
+                      <option value="13x18">13x18 سم (متوسط)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* 5. Financial Summary Box (La Somme) */}
+                <div className="bg-[#1e1f27] text-white p-4 rounded-xl space-y-3 border border-slate-700 shadow-md">
+                  <div className="flex items-center justify-between text-xs border-b border-slate-700/80 pb-2">
+                    <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                      <Calculator className="w-4 h-4" />
+                      <span>الملخص المالي واحتساب التكلفة الإجمالية (La Somme):</span>
+                    </div>
+                    <span className="text-[11px] text-slate-300 font-mono">
+                      {tplBuilderComponents.length} عناصر استهلاكية مربوطة
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                    <div className="bg-slate-800/90 border border-blue-500/40 p-2 rounded-lg">
+                      <span className="text-[10px] text-blue-300 font-bold block">1. تكلفة المواد الخام (المخزن)</span>
+                      <span className="font-mono font-bold text-blue-200 text-sm mt-0.5 block">{formatCurrency(tplTotalRawCost)}</span>
+                    </div>
+
+                    <div className="bg-slate-800/90 border border-emerald-500/40 p-2 rounded-lg">
+                      <span className="text-[10px] text-emerald-300 font-bold block">2. تكلفة السلع التجارية (البضاعة)</span>
+                      <span className="font-mono font-bold text-emerald-200 text-sm mt-0.5 block">{formatCurrency(tplTotalGoodsCost)}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                    <div className="bg-rose-950/70 border border-rose-500/60 p-2.5 rounded-xl">
+                      <span className="text-[10px] text-rose-300 font-bold block">مجموع التكلفة (La Somme)</span>
+                      <span className="font-mono font-black text-rose-200 text-sm">{formatCurrency(tplTotalCost)}</span>
+                      <span className="text-[9px] text-rose-300/80 block mt-0.5 font-bold">خام + سلع</span>
+                    </div>
+
+                    <div className="bg-slate-800 p-2.5 rounded-xl border border-slate-700/80">
+                      <span className="text-[10px] text-slate-400 block font-bold">سعر البيع النهائي</span>
+                      <span className="font-mono font-black text-white text-sm">{formatCurrency(tplSellingPrice)}</span>
+                      <span className="text-[9px] text-slate-400 block mt-0.5">كامل المبلغ للزبون</span>
+                    </div>
+
+                    <div className="bg-emerald-950/80 border border-emerald-500/60 p-2.5 rounded-xl">
+                      <span className="text-[10px] text-emerald-400 font-bold block">صافي الربح المتوقع</span>
+                      <span className="font-mono font-black text-emerald-300 text-sm">+{formatCurrency(tplNetProfit)}</span>
+                      <span className="text-[9px] text-emerald-400/80 block mt-0.5 font-bold">%{tplMargin} هامش الربح</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Action Buttons */}
+                <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddTemplateModal(false)}
+                    className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSaveNewTemplate(false)}
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold cursor-pointer transition-transform active:scale-95 flex items-center gap-1.5"
+                    >
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span>حفظ كنموذج ارتباطي دائم</span>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => handleSaveNewTemplate(true)}
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black shadow-md cursor-pointer transition-transform active:scale-95 flex items-center gap-1.5"
+                    >
+                      <Sparkles className="w-4 h-4 text-slate-950" />
+                      <span>حفظ وتطبيق كمنتج فوراً ⚡</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: MANAGE SAVED CUSTOM CATEGORIES & MODEL TEMPLATES */}
+            {templateTab === 'manage' && (
+              <div className="p-5 space-y-5 text-xs font-medium overflow-y-auto">
+                
+                {/* 1. Custom Categories Management */}
+                <div className="space-y-3 bg-amber-50/60 p-4 rounded-2xl border border-amber-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-black text-sm text-amber-950 flex items-center gap-1.5">
+                        <Tag className="w-4 h-4 text-amber-600" />
+                        <span>التصنيفات الخاصة المعتمدة ({customCategories.length}):</span>
+                      </h4>
+                      <p className="text-[11px] text-amber-900 mt-0.5">
+                        يمكنك إضافة تصنيفات جديدة لتجميع منتجاتك الارتباطية، أو حذف التصنيفات التي لم تعد بحاجة إليها.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={tplBuilderNewCatInput}
+                        onChange={(e) => setTplBuilderNewCatInput(e.target.value)}
+                        placeholder="اسم تصنيف جديد..."
+                        className="bg-white border border-amber-300 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-800"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (tplBuilderNewCatInput.trim()) {
+                            handleAddCustomCategory(tplBuilderNewCatInput);
+                            setTplBuilderNewCatInput('');
+                          }
+                        }}
+                        className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs cursor-pointer"
+                      >
+                        + إضافة
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap pt-2">
+                    {customCategories.map(cat => {
+                      const count = (services || []).filter(s => s.customCategoryName === cat).length;
+                      const modelCount = modelTemplates.filter(t => t.customCategory === cat).length;
+
+                      return (
+                        <div key={cat} className="flex items-center gap-1.5 bg-white border border-amber-300 px-3 py-1.5 rounded-xl shadow-2xs">
+                          <Tag className="w-3 h-3 text-amber-600" />
+                          <span className="font-bold text-amber-950 text-xs">{cat}</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-900 font-bold" title="عدد المنتجات والنماذج في هذا التصنيف">
+                            {count} منتج / {modelCount} نماذج
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCustomCategory(cat)}
+                            className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer ml-1"
+                            title="حذف هذا التصنيف"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Reusable Model Templates Management */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-black text-sm text-[#292A34] flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-amber-500" />
+                        <span>النماذج الارتباطية المحفوظة ({modelTemplates.length}):</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        انقر على أي نموذج لتحميله فوراً في منشئ المنتجات لإنشاء منتج ارتباطي مع خصم آلي للمواد.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {modelTemplates.map((tpl) => {
+                      const rawComps = (tpl.components || []).filter(c => c.kind === 'raw_material');
+                      const goodsComps = (tpl.components || []).filter(c => c.kind === 'merchandise');
+
+                      return (
+                        <div key={tpl.id} className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 hover:border-amber-400 transition-all">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">{tpl.icon || '📦'}</span>
+                              <div>
+                                <h5 className="font-black text-xs text-[#292A34]">{tpl.name}</h5>
+                                <span className="inline-flex items-center gap-1 text-[9px] px-1.5 py-0.2 rounded font-bold bg-amber-100 text-amber-900 border border-amber-300 mt-0.5">
+                                  <Tag className="w-2.5 h-2.5 text-amber-700" />
+                                  <span>{tpl.customCategory || 'نماذج عامة'}</span>
+                                </span>
+                              </div>
+                            </div>
+
+                            <span className="font-mono font-black text-xs text-[#E31C2B]">
+                              {formatCurrency(tpl.defaultPrice)}
+                            </span>
+                          </div>
+
+                          <p className="text-[10px] text-slate-600 line-clamp-1">{tpl.description}</p>
+
+                          {/* Components preview */}
+                          <div className="flex items-center gap-1 text-[9px] text-slate-500 pt-1 border-t border-slate-200">
+                            <span className="font-bold text-blue-800 bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded">
+                              🧪 {rawComps.length} مواد خام
+                            </span>
+                            <span className="font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                              🛍️ {goodsComps.length} سلع تجارية
+                            </span>
+                          </div>
+
+                          {/* Action Button */}
+                          <div className="flex items-center justify-between pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                applyModelTemplate(tpl);
+                                setShowAddTemplateModal(false);
+                                setShowAddPhotoLinkModal(true);
+                              }}
+                              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-lg text-[10px] cursor-pointer flex items-center gap-1 shadow-2xs"
+                            >
+                              <Sparkles className="w-3 h-3 text-slate-950" />
+                              <span>تحميل وتطبيق كمنتج ⚡</span>
+                            </button>
+
+                            {tpl.isCustom && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteModelTemplate(tpl.id)}
+                                className="text-slate-400 hover:text-rose-600 text-[10px] font-bold p-1 cursor-pointer"
+                                title="حذف هذا النموذج"
+                              >
+                                حذف النموذج ✕
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddTemplateModal(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-white font-bold cursor-pointer hover:bg-slate-900"
+                  >
+                    إغلاق النافذة
+                  </button>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}
@@ -2588,6 +4316,65 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       onChange={(e) => setEditProductMinThreshold(e.target.value)}
                       className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono font-bold focus:outline-none focus:border-amber-500"
                     />
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Category Selection in Edit Modal */}
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-amber-950 font-bold text-xs flex items-center gap-1.5">
+                    <Tag className="w-3.5 h-3.5 text-amber-600" />
+                    <span>التصنيف الخاص بالمنتج (Custom Category):</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const val = prompt('أدخل اسم التصنيف الخاص الجديد:');
+                      if (val && val.trim()) {
+                        const added = handleAddCustomCategory(val.trim());
+                        setEditProductCustomCategory(added);
+                      }
+                    }}
+                    className="text-[10px] text-amber-800 hover:text-amber-950 font-bold underline cursor-pointer"
+                  >
+                    + تصنيف جديد
+                  </button>
+                </div>
+                <select
+                  value={editProductCustomCategory}
+                  onChange={(e) => setEditProductCustomCategory(e.target.value)}
+                  className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-[#292A34] font-bold text-xs focus:outline-none focus:border-amber-600 cursor-pointer"
+                >
+                  <option value="">-- بدون تصنيف خاص (افتراضي) --</option>
+                  {customCategories.map((cat, idx) => (
+                    <option key={idx} value={cat}>🏷️ {cat}</option>
+                  ))}
+                </select>
+                <span className="text-[10px] text-amber-800 block">
+                  يمكنك تخصيص وتعيين تصنيف خاص لهذا المنتج لتصنيفه وعرضه في القوائم المخصصة
+                </span>
+              </div>
+
+              {/* Display Consumables List if editing an associative product */}
+              {editingProduct.photoConfig?.components && editingProduct.photoConfig.components.length > 0 && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Boxes className="w-3.5 h-3.5 text-[#E31C2B]" />
+                    <span>المكونات الاستهلاكية المرتبطة بهذا المنتج:</span>
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {editingProduct.photoConfig.components.map((c, i) => (
+                      <div key={i} className="flex items-center justify-between bg-white p-2 rounded-lg border border-slate-200 text-[11px]">
+                        <span className="font-bold text-slate-800 flex items-center gap-1">
+                          <span>{c.kind === 'raw_material' ? '🧪' : '🛍️'}</span>
+                          <span>{c.name}</span>
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-500">
+                          {c.consumptionMode === 'yield' ? `1/${c.yieldCount || 1}` : c.quantity} {c.unit}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

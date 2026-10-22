@@ -202,14 +202,28 @@ export const PosView: React.FC<PosViewProps> = ({
     { id: 'studio_sessions', label: '5. جلسة تصوير داخل الاستديو', icon: Smile }
   ];
 
-  // Filter services with accurate normalization
+  // Extract unique custom categories defined on services
+  const customCategoriesInPOS = useMemo(() => {
+    const cats = new Set<string>();
+    (services || []).forEach(s => {
+      if (s.customCategoryName && s.customCategoryName.trim()) {
+        cats.add(s.customCategoryName.trim());
+      }
+    });
+    return Array.from(cats);
+  }, [services]);
+
+  // Filter services with accurate normalization and custom categories support
   const filteredServices = useMemo(() => {
     return (services || []).filter(service => {
       const normCat = normalizeServiceCategory(service.category, service.name);
-      const matchesCat = selectedCategory === 'all' || normCat === selectedCategory;
+      const matchesCat = selectedCategory === 'all' 
+        || normCat === selectedCategory
+        || service.customCategoryName === selectedCategory;
       const matchesSearch = searchQuery === '' || 
         service.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        service.description.toLowerCase().includes(searchQuery.toLowerCase());
+        service.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (service.customCategoryName && service.customCategoryName.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchesCat && matchesSearch;
     });
   }, [services, selectedCategory, searchQuery]);
@@ -298,7 +312,7 @@ export const PosView: React.FC<PosViewProps> = ({
         rawMaterialMap[item.service.id].quantity += item.quantity;
         rawMaterialMap[item.service.id].cost += itemTotalCost;
       } else {
-        // Services with BOM
+        // Services with BOM (Raw materials & merchandise components)
         for (const bomItem of (item.service.bom || [])) {
           const mat = materials.find(m => m.id === bomItem.materialId);
           if (mat) {
@@ -317,6 +331,29 @@ export const PosView: React.FC<PosViewProps> = ({
             }
             rawMaterialMap[mat.id].quantity += qty;
             rawMaterialMap[mat.id].cost += cost;
+          } else {
+            const good = services.find(s => s.id === bomItem.materialId);
+            if (good) {
+              const qty = Number((bomItem.quantity * item.quantity).toFixed(2));
+              const cost = Number((qty * (good.buyCost || 0)).toFixed(2));
+              calculatedCost += cost;
+
+              if (!rawMaterialMap[good.id]) {
+                rawMaterialMap[good.id] = {
+                  materialId: good.id,
+                  materialName: `${good.name} (سلعة)`,
+                  quantity: 0,
+                  unit: 'قطعة',
+                  cost: 0
+                };
+              }
+              rawMaterialMap[good.id].quantity += qty;
+              rawMaterialMap[good.id].cost += cost;
+            } else if (bomItem.unitCost) {
+              const qty = Number((bomItem.quantity * item.quantity).toFixed(2));
+              const cost = Number((qty * bomItem.unitCost).toFixed(2));
+              calculatedCost += cost;
+            }
           }
         }
       }
@@ -326,7 +363,7 @@ export const PosView: React.FC<PosViewProps> = ({
       deductionsList: Object.values(rawMaterialMap),
       totalBOMCost: calculatedCost
     };
-  }, [cart, materials]);
+  }, [cart, materials, services]);
 
   const netEstimatedProfit = useMemo(() => {
     return Math.max(0, total - totalBOMCost);
@@ -432,6 +469,32 @@ export const PosView: React.FC<PosViewProps> = ({
                 >
                   <Icon className="w-3.5 h-3.5" />
                   <span>{cat.label}</span>
+                </button>
+              );
+            })}
+
+            {/* Custom Categories from products */}
+            {customCategoriesInPOS.map(customCat => {
+              const isSelected = selectedCategory === customCat;
+              const count = (services || []).filter(s => s.customCategoryName === customCat).length;
+
+              return (
+                <button
+                  key={customCat}
+                  onClick={() => setSelectedCategory(customCat)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-amber-600 text-white shadow-md'
+                      : 'bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100'
+                  }`}
+                >
+                  <Tag className="w-3 h-3 text-amber-600" />
+                  <span>{customCat}</span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+                    isSelected ? 'bg-amber-700 text-white' : 'bg-amber-200/80 text-amber-950'
+                  }`}>
+                    {count}
+                  </span>
                 </button>
               );
             })}
@@ -550,6 +613,16 @@ export const PosView: React.FC<PosViewProps> = ({
                       </div>
                     </div>
 
+                    {/* Custom Category Tag if present */}
+                    {service.customCategoryName && (
+                      <div className="mb-1.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-300 text-[10px] font-bold shadow-2xs">
+                          <Tag className="w-3 h-3 text-amber-600" />
+                          <span>{service.customCategoryName}</span>
+                        </span>
+                      </div>
+                    )}
+
                     {/* Title & Description with enlarged, bold font */}
                     <h3 className="font-black text-xl sm:text-2xl text-[#292A34] mb-1 group-hover:text-[#E31C2B] transition-colors leading-snug tracking-tight">
                       {service.name}
@@ -655,7 +728,9 @@ export const PosView: React.FC<PosViewProps> = ({
                             {Array.isArray(service.bom) && service.bom.length > 0 ? (
                               `خصم: ${service.bom.map(b => {
                                 const m = (materials || []).find(mat => mat.id === b.materialId);
-                                return `${b.quantity} ${m?.name ? m.name.split(' ')[0] : ''}`;
+                                const g = (services || []).find(s => s.id === b.materialId);
+                                const name = m ? m.name.split(' ')[0] : g ? `${g.name.split(' ')[0]} (سلعة)` : (b.name ? b.name.split(' ')[0] : 'مكون');
+                                return `${b.quantity} ${name}`;
                               }).join(' + ')}`
                             ) : (
                               'خدمة رقمية (بدون ورق)'
