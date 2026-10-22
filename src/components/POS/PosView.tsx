@@ -41,7 +41,9 @@ import {
   Camera,
   Upload,
   ImageIcon,
-  Link2
+  Link2,
+  Wallet,
+  ReceiptText
 } from 'lucide-react';
 import { 
   ServiceItem, 
@@ -51,6 +53,7 @@ import {
   PaymentMethod, 
   Shift, 
   Staff,
+  Expense,
   OFFICIAL_SERVICE_CATEGORIES,
   normalizeServiceCategory,
   OfficialServiceCategory
@@ -60,7 +63,8 @@ import {
   calculateServiceBOMCost,
   getItemUnitCost,
   getItemProfit,
-  getItemProfitMargin
+  getItemProfitMargin,
+  getAssociativeProductUnitCostBreakdown
 } from '../../utils/formatters';
 import { soundManager } from '../../utils/audio';
 import { usePosKeyboardShortcuts } from '../../hooks/usePosKeyboardShortcuts';
@@ -78,6 +82,8 @@ interface PosViewProps {
   onAddService?: (newService: ServiceItem) => void;
   onUpdateService?: (updatedService: ServiceItem) => void;
   onDeleteService?: (serviceId: string) => void;
+  onOpenExpenseModal?: () => void;
+  expenses?: Expense[];
 }
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -106,12 +112,23 @@ export const PosView: React.FC<PosViewProps> = ({
   onCheckoutOrder,
   onAddService,
   onUpdateService,
-  onDeleteService
+  onDeleteService,
+  onOpenExpenseModal,
+  expenses = []
 }) => {
   const isManager = currentStaff?.role === 'manager';
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [showPosExpensesModal, setShowPosExpensesModal] = useState<boolean>(false);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayExpenses = useMemo(() => {
+    return (expenses || []).filter(e => e.createdAt && e.createdAt.startsWith(todayStr));
+  }, [expenses, todayStr]);
+  const todayExpensesTotal = useMemo(() => {
+    return todayExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+  }, [todayExpenses]);
 
   // Quick Edit and Delete Product in POS State
   const [editingService, setEditingService] = useState<ServiceItem | null>(null);
@@ -165,7 +182,6 @@ export const PosView: React.FC<PosViewProps> = ({
   };
   
   // Worker Today's Performance (إجمالي مبيعات العامل اليومية)
-  const todayStr = new Date().toISOString().split('T')[0];
   const workerTodayOrders = useMemo(() => {
     return (orders || []).filter(o => {
       const oDate = o.createdAt ? o.createdAt.split('T')[0] : '';
@@ -431,6 +447,37 @@ export const PosView: React.FC<PosViewProps> = ({
         {/* Search & Fast Category Filters */}
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
           
+          {/* Top Quick Bar: Petty Cash Summary & Quick Expense Button */}
+          <div className="flex items-center justify-between gap-2 flex-wrap pb-1.5 border-b border-slate-100">
+            <button
+              type="button"
+              onClick={() => setShowPosExpensesModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+              title="عرض سجل المصروفات النثرية لليوم"
+            >
+              <Wallet className="w-4 h-4 text-amber-700" />
+              <span>المصروفات النثرية اليوم:</span>
+              <span className="font-mono font-black text-amber-900 bg-white px-2 py-0.5 rounded border border-amber-200">
+                {formatCurrency(todayExpensesTotal)}
+              </span>
+              <span className="text-[10px] bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded font-mono font-bold">
+                {todayExpenses.length} سند
+              </span>
+            </button>
+
+            {onOpenExpenseModal && (
+              <button
+                type="button"
+                onClick={onOpenExpenseModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all cursor-pointer shadow-xs"
+                title="تسجيل إخراج نقدي / مصروف نثري سريع من الدرج"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ تسجيل مصروف نثري</span>
+              </button>
+            )}
+          </div>
+
           {/* Search Bar */}
           <div className="relative">
             <Search className="w-5 h-5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
@@ -666,46 +713,43 @@ export const PosView: React.FC<PosViewProps> = ({
                       </div>
                     )}
 
-                    {/* Linked Photo Product: Ink Cost Per Sheet & Frame */}
+                    {/* Linked Photo Product: Accurate Per-Unit Photo Cost & Consumables Breakdown */}
                     {service.photoConfig && (() => {
+                      const breakdown = getAssociativeProductUnitCostBreakdown(service, materials, services);
                       const cfg = service.photoConfig;
-                      const iMat = materials.find(m => m.id === cfg.inkMaterialId);
-                      const pMat = materials.find(m => m.id === cfg.paperMaterialId);
-                      const fMat = materials.find(m => m.id === cfg.frameMaterialId);
-                      const pPerSheet = cfg.photosPerSheet || 1;
-                      const iCostPerPhoto = iMat 
-                        ? (iMat.unitCost * (100 / (cfg.inkYieldPhotos || 1)))
-                        : (cfg.inkPerPhotoMl && iMat ? iMat.unitCost * cfg.inkPerPhotoMl : 0);
-                      const iCostPerSheet = iCostPerPhoto * pPerSheet;
+                      const pPerSheet = breakdown.photosPerSheet || cfg.photosPerSheet || 1;
 
                       return (
                         <div className="mb-2 p-2 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 space-y-1.5 text-xs">
                           <div className="flex items-center justify-between font-bold">
                             <span className="flex items-center gap-1.5 text-[11px] text-amber-950">
                               <Link2 className="w-3.5 h-3.5 text-amber-600" />
-                              <span>منتج ارتباطي ({cfg.paperSize}):</span>
+                              <span>منتج ارتباطي ({cfg?.paperSize}):</span>
                             </span>
                             <span className="text-[10px] font-mono bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md font-bold">
                               {pPerSheet} صور/ورقة
                             </span>
                           </div>
-                          <div className="grid grid-cols-2 gap-1 text-[11px] pt-1 border-t border-amber-200/80">
-                            <div className="bg-white p-1 rounded-lg border border-amber-200 flex justify-between items-center px-2">
-                              <span className="text-slate-600 text-[10px]">حبر الورقة:</span>
-                              <strong className="font-mono text-amber-800 font-bold">{formatCurrency(iCostPerSheet)}</strong>
+                          <div className="grid grid-cols-3 gap-1 text-[10px] pt-1 border-t border-amber-200/80 text-center">
+                            <div className="bg-white p-1 rounded-lg border border-amber-200">
+                              <span className="text-slate-500 block">ورق:</span>
+                              <strong className="font-mono text-slate-700 font-bold">{formatCurrency(breakdown.paperUnitCost)}</strong>
                             </div>
-                            {fMat ? (
-                              <div className="bg-white p-1 rounded-lg border border-amber-200 flex justify-between items-center px-2">
-                                <span className="text-slate-600 text-[10px]">كادر {fMat.name ? fMat.name.split(' ')[0] : ''}:</span>
-                                <strong className="font-mono text-purple-700 font-bold">{formatCurrency(fMat.unitCost)}</strong>
-                              </div>
-                            ) : (
-                              <div className="bg-white p-1 rounded-lg border border-amber-200 flex justify-between items-center px-2">
-                                <span className="text-slate-600 text-[10px]">الورقة الخام:</span>
-                                <strong className="font-mono text-slate-700 font-bold">{formatCurrency(pMat?.unitCost || 0)}</strong>
-                              </div>
-                            )}
+                            <div className="bg-white p-1 rounded-lg border border-amber-300">
+                              <span className="text-amber-800 block">حبر:</span>
+                              <strong className="font-mono text-amber-800 font-bold">{formatCurrency(breakdown.inkUnitCost)}</strong>
+                            </div>
+                            <div className="bg-amber-100 p-1 rounded-lg border border-amber-300">
+                              <span className="text-amber-950 font-bold block">تكلفة الصورة:</span>
+                              <strong className="font-mono text-[#E31C2B] font-black">{formatCurrency(breakdown.totalUnitCost)}</strong>
+                            </div>
                           </div>
+                          {pPerSheet > 1 && (
+                            <div className="text-[9px] text-slate-500 flex justify-between items-center px-1 font-mono">
+                              <span>تكلفة الباقة ({pPerSheet} صور):</span>
+                              <strong className="text-slate-700">{formatCurrency(breakdown.packageTotalCost)}</strong>
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
@@ -1165,30 +1209,23 @@ export const PosView: React.FC<PosViewProps> = ({
 
               {/* Linked Product Frame & BOM Info in POS Edit Modal */}
               {editingService.photoConfig && (() => {
+                const breakdown = getAssociativeProductUnitCostBreakdown(editingService, materials, services);
                 const cfg = editingService.photoConfig;
-                const iMat = materials.find(m => m.id === cfg.inkMaterialId);
-                const pMat = materials.find(m => m.id === cfg.paperMaterialId);
                 const currentFrameMat = materials.find(m => m.id === (editServiceFrameMatId || cfg.frameMaterialId));
                 const availableFrames = materials.filter(m => m.category === 'frame');
-
-                const pPerSheet = cfg.photosPerSheet || 1;
-                const iCostPerPhoto = iMat 
-                  ? (iMat.unitCost * (100 / (cfg.inkYieldPhotos || 1)))
-                  : (cfg.inkPerPhotoMl && iMat ? iMat.unitCost * cfg.inkPerPhotoMl : 0);
-                const iCostPerSheet = iCostPerPhoto * pPerSheet;
-                const pCostPerSheet = pMat ? pMat.unitCost : 0;
+                const pPerSheet = breakdown.photosPerSheet || cfg.photosPerSheet || 1;
                 const frameCost = currentFrameMat ? currentFrameMat.unitCost : 0;
-                const totalItemUnitCost = (pCostPerSheet / pPerSheet) + iCostPerPhoto + frameCost;
+                const totalItemUnitCost = breakdown.paperUnitCost + breakdown.inkUnitCost + frameCost + breakdown.otherConsumablesCost;
 
                 return (
                   <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 space-y-2.5 text-xs">
                     <div className="flex items-center justify-between text-amber-900 font-bold">
                       <span className="text-[11px] flex items-center gap-1">
                         <Link2 className="w-3.5 h-3.5 text-amber-600" />
-                        <span>عناصر المنتج الارتباطي (ورق + حبر + كادر):</span>
+                        <span>عناصر تكلفة الوحدة (ورق + حبر + كادر):</span>
                       </span>
                       <span className="text-[10px] font-mono bg-amber-200/80 px-2 py-0.5 rounded-full font-bold">
-                        مقاس {cfg.paperSize} ({pPerSheet} صور/ورقة)
+                        مقاس {cfg?.paperSize} ({pPerSheet} صور/ورقة)
                       </span>
                     </div>
 
@@ -1213,21 +1250,21 @@ export const PosView: React.FC<PosViewProps> = ({
 
                     {/* Breakdown Matrix */}
                     <div className="grid grid-cols-4 gap-1.5 text-center text-[10px]">
+                      <div className="bg-white p-1.5 rounded-lg border border-amber-200">
+                        <span className="text-slate-500 block">ورق الصورة</span>
+                        <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(breakdown.paperUnitCost)}</strong>
+                      </div>
                       <div className="bg-white p-1.5 rounded-lg border border-amber-300">
-                        <span className="text-amber-800 font-bold block">حبر الورقة</span>
-                        <strong className="font-mono text-amber-800 font-black text-xs block">{formatCurrency(iCostPerSheet)}</strong>
+                        <span className="text-amber-800 font-bold block">حبر الصورة</span>
+                        <strong className="font-mono text-amber-800 font-black text-xs block">{formatCurrency(breakdown.inkUnitCost)}</strong>
                       </div>
-                      <div className="bg-white p-1.5 rounded-lg border border-amber-200">
-                        <span className="text-slate-500 block">الورقة الخام</span>
-                        <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(pCostPerSheet)}</strong>
-                      </div>
-                      <div className="bg-white p-1.5 rounded-lg border border-amber-200">
-                        <span className="text-slate-500 block">الكادر/الإطار</span>
+                      <div className="bg-white p-1.5 rounded-lg border border-purple-200">
+                        <span className="text-purple-700 block">الكادر/الإطار</span>
                         <strong className="font-mono text-purple-700 font-bold text-xs block">{formatCurrency(frameCost)}</strong>
                       </div>
-                      <div className="bg-white p-1.5 rounded-lg border border-amber-300">
-                        <span className="text-slate-800 font-bold block">إجمالي التكلفة</span>
-                        <strong className="font-mono text-slate-900 font-black text-xs block">{formatCurrency(totalItemUnitCost)}</strong>
+                      <div className="bg-amber-100 p-1.5 rounded-lg border border-amber-300">
+                        <span className="text-amber-950 font-bold block">تكلفة الصورة الواحدة</span>
+                        <strong className="font-mono text-[#E31C2B] font-black text-xs block">{formatCurrency(totalItemUnitCost)}</strong>
                       </div>
                     </div>
                   </div>
@@ -1402,6 +1439,104 @@ export const PosView: React.FC<PosViewProps> = ({
               >
                 <Trash2 className="w-4 h-4" />
                 <span>نعم، احذف</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POS Daily Petty Cash Expenses Modal */}
+      {showPosExpensesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs" dir="rtl">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-5 shadow-2xl border border-slate-200 space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-100 text-amber-900">
+                  <Wallet className="w-5 h-5 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">المصروفات النثرية اليومية (Petty Cash)</h3>
+                  <p className="text-[11px] text-slate-500">سجل النثريات والمبالغ المصروفة من الدرج لليوم</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPosExpensesModal(false)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Total Banner */}
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-amber-800 font-bold block">إجمالي المصروفات النثرية لليوم</span>
+                <span className="text-xl font-black font-mono text-amber-950">{formatCurrency(todayExpensesTotal)}</span>
+              </div>
+              {onOpenExpenseModal && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPosExpensesModal(false);
+                    onOpenExpenseModal();
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all flex items-center gap-1 shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ سند صرف نثري جديد</span>
+                </button>
+              )}
+            </div>
+
+            {/* Expenses List */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-0.5 custom-scrollbar">
+              {todayExpenses.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 space-y-2">
+                  <Receipt className="w-8 h-8 mx-auto text-slate-300" />
+                  <p className="text-xs font-bold">لا توجد مصروفات نثرية مسجلة لليوم حتى الآن.</p>
+                  <p className="text-[11px] text-slate-400">يمكنك تسجيل أي إخراج نقدي للنثريات بنقر الزر أعلاه.</p>
+                </div>
+              ) : (
+                todayExpenses.map((exp) => (
+                  <div
+                    key={exp.id}
+                    className="p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200 flex items-center justify-between gap-3 transition-colors"
+                  >
+                    <div className="space-y-0.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-slate-800 truncate">{exp.title}</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                          {exp.category === 'materials' ? 'مواد ومستلزمات' : exp.category === 'tea_coffee' ? 'شاي وقهوة' : exp.category === 'maintenance' ? 'صيانة' : 'نثريات'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                        <span>{exp.staffName}</span>
+                        <span>•</span>
+                        <span>{new Date(exp.createdAt).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' })}</span>
+                        {exp.notes && (
+                          <>
+                            <span>•</span>
+                            <span className="truncate max-w-[140px] text-slate-500">{exp.notes}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-sm font-black font-mono text-[#E31C2B]">{formatCurrency(exp.amount)}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowPosExpensesModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+              >
+                إغلاق
               </button>
             </div>
           </div>

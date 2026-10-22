@@ -32,7 +32,8 @@ import {
   Award,
   Zap,
   Calculator,
-  Printer
+  Printer,
+  X
 } from 'lucide-react';
 import { StaffPerformanceDashboard, getOrderTurnaroundMinutes } from './StaffPerformanceDashboard';
 import { PayrollCalculator } from './PayrollCalculator';
@@ -79,6 +80,7 @@ interface AccountingViewProps {
   onDeleteStore?: (id: string) => Promise<void>;
   currentStoreId?: string;
   stores?: Store[];
+  initialTab?: 'financial' | 'profit_breakdown' | 'payroll' | 'performance' | 'workers' | 'attendance' | 'expenses';
 }
 
 const getOrderTotalCost = (o: Order, mats: Material[] = []): number => {
@@ -122,11 +124,22 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
   onDeleteStore,
   currentStoreId,
   stores = [],
+  initialTab,
 }) => {
   const isManager = currentStaff.role === 'manager';
 
   // Manager sub-tabs
-  const [managerTab, setManagerTab] = useState<'financial' | 'profit_breakdown' | 'payroll' | 'performance' | 'workers' | 'attendance' | 'expenses'>('financial');
+  const [managerTab, setManagerTab] = useState<'financial' | 'profit_breakdown' | 'payroll' | 'performance' | 'workers' | 'attendance' | 'expenses'>(initialTab || 'financial');
+  const [workerSubTab, setWorkerSubTab] = useState<'sales' | 'expenses'>(initialTab === 'expenses' ? 'expenses' : 'sales');
+
+  React.useEffect(() => {
+    if (initialTab) {
+      setManagerTab(initialTab);
+      if (initialTab === 'expenses') {
+        setWorkerSubTab('expenses');
+      }
+    }
+  }, [initialTab]);
 
   // Filter states
   const [periodPreset, setPeriodPreset] = useState<'today' | 'week' | 'month' | 'custom' | 'all'>('all');
@@ -640,154 +653,346 @@ export const AccountingView: React.FC<AccountingViewProps> = ({
           </div>
         </div>
 
-        {/* Worker 3 Primary Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          
-          {/* Daily Net Profit Card */}
-          <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
-            <div className="relative z-10">
-              <span className="text-xs font-bold text-emerald-100">صافي ربحك اليومي المحقق (اليوم)</span>
-              <div className="text-3xl font-black mt-2 font-mono tracking-tight">
-                +{formatCurrency(workerTodayNetProfit)}
-              </div>
-              <p className="text-[11px] text-emerald-100 mt-2">
-                محسوب تلقائياً (المبيعات ─ تكلفة ورق وحبر الصور والسلع)
-              </p>
-            </div>
-            <div className="absolute -left-3 -bottom-3 text-white/10">
-              <TrendingUp className="w-28 h-28" />
-            </div>
+        {/* Worker Subtab Navigation Bar */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
+            <button
+              onClick={() => setWorkerSubTab('sales')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                workerSubTab === 'sales'
+                  ? 'bg-[#292A34] text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>أرباحي ومبيعاتي اليومية</span>
+            </button>
+            <button
+              onClick={() => setWorkerSubTab('expenses')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                workerSubTab === 'expenses'
+                  ? 'bg-amber-600 text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Receipt className="w-4 h-4" />
+              <span>المصروفات النثرية ({expenses.length})</span>
+            </button>
           </div>
 
-          {/* Daily Gross Sales */}
-          <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-            <span className="text-xs font-bold text-slate-500">إجمالي مبيعاتك اليومية</span>
-            <div className="text-2xl font-black text-[#292A34] mt-2 font-mono">
-              {formatCurrency(workerTodayRevenue)}
-            </div>
-            <div className="text-[11px] text-slate-500 mt-2 font-medium">
-              تكلفة المواد المستهلكة: <strong className="text-[#E31C2B] font-mono">{formatCurrency(workerTodayBOMCost)}</strong>
-            </div>
-          </div>
-
-          {/* Daily Orders Count */}
-          <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-            <span className="text-xs font-bold text-slate-500">الطلبات المنجزة اليوم</span>
-            <div className="text-2xl font-black text-[#292A34] mt-2 font-mono">
-              {workerTodayOrders.length} طلبات
-            </div>
-            <p className="text-[11px] text-slate-500 mt-2 font-medium">
-              تم تسليمها للزبائن وتسجيل استهلاكها بالمخزن
-            </p>
-          </div>
-
+          {workerSubTab === 'expenses' && (
+            <button
+              onClick={() => setShowExpenseModal(true)}
+              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black transition-all shadow-md flex items-center gap-2 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ تسجيل مصروف نثري جديد</span>
+            </button>
+          )}
         </div>
 
-        {/* Worker Today Transactions Table */}
-        <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div>
-              <h3 className="text-sm font-black text-[#292A34]">سجل عملياتك ومبيعاتك اليوم ({formatDate(todayStr)})</h3>
-              <p className="text-xs text-slate-500">تفاصيل كل معاملة مع بيان صافي الربح المحقق منها</p>
-            </div>
-          </div>
+        {workerSubTab === 'sales' ? (
+          <>
+            {/* Worker 3 Primary Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              {/* Daily Net Profit Card */}
+              <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
+                <div className="relative z-10">
+                  <span className="text-xs font-bold text-emerald-100">صافي ربحك اليومي المحقق (اليوم)</span>
+                  <div className="text-3xl font-black mt-2 font-mono tracking-tight">
+                    +{formatCurrency(workerTodayNetProfit)}
+                  </div>
+                  <p className="text-[11px] text-emerald-100 mt-2">
+                    محسوب تلقائياً (المبيعات ─ تكلفة ورق وحبر الصور والسلع)
+                  </p>
+                </div>
+                <div className="absolute -left-3 -bottom-3 text-white/10">
+                  <TrendingUp className="w-28 h-28" />
+                </div>
+              </div>
 
-          {workerTodayOrders.length === 0 ? (
-            <div className="text-center py-10 text-slate-500 space-y-2">
-              <Receipt className="w-10 h-10 mx-auto text-slate-300" />
-              <p className="text-xs font-bold">لم تقم بإتمام أي طلبات بيع بعد لهذا اليوم.</p>
-              <p className="text-[11px] text-slate-400">ستظهر أرباحك وعملياتك هنا بمجرد إتمام أول عملية بيع من شاشة الكاشير.</p>
+              {/* Daily Gross Sales */}
+              <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
+                <span className="text-xs font-bold text-slate-500">إجمالي مبيعاتك اليومية</span>
+                <div className="text-2xl font-black text-[#292A34] mt-2 font-mono">
+                  {formatCurrency(workerTodayRevenue)}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-2 font-medium">
+                  تكلفة المواد المستهلكة: <strong className="text-[#E31C2B] font-mono">{formatCurrency(workerTodayBOMCost)}</strong>
+                </div>
+              </div>
+
+              {/* Daily Orders Count */}
+              <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
+                <span className="text-xs font-bold text-slate-500">الطلبات المنجزة اليوم</span>
+                <div className="text-2xl font-black text-[#292A34] mt-2 font-mono">
+                  {workerTodayOrders.length} طلبات
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2 font-medium">
+                  تم تسليمها للزبائن وتسجيل استهلاكها بالمخزن
+                </p>
+              </div>
+
             </div>
-          ) : (
-            <>
-              {/* Desktop Table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-right text-xs">
-                  <thead>
-                    <tr className="bg-[#292A34] text-white font-bold rounded-xl">
-                      <th className="p-3 rounded-r-xl">رقم الإيصال</th>
-                      <th className="p-3">الوقت</th>
-                      <th className="p-3">الزبون والخدمات</th>
-                      <th className="p-3">سعر البيع</th>
-                      <th className="p-3">تكلفة المواد</th>
-                      <th className="p-3 text-center rounded-l-xl">صافي الربح</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium">
+
+            {/* Worker Today Transactions Table */}
+            <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-sm font-black text-[#292A34]">سجل عملياتك ومبيعاتك اليوم ({formatDate(todayStr)})</h3>
+                  <p className="text-xs text-slate-500">تفاصيل كل معاملة مع بيان صافي الربح المحقق منها</p>
+                </div>
+              </div>
+
+              {workerTodayOrders.length === 0 ? (
+                <div className="text-center py-10 text-slate-500 space-y-2">
+                  <Receipt className="w-10 h-10 mx-auto text-slate-300" />
+                  <p className="text-xs font-bold">لم تقم بإتمام أي طلبات بيع بعد لهذا اليوم.</p>
+                  <p className="text-[11px] text-slate-400">ستظهر أرباحك وعملياتك هنا بمجرد إتمام أول عملية بيع من شاشة الكاشير.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-right text-xs">
+                      <thead>
+                        <tr className="bg-[#292A34] text-white font-bold rounded-xl">
+                          <th className="p-3 rounded-r-xl">رقم الإيصال</th>
+                          <th className="p-3">الوقت</th>
+                          <th className="p-3">الزبون والخدمات</th>
+                          <th className="p-3">سعر البيع</th>
+                          <th className="p-3">تكلفة المواد</th>
+                          <th className="p-3 text-center rounded-l-xl">صافي الربح</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium">
+                        {workerTodayOrders.map(o => {
+                          const orderBOM = o.materialsDeducted?.reduce((acc, m) => acc + m.cost, 0) || 0;
+                          const orderProfit = Math.max(0, o.total - orderBOM);
+
+                          return (
+                            <tr key={o.id} className="hover:bg-slate-50">
+                              <td className="p-3 font-mono font-bold text-slate-700">{o.ticketNumber}</td>
+                              <td className="p-3 font-mono text-slate-500">{formatTime(o.createdAt)}</td>
+                              <td className="p-3 font-bold text-[#292A34]">
+                                <div>{o.customerName}</div>
+                                <div className="text-[10px] text-slate-500 font-normal">
+                                  {o.items.map(i => `${i.quantity}x ${i.service.name}`).join('، ')}
+                                </div>
+                              </td>
+                              <td className="p-3 font-mono font-black text-[#292A34]">{formatCurrency(o.total)}</td>
+                              <td className="p-3 font-mono text-[#E31C2B] font-bold">-{formatCurrency(orderBOM)}</td>
+                              <td className="p-3 text-center font-mono font-black text-emerald-600 bg-emerald-50/50">
+                                +{formatCurrency(orderProfit)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards */}
+                  <div className="md:hidden space-y-3">
                     {workerTodayOrders.map(o => {
                       const orderBOM = o.materialsDeducted?.reduce((acc, m) => acc + m.cost, 0) || 0;
                       const orderProfit = Math.max(0, o.total - orderBOM);
 
                       return (
-                        <tr key={o.id} className="hover:bg-slate-50">
-                          <td className="p-3 font-mono font-bold text-slate-700">{o.ticketNumber}</td>
-                          <td className="p-3 font-mono text-slate-500">{formatTime(o.createdAt)}</td>
-                          <td className="p-3 font-bold text-[#292A34]">
+                        <div key={o.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-black text-sm text-[#E31C2B]">{o.ticketNumber}</span>
+                              <span className="text-[11px] font-mono text-slate-400">{formatTime(o.createdAt)}</span>
+                            </div>
+                            <span className="font-mono font-black text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">
+                              صافي: +{formatCurrency(orderProfit)}
+                            </span>
+                          </div>
+
+                          <div className="text-xs font-bold text-[#292A34]">
                             <div>{o.customerName}</div>
-                            <div className="text-[10px] text-slate-500 font-normal">
+                            <div className="text-[10px] text-slate-500 font-normal mt-0.5">
                               {o.items.map(i => `${i.quantity}x ${i.service.name}`).join('، ')}
                             </div>
-                          </td>
-                          <td className="p-3 font-mono font-black text-[#292A34]">{formatCurrency(o.total)}</td>
-                          <td className="p-3 font-mono text-[#E31C2B] font-bold">-{formatCurrency(orderBOM)}</td>
-                          <td className="p-3 text-center font-mono font-black text-emerald-600 bg-emerald-50/50">
-                            +{formatCurrency(orderProfit)}
-                          </td>
-                        </tr>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                            <span className="text-slate-500 font-mono text-[11px]">
+                              تكلفة: -{formatCurrency(orderBOM)}
+                            </span>
+                            <span className="font-mono font-black text-sm text-[#292A34]">
+                              {formatCurrency(o.total)}
+                            </span>
+                          </div>
+                        </div>
                       );
                     })}
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        ) : (
+          /* Worker Petty Cash Expenses View */
+          <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+              <div>
+                <h3 className="text-sm font-black text-[#292A34]">سجل المصروفات النثرية والتشغيلية (Petty Cash)</h3>
+                <p className="text-xs text-slate-500">توثيق المصروفات النقدية المسحوبة من الدرج والصندوق</p>
+              </div>
+              <div className="text-xs font-bold text-slate-600 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+                إجمالي المصروفات النثرية: <strong className="font-mono font-black text-amber-900">{formatCurrency(expenses.reduce((sum, e) => sum + (e.amount || 0), 0))}</strong>
+              </div>
+            </div>
+
+            {/* Expenses Table */}
+            {expenses.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 space-y-2">
+                <Receipt className="w-10 h-10 mx-auto text-slate-300" />
+                <p className="text-xs font-bold">لا توجد أي مصروفات نثرية مسجلة حالياً.</p>
+                <p className="text-[11px] text-slate-400">انقر زر "+ تسجيل مصروف نثري جديد" لإضافة سند صرف.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="bg-[#292A34] text-white font-bold rounded-xl">
+                      <th className="p-3 rounded-r-xl">التاريخ والوقت</th>
+                      <th className="p-3">بيان المصروف</th>
+                      <th className="p-3">التصنيف</th>
+                      <th className="p-3">الموظف</th>
+                      <th className="p-3">الفرع</th>
+                      <th className="p-3 text-center">المبلغ</th>
+                      <th className="p-3 rounded-l-xl">ملاحظات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {expenses.map(exp => (
+                      <tr key={exp.id} className="hover:bg-slate-50">
+                        <td className="p-3 font-mono text-slate-500 whitespace-nowrap">{formatDate(exp.createdAt)}</td>
+                        <td className="p-3 font-black text-slate-800">{exp.title}</td>
+                        <td className="p-3">
+                          <span className={`inline-block text-[10px] px-2 py-0.5 rounded-md font-bold border ${
+                            exp.category === 'materials'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200'
+                              : exp.category === 'tea_coffee'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : exp.category === 'maintenance'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : exp.category === 'salary'
+                              ? 'bg-purple-50 text-purple-800 border-purple-200'
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
+                          }`}>
+                            {exp.category === 'materials' ? 'مواد ومستلزمات' : exp.category === 'tea_coffee' ? 'شاي وقهوة' : exp.category === 'maintenance' ? 'صيانة ونظافة' : exp.category === 'salary' ? 'رواتب' : 'نثريات'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-700 whitespace-nowrap font-bold">{exp.staffName}</td>
+                        <td className="p-3 text-slate-500 text-[11px] whitespace-nowrap">{exp.storeName || 'سيدي عامر'}</td>
+                        <td className="p-3 font-mono font-black text-[#E31C2B] text-center whitespace-nowrap">{formatCurrency(exp.amount)}</td>
+                        <td className="p-3 text-slate-500 text-[11px] truncate max-w-[150px]">{exp.notes || '-'}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
-
-              {/* Mobile Cards (No Horizontal Scroll) */}
-              <div className="md:hidden space-y-3">
-                {workerTodayOrders.map(o => {
-                  const orderBOM = o.materialsDeducted?.reduce((acc, m) => acc + m.cost, 0) || 0;
-                  const orderProfit = Math.max(0, o.total - orderBOM);
-
-                  return (
-                    <div key={o.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-black text-sm text-[#E31C2B]">{o.ticketNumber}</span>
-                          <span className="text-[11px] font-mono text-slate-400">{formatTime(o.createdAt)}</span>
-                        </div>
-                        <span className="font-mono font-black text-xs text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">
-                          صافي: +{formatCurrency(orderProfit)}
-                        </span>
-                      </div>
-
-                      <div className="text-xs font-bold text-[#292A34]">
-                        <div>{o.customerName}</div>
-                        <div className="text-[10px] text-slate-500 font-normal mt-0.5">
-                          {o.items.map(i => `${i.quantity}x ${i.service.name}`).join('، ')}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
-                        <span className="text-slate-500 font-mono text-[11px]">
-                          تكلفة: -{formatCurrency(orderBOM)}
-                        </span>
-                        <span className="font-mono font-black text-sm text-[#292A34]">
-                          {formatCurrency(o.total)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-
-          {/* Privacy Notice for Worker */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-500 flex items-center gap-2">
-            <Lock className="w-4 h-4 text-slate-400 shrink-0" />
-            <span>
-              🔒 ملاحظة: التقارير المالية العامة الشاملة، ملخصات بقية الأيام والشهور، وإدارة الفريق مخصصة للمدير العام (fouad) فقط.
-            </span>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* Worker Expense Modal */}
+        {showExpenseModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs" dir="rtl">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-amber-100 text-amber-900">
+                    <Receipt className="w-5 h-5 text-amber-700" />
+                  </div>
+                  <h3 className="text-base font-black text-slate-900">تسجيل مصروف نثري جديد</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowExpenseModal(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateExpense} className="space-y-3.5">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">بيان المصروف الغرض *</label>
+                  <input
+                    type="text"
+                    required
+                    value={expenseTitle}
+                    onChange={(e) => setExpenseTitle(e.target.value)}
+                    placeholder="مثال: شراء شاي وسكر، بنزين للتوصيل، صيانة طابعة..."
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">المبلغ (دج) *</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={expenseAmount}
+                      onChange={(e) => setExpenseAmount(e.target.value)}
+                      placeholder="0"
+                      className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-black text-[#E31C2B] focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">التصنيف</label>
+                    <select
+                      value={expenseCategory}
+                      onChange={(e) => setExpenseCategory(e.target.value as Expense['category'])}
+                      className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-amber-500"
+                    >
+                      <option value="tea_coffee">ضيافة وشاي/قهوة</option>
+                      <option value="materials">مواد ومستلزمات عاجلة</option>
+                      <option value="maintenance">صيانة وتنظيف</option>
+                      <option value="salary">سلف موظفين</option>
+                      <option value="other">نثريات أخرى</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">ملاحظات إضافية</label>
+                  <input
+                    type="text"
+                    value={expenseNotes}
+                    onChange={(e) => setExpenseNotes(e.target.value)}
+                    placeholder="ملاحظة أو سبب الصرف..."
+                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowExpenseModal(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold hover:bg-slate-200"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black shadow-md"
+                  >
+                    حفظ وصرف
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
       </div>
     );

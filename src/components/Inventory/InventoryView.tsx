@@ -55,7 +55,7 @@ import {
   AssociativeComponent,
   AssociativeModelTemplate
 } from '../../types';
-import { formatCurrency, formatNumber, exportToCSV, calculateServiceBOMCost } from '../../utils/formatters';
+import { formatCurrency, formatNumber, exportToCSV, calculateServiceBOMCost, getItemUnitCost, getAssociativeProductUnitCostBreakdown } from '../../utils/formatters';
 import { compressAndResizeImage } from '../../utils/imageCompressor';
 
 export const DEFAULT_CUSTOM_CATEGORIES: string[] = [
@@ -1195,7 +1195,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const numInkYield = Math.max(1, Number(photoInkYield) || 1);
 
   const unitPaperCost = selectedPaperMat ? (selectedPaperMat.unitCost / numPhotosPerSheet) : 0;
-  const unitInkCost = selectedInkMat ? (selectedInkMat.unitCost * (100 / numInkYield)) : 0;
+  const unitInkCost = selectedInkMat ? (selectedInkMat.unitCost / numInkYield) : 0;
   const unitFrameCost = selectedFrameMat ? selectedFrameMat.unitCost : 0;
   const totalItemCost = totalAssociativeCost > 0 ? totalAssociativeCost : (unitPaperCost + unitInkCost + unitFrameCost);
 
@@ -2146,22 +2146,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredProducts.map(s => {
-                const rawCost = s.itemType === 'direct_sale' ? (s.buyCost || 0) : calculateServiceBOMCost(s.bom, materials, services);
+                const associativeBreakdown = s.photoConfig ? getAssociativeProductUnitCostBreakdown(s, materials, services) : null;
+                const rawCost = associativeBreakdown ? associativeBreakdown.totalUnitCost : getItemUnitCost(s, materials, services);
                 const profit = Math.max(0, s.price - rawCost);
                 const margin = s.price > 0 ? ((profit / s.price) * 100).toFixed(0) : '0';
 
                 const linkedConfig = s.photoConfig;
-                const pMat = linkedConfig ? (materials || []).find(m => m.id === linkedConfig.paperMaterialId) : null;
-                const iMat = linkedConfig ? (materials || []).find(m => m.id === linkedConfig.inkMaterialId) : null;
-                const frameMat = linkedConfig?.frameMaterialId ? (materials || []).find(m => m.id === linkedConfig.frameMaterialId) : null;
-                const pPerSheet = linkedConfig?.photosPerSheet || 1;
-                const iCostPerPhoto = iMat 
-                  ? (iMat.unitCost * (100 / (linkedConfig?.inkYieldPhotos || 1)))
-                  : (linkedConfig?.inkPerPhotoMl && iMat ? iMat.unitCost * linkedConfig.inkPerPhotoMl : 0);
-                const iCostPerSheet = iCostPerPhoto * pPerSheet;
-                const pCostPerSheet = pMat ? pMat.unitCost : 0;
-                const frameCost = frameMat ? frameMat.unitCost : 0;
-                const totalCostPerSheet = pCostPerSheet + iCostPerSheet;
+                const pPerSheet = associativeBreakdown?.photosPerSheet || linkedConfig?.photosPerSheet || 1;
 
                 return (
                   <div key={s.id} className="bg-[#F9FAFB] border border-slate-200 rounded-2xl p-4 space-y-3 relative hover:border-[#E31C2B] transition-all flex flex-col justify-between">
@@ -2280,11 +2271,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     {/* Financial Breakdown per item */}
                     <div className="bg-white p-3 rounded-xl border border-slate-200 grid grid-cols-3 gap-2 text-center">
                       <div>
-                        <span className="text-[10px] text-slate-500 font-bold block">سعر التكلفة/الشراء</span>
+                        <span className="text-[10px] text-slate-500 font-bold block">
+                          {s.photoConfig ? 'تكلفة النسخة/الصورة' : 'سعر التكلفة/الشراء'}
+                        </span>
                         <span className="text-xs font-mono font-bold text-slate-700">{formatCurrency(rawCost)}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-500 font-bold block">سعر البيع (كامل المبلغ)</span>
+                        <span className="text-[10px] text-slate-500 font-bold block">سعر البيع للعميل</span>
                         <span className="text-xs font-mono font-bold text-[#292A34]">{formatCurrency(s.price)}</span>
                       </div>
                       <div>
@@ -2294,43 +2287,52 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     </div>
 
                     {/* Linked Photo Product Breakdown (Paper + Ink + Frame) */}
-                    {linkedConfig && (
+                    {associativeBreakdown && (
                       <div className="bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/90 rounded-xl p-2.5 space-y-2 text-xs">
                         <div className="flex items-center justify-between text-amber-900 font-bold">
                           <div className="flex items-center gap-1.5">
                             <Link2 className="w-3.5 h-3.5 text-amber-600" />
-                            <span className="text-[11px]">تحليل المنتج الارتباطي (ورق + حبر {frameMat ? '+ كادر' : ''}):</span>
+                            <span className="text-[11px]">تحليل تكلفة الوحدة للمنتج الارتباطي:</span>
                           </div>
                           <span className="text-[10px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md font-mono font-bold">
-                            {linkedConfig.paperSize} ({pPerSheet} صور/ورقة)
+                            {linkedConfig?.paperSize} ({pPerSheet} صور/ورقة)
                           </span>
                         </div>
 
-                        {/* Breakdown matrix: Per Photo vs Per Sheet */}
+                        {/* Breakdown matrix: Per Photo Consumables */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center text-[10px] pt-1 border-t border-amber-200/70">
-                          <div className="bg-white p-1.5 rounded-lg border border-amber-300 shadow-2xs">
-                            <span className="text-amber-800 font-bold block">حبر الورقة:</span>
-                            <strong className="font-mono text-amber-700 font-black text-xs block">{formatCurrency(iCostPerSheet)}</strong>
-                          </div>
                           <div className="bg-white p-1.5 rounded-lg border border-amber-200 shadow-2xs">
-                            <span className="text-slate-500 block">الورقة الخام:</span>
-                            <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(pCostPerSheet)}</strong>
+                            <span className="text-slate-500 block">ورق الصورة:</span>
+                            <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(associativeBreakdown.paperUnitCost)}</strong>
                           </div>
-                          {frameMat && (
+                          <div className="bg-white p-1.5 rounded-lg border border-amber-300 shadow-2xs">
+                            <span className="text-amber-800 font-bold block">حبر الصورة:</span>
+                            <strong className="font-mono text-amber-700 font-black text-xs block">{formatCurrency(associativeBreakdown.inkUnitCost)}</strong>
+                          </div>
+                          {(associativeBreakdown.frameUnitCost > 0 || associativeBreakdown.otherConsumablesCost > 0) && (
                             <div className="bg-white p-1.5 rounded-lg border border-purple-200 shadow-2xs">
-                              <span className="text-purple-700 font-bold block">الكادر/الإطار:</span>
-                              <strong className="font-mono text-purple-700 font-black text-xs block">{formatCurrency(frameCost)}</strong>
+                              <span className="text-purple-700 font-bold block">كادر / سلع:</span>
+                              <strong className="font-mono text-purple-700 font-black text-xs block">
+                                {formatCurrency(associativeBreakdown.frameUnitCost + associativeBreakdown.otherConsumablesCost)}
+                              </strong>
                             </div>
                           )}
-                          <div className="bg-white p-1.5 rounded-lg border border-amber-300 shadow-2xs">
-                            <span className="text-slate-700 font-bold block">إجمالي التكلفة:</span>
-                            <strong className="font-mono text-slate-900 font-black text-xs block">{formatCurrency(rawCost)}</strong>
+                          <div className="bg-amber-100/70 p-1.5 rounded-lg border border-amber-300 shadow-2xs">
+                            <span className="text-amber-950 font-bold block">تكلفة الصورة:</span>
+                            <strong className="font-mono text-[#E31C2B] font-black text-xs block">{formatCurrency(associativeBreakdown.totalUnitCost)}</strong>
                           </div>
                         </div>
 
+                        {/* Summary Pill for Packages */}
                         <div className="text-[9px] text-amber-900 flex items-center justify-between pt-0.5 px-0.5 border-t border-amber-200/50">
-                          <span>حبر الصورة: <strong className="font-mono font-bold text-amber-900">{formatCurrency(iCostPerPhoto)}</strong> • ورق الصورة: <strong className="font-mono font-bold">{formatCurrency(pCostPerSheet / pPerSheet)}</strong></span>
-                          {frameMat && <span className="font-bold text-purple-800 truncate max-w-[130px]">{frameMat.name}</span>}
+                          <span>
+                            حساب الوحدة: ({formatCurrency(associativeBreakdown.paperUnitCost)} ورق + {formatCurrency(associativeBreakdown.inkUnitCost)} حبر) = <strong>{formatCurrency(associativeBreakdown.totalUnitCost)} للصورة</strong>
+                          </span>
+                          {pPerSheet > 1 && (
+                            <span className="font-bold text-slate-600 bg-white px-1.5 py-0.5 rounded border border-amber-200 font-mono">
+                              باقة {pPerSheet} صور: {formatCurrency(associativeBreakdown.packageTotalCost)}
+                            </span>
+                          )}
                         </div>
                       </div>
                     )}
@@ -4246,50 +4248,56 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
               {/* Linked Photo Product Breakdown (If photoConfig exists) */}
               {editingProduct.photoConfig && (() => {
+                const breakdown = getAssociativeProductUnitCostBreakdown(editingProduct, materials, services);
                 const cfg = editingProduct.photoConfig;
-                const pMat = (materials || []).find(m => m.id === cfg.paperMaterialId);
-                const iMat = (materials || []).find(m => m.id === cfg.inkMaterialId);
-                const pPerSheet = cfg.photosPerSheet || 1;
-                const iCostPerPhoto = iMat 
-                  ? (iMat.unitCost * (100 / (cfg.inkYieldPhotos || 1)))
-                  : (cfg.inkPerPhotoMl && iMat ? iMat.unitCost * cfg.inkPerPhotoMl : 0);
-                const iCostPerSheet = iCostPerPhoto * pPerSheet;
-                const pCostPerSheet = pMat ? pMat.unitCost : 0;
-                const totalCostSheet = pCostPerSheet + iCostPerSheet;
+                const pPerSheet = breakdown.photosPerSheet;
 
                 return (
                   <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3 space-y-2 text-xs">
                     <div className="flex items-center justify-between text-amber-900 font-bold">
                       <span className="flex items-center gap-1.5">
                         <Link2 className="w-4 h-4 text-amber-600" />
-                        <span>بيانات الربط الآلي (الورق والحبر المستهلك):</span>
+                        <span>بيانات التكلفة الارتباطية (لكل صورة مستهلكة):</span>
                       </span>
                       <span className="bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold">
-                        مقاس {cfg.paperSize} ({pPerSheet} صور/ورقة)
+                        مقاس {cfg?.paperSize} ({pPerSheet} صور/ورقة)
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-[11px]">
+                      <div className="bg-white p-2 rounded-lg border border-amber-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 block">تكلفة ورق الصورة:</span>
+                        <strong className="font-mono text-slate-800 font-bold text-sm block mt-0.5">{formatCurrency(breakdown.paperUnitCost)}</strong>
+                        <span className="text-[9px] text-slate-400 block font-mono">سعر الورقة ÷ {pPerSheet}</span>
+                      </div>
                       <div className="bg-white p-2 rounded-lg border border-amber-300 shadow-2xs">
-                        <span className="text-[10px] text-amber-800 font-bold block">تكلفة الحبر للورقة:</span>
-                        <strong className="font-mono text-amber-700 font-black text-sm block mt-0.5">{formatCurrency(iCostPerSheet)}</strong>
-                        <span className="text-[9px] text-slate-400 block font-mono">({formatCurrency(iCostPerPhoto)} × {pPerSheet})</span>
+                        <span className="text-[10px] text-amber-800 font-bold block">تكلفة حبر الصورة:</span>
+                        <strong className="font-mono text-amber-700 font-black text-sm block mt-0.5">{formatCurrency(breakdown.inkUnitCost)}</strong>
+                        <span className="text-[9px] text-slate-400 block font-mono">سعر الحبر ÷ إنتاجية الصور</span>
                       </div>
-                      <div className="bg-white p-2 rounded-lg border border-amber-200 shadow-2xs">
-                        <span className="text-[10px] text-slate-500 block">تكلفة الورقة الخام</span>
-                        <strong className="font-mono text-slate-800 font-bold text-sm block mt-0.5">{formatCurrency(pCostPerSheet)}</strong>
-                        <span className="text-[9px] text-slate-400 block font-mono truncate">{pMat?.name?.split(' ')?.[0] || 'الورق'}</span>
+                      <div className="bg-white p-2 rounded-lg border border-purple-200 shadow-2xs">
+                        <span className="text-[10px] text-purple-700 font-bold block">كادر / مستلزمات:</span>
+                        <strong className="font-mono text-purple-700 font-bold text-sm block mt-0.5">
+                          {formatCurrency(breakdown.frameUnitCost + breakdown.otherConsumablesCost)}
+                        </strong>
+                        <span className="text-[9px] text-slate-400 block font-mono">ملحقات الوحدة</span>
                       </div>
-                      <div className="bg-white p-2 rounded-lg border border-amber-200 shadow-2xs">
-                        <span className="text-[10px] text-slate-500 block">إجمالي تكلفة الورقة</span>
-                        <strong className="font-mono text-slate-900 font-black text-sm block mt-0.5">{formatCurrency(totalCostSheet)}</strong>
-                        <span className="text-[9px] text-slate-400 block">ورق + حبر</span>
+                      <div className="bg-amber-100/80 p-2 rounded-lg border border-amber-400 shadow-2xs">
+                        <span className="text-[10px] text-amber-950 font-black block">إجمالي تكلفة الصورة:</span>
+                        <strong className="font-mono text-[#E31C2B] font-black text-sm block mt-0.5">{formatCurrency(breakdown.totalUnitCost)}</strong>
+                        <span className="text-[9px] text-amber-800 font-bold block font-mono">ورق + حبر + كادر</span>
                       </div>
-                      <div className="bg-white p-2 rounded-lg border border-amber-200 shadow-2xs">
-                        <span className="text-[10px] text-slate-500 block">تكلفة حبر الصورة</span>
-                        <strong className="font-mono text-slate-700 font-bold text-sm block mt-0.5">{formatCurrency(iCostPerPhoto)}</strong>
-                        <span className="text-[9px] text-slate-400 block">لكل صورة مطبوعة</span>
-                      </div>
+                    </div>
+
+                    <div className="text-[10px] text-amber-900 bg-white/80 p-2 rounded-lg border border-amber-200 flex items-center justify-between">
+                      <span>
+                        المعادلة: تكلفة الورقة ({formatCurrency(breakdown.paperUnitCost)}) + تكلفة الحبر ({formatCurrency(breakdown.inkUnitCost)}) = <strong>{formatCurrency(breakdown.totalUnitCost)} للنسخة الواحدة</strong>
+                      </span>
+                      {pPerSheet > 1 && (
+                        <span className="font-mono font-bold text-slate-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-300">
+                          باقة {pPerSheet} صور: {formatCurrency(breakdown.packageTotalCost)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 );

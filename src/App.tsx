@@ -1194,6 +1194,8 @@ export function App() {
                       onAddService={handleAddService}
                       onUpdateService={handleUpdateService}
                       onDeleteService={handleDeleteService}
+                      onOpenExpenseModal={() => setShowQuickExpenseModal(true)}
+                      expenses={filteredExpenses || []}
                       onPrintLastReceipt={() => {
                         if (filteredOrders.length > 0) {
                           setPrintedOrder(filteredOrders[0]);
@@ -1260,7 +1262,7 @@ export function App() {
                     />
                   )}
 
-                  {activeTab === 'accounting' && (
+                  {(activeTab === 'accounting' || activeTab === 'expenses') && (
                     <AccountingView
                       orders={filteredOrders || []}
                       materials={filteredMaterials || []}
@@ -1284,6 +1286,7 @@ export function App() {
                       onDeleteSalaryPayment={handleDeleteSalaryPayment}
                       currentStoreId={effectiveStoreId}
                       stores={stores}
+                      initialTab={activeTab === 'expenses' ? 'expenses' : 'financial'}
                     />
                   )}
 

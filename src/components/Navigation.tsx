@@ -30,7 +30,7 @@ import { Staff, AttendanceRecord, Store } from '../types';
 import { soundManager } from '../utils/audio';
 import { FotopLogo } from './common/FotopLogo';
 
-export type TabType = 'pos' | 'dashboard' | 'inventory' | 'waste' | 'shifts' | 'accounting' | 'hr' | 'orders' | 'specs' | 'settings';
+export type TabType = 'pos' | 'dashboard' | 'inventory' | 'waste' | 'shifts' | 'accounting' | 'hr' | 'orders' | 'specs' | 'settings' | 'expenses';
 
 interface NavigationProps {
   currentStaff: Staff;
@@ -179,6 +179,13 @@ export const Navigation: React.FC<NavigationProps> = ({
       description: 'المصروفات، الدخل، والأرباح التفصيلية',
       icon: BarChart3,
       managerOnly: true
+    },
+    {
+      id: 'expenses',
+      label: 'المصروفات النثرية والتشغيلية',
+      shortLabel: 'المصروفات النثرية',
+      description: 'سجل النثريات، المشتريات ومصاريف الدرج',
+      icon: ReceiptText
     },
     {
       id: 'specs',

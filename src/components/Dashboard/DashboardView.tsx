@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   TrendingUp, 
+  TrendingDown,
   DollarSign, 
   Wallet, 
   Receipt, 
@@ -15,6 +16,7 @@ import {
   Sparkles, 
   Zap, 
   Plus, 
+  PlusCircle,
   ChevronRight, 
   BarChart3, 
   Calendar,
@@ -75,6 +77,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [period, setPeriod] = useState<PeriodFilter>('today');
   const [stockAlertFilter, setStockAlertFilter] = useState<'all' | 'out_of_stock' | 'critical' | 'warning'>('all');
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<Order | null>(null);
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState<string>('all');
 
   const now = new Date();
   const todayStr = now.toISOString().split('T')[0];
@@ -300,11 +303,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* KPI Cards Row (4 Columns) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Cards Row (5 Columns) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         
         {/* Gross Revenue Card */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500">إجمالي المداخيل</span>
             <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
@@ -312,7 +315,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black text-[#292A34] font-mono">
+            <div className="text-xl sm:text-2xl font-black text-[#292A34] font-mono">
               {formatCurrency(totalRevenue)}
             </div>
             <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 mt-1">
@@ -323,7 +326,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Net Profit Card */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500">صافي الربح الفعلي</span>
             <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
@@ -331,7 +334,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black text-emerald-600 font-mono">
+            <div className="text-xl sm:text-2xl font-black text-emerald-600 font-mono">
               {formatCurrency(netProfit)}
             </div>
             <div className="text-[11px] font-bold text-slate-500 mt-1">
@@ -340,21 +343,49 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Cash in Drawer / Shift */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-3">
+        {/* Petty Cash Expenses Card (المصروفات النثرية والتشغيلية) */}
+        <div 
+          onClick={() => {
+            const el = document.getElementById('dashboard-petty-expenses');
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth' });
+            }
+          }}
+          className="bg-white border border-slate-200 hover:border-amber-400 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 cursor-pointer transition-all group"
+          title="انقر للانتقال لسجل المصروفات النثرية"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">السيولة الحالية بالصندوق</span>
-            <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+            <span className="text-xs font-bold text-slate-500">المصروفات النثرية</span>
+            <div className="p-2 rounded-xl bg-amber-50 text-amber-700 group-hover:scale-110 transition-transform">
+              <Receipt className="w-5 h-5" />
+            </div>
+          </div>
+          <div>
+            <div className="text-xl sm:text-2xl font-black text-amber-900 font-mono">
+              {formatCurrency(totalExpensesAmount)}
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-amber-700 mt-1">
+              <TrendingDown className="w-3.5 h-3.5 text-amber-600" />
+              <span>{filteredExpenses.length} سند صرف نثري</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Cash in Drawer / Shift */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500">السيولة بالصندوق</span>
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-700">
               <Wallet className="w-5 h-5" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black text-[#292A34] font-mono">
+            <div className="text-xl sm:text-2xl font-black text-[#292A34] font-mono">
               {formatCurrency(activeShift?.calculatedCash || activeShift?.startingCash || 0)}
             </div>
-            <div className="flex items-center gap-1 text-[11px] font-bold text-slate-500 mt-1">
+            <div className="flex items-center gap-1 text-[11px] font-bold text-slate-500 mt-1 truncate">
               <Clock className="w-3.5 h-3.5 text-amber-500" />
-              <span>{activeShift ? `وردية مفتوحة (${activeShift.openedBy})` : 'لا توجد وردية مفتوحة'}</span>
+              <span className="truncate">{activeShift ? `وردية (${activeShift.openedBy})` : 'لا توجد وردية'}</span>
             </div>
           </div>
         </div>
@@ -369,21 +400,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               handleMaterialClick();
             }
           }}
-          className="bg-white border border-slate-200 hover:border-red-300 rounded-2xl p-5 shadow-xs space-y-3 cursor-pointer transition-all group"
+          className="bg-white border border-slate-200 hover:border-red-300 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 cursor-pointer transition-all group"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">تنبيهات المخزن والورق</span>
+            <span className="text-xs font-bold text-slate-500">نواقص المخزن</span>
             <div className={`p-2 rounded-xl transition-transform group-hover:scale-110 ${criticalMaterials.length > 0 ? 'bg-rose-50 text-[#E31C2B] animate-pulse' : 'bg-slate-100 text-slate-500'}`}>
               <AlertTriangle className="w-5 h-5" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-black text-[#292A34] font-mono flex items-baseline gap-1.5">
+            <div className="text-xl sm:text-2xl font-black text-[#292A34] font-mono flex items-baseline gap-1.5">
               <span>{criticalMaterials.length}</span>
-              <span className="text-xs font-normal text-slate-500">مواد تحت الحد الأدنى</span>
+              <span className="text-[10px] font-normal text-slate-500">مواد تحت الحد</span>
             </div>
             <div className="text-[11px] font-bold text-[#E31C2B] group-hover:underline flex items-center gap-1 mt-1">
-              <span>عرض قائمة النواقص وتوريدها</span>
+              <span>عرض النواقص</span>
               <ChevronRight className="w-3 h-3 rotate-180" />
             </div>
           </div>
@@ -931,6 +962,160 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
         </div>
 
+      </div>
+
+      {/* ========================================================================= */}
+      {/* DEDICATED PETTY CASH LEDGER SECTION (سجل المصروفات النثرية والتشغيلية)   */}
+      {/* ========================================================================= */}
+      <div id="dashboard-petty-expenses" className="scroll-mt-6 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700">
+              <Receipt className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-black text-[#292A34]">سجل المصروفات النثرية والتشغيلية</h2>
+                <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 font-bold px-2 py-0.5 rounded-md">
+                  Petty Cash
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                متابعة وتوثيق كافة المصروفات النقدية المسحوبة من الصندوق والدرج لليوم والفترات السابقة
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {onOpenQuickExpense && (
+              <button
+                onClick={onOpenQuickExpense}
+                className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                title="تسجيل مصروف نثري جديد"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>+ تسجيل مصروف نثري</span>
+              </button>
+            )}
+            <button
+              onClick={() => onNavigateTab('accounting')}
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+              title="عرض التفاصيل في قسم المحاسبة والتقارير المالية"
+            >
+              <span>تفاصيل المحاسبة</span>
+              <ChevronRight className="w-3.5 h-3.5 rotate-180" />
+            </button>
+          </div>
+        </div>
+
+        {/* Category Filter Pills & Summary Row */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-[#F9FAFB] p-3 rounded-xl border border-slate-200/80">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 w-full md:w-auto">
+            {[
+              { id: 'all', label: 'الكل' },
+              { id: 'materials', label: 'مواد ومستلزمات' },
+              { id: 'tea_coffee', label: 'ضيافة وشاي' },
+              { id: 'maintenance', label: 'صيانة ونظافة' },
+              { id: 'salary', label: 'سلف ورواتب' },
+              { id: 'other', label: 'نثريات أخرى' }
+            ].map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setExpenseCategoryFilter(cat.id)}
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                  expenseCategoryFilter === cat.id
+                    ? 'bg-[#292A34] text-white shadow-xs'
+                    : 'bg-white text-slate-600 hover:text-[#292A34] border border-slate-200'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3 text-xs font-bold text-slate-600 self-end md:self-auto">
+            <span>
+              إجمالي المعروض: <strong className="font-mono text-[#E31C2B] text-sm font-black">{formatCurrency(
+                filteredExpenses
+                  .filter(e => expenseCategoryFilter === 'all' || e.category === expenseCategoryFilter)
+                  .reduce((sum, e) => sum + (e.amount || 0), 0)
+              )}</strong>
+            </span>
+            <span className="text-slate-300">|</span>
+            <span className="text-[11px] font-mono">
+              {filteredExpenses.filter(e => expenseCategoryFilter === 'all' || e.category === expenseCategoryFilter).length} سند
+            </span>
+          </div>
+        </div>
+
+        {/* Expenses Table */}
+        <div className="overflow-x-auto table-responsive-container">
+          <table className="w-full text-right text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-400 font-bold bg-slate-50/50">
+                <th className="py-2.5 px-3">التاريخ والوقت</th>
+                <th className="py-2.5 px-3">بيان المصروف النثري</th>
+                <th className="py-2.5 px-3">التصنيف</th>
+                <th className="py-2.5 px-3">المسؤول عن الصرف</th>
+                <th className="py-2.5 px-3">الفرع</th>
+                <th className="py-2.5 px-3">المبلغ (دج)</th>
+                <th className="py-2.5 px-3">ملاحظات</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredExpenses
+                .filter(e => expenseCategoryFilter === 'all' || e.category === expenseCategoryFilter)
+                .length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-10 text-center text-slate-400">
+                    <Receipt className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-bold text-xs">لا توجد مصروفات نثرية مسجلة لهذه الفترة أو التصنيف.</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredExpenses
+                  .filter(e => expenseCategoryFilter === 'all' || e.category === expenseCategoryFilter)
+                  .map(exp => (
+                    <tr key={exp.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-3 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                        {formatDate(exp.createdAt)}
+                      </td>
+                      <td className="py-3 px-3 font-black text-slate-800">
+                        {exp.title}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`inline-block text-[10px] px-2 py-0.5 rounded-md font-bold border ${
+                          exp.category === 'materials'
+                            ? 'bg-blue-50 text-blue-800 border-blue-200'
+                            : exp.category === 'tea_coffee'
+                            ? 'bg-amber-50 text-amber-800 border-amber-200'
+                            : exp.category === 'maintenance'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : exp.category === 'salary'
+                            ? 'bg-purple-50 text-purple-800 border-purple-200'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}>
+                          {exp.category === 'materials' ? 'مواد ومستلزمات' : exp.category === 'tea_coffee' ? 'شاي وقهوة' : exp.category === 'maintenance' ? 'صيانة ونظافة' : exp.category === 'salary' ? 'رواتب' : 'نثريات عامة'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-bold text-slate-700 whitespace-nowrap">
+                        {exp.staffName || 'طاقم العمل'}
+                      </td>
+                      <td className="py-3 px-3 text-[11px] text-slate-500 whitespace-nowrap">
+                        {exp.storeName || (exp.storeId === 'store_labhour' ? 'الأبحور' : 'سيدي عامر')}
+                      </td>
+                      <td className="py-3 px-3 font-mono font-black text-[#E31C2B] text-sm whitespace-nowrap">
+                        {formatCurrency(exp.amount)}
+                      </td>
+                      <td className="py-3 px-3 text-slate-500 text-[11px] max-w-[200px] truncate">
+                        {exp.notes || '-'}
+                      </td>
+                    </tr>
+                  ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Order Details Modal for Mobile Touch & Quick Inspection */}
