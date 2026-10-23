@@ -2144,7 +2144,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               <p className="text-[11px] text-slate-400">يمكنك إضافة سلعة أو خدمة جديدة بنقر أزرار الإضافة أعلاه.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
               {filteredProducts.map(s => {
                 const associativeBreakdown = s.photoConfig ? getAssociativeProductUnitCostBreakdown(s, materials, services) : null;
                 const rawCost = associativeBreakdown ? associativeBreakdown.totalUnitCost : getItemUnitCost(s, materials, services);
@@ -2155,11 +2155,11 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 const pPerSheet = associativeBreakdown?.photosPerSheet || linkedConfig?.photosPerSheet || 1;
 
                 return (
-                  <div key={s.id} className="bg-[#F9FAFB] border border-slate-200 rounded-2xl p-4 space-y-3 relative hover:border-[#E31C2B] transition-all flex flex-col justify-between">
+                  <div key={s.id} className="bg-[#F9FAFB] border border-slate-200 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 space-y-2 sm:space-y-3 relative hover:border-[#E31C2B] transition-all flex flex-col justify-between shadow-2xs group/card">
                     <div>
                       {/* Product Image Banner if available, or image adder */}
                       {s.imageUrl ? (
-                        <div className="w-full h-36 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 mb-3 relative group">
+                        <div className="w-full aspect-4/3 rounded-lg sm:rounded-xl overflow-hidden bg-slate-100 border border-slate-200 mb-2 sm:mb-3 relative group shadow-2xs">
                           <img 
                             src={s.imageUrl} 
                             alt={s.name} 
@@ -2172,39 +2172,41 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           />
                           <button
                             onClick={() => handleOpenEditProduct(s)}
-                            className="absolute bottom-2 left-2 px-2.5 py-1 rounded-lg bg-black/75 hover:bg-black text-white text-[10px] font-bold flex items-center gap-1.5 backdrop-blur-xs transition-colors shadow-sm cursor-pointer"
+                            className="absolute bottom-1.5 left-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-md sm:rounded-lg bg-black/75 hover:bg-black text-white text-[9px] sm:text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs transition-colors shadow-xs cursor-pointer"
                             title="تغيير صورة المنتج"
                           >
-                            <Camera className="w-3.5 h-3.5 text-amber-400" />
-                            <span>تغيير الصورة</span>
+                            <Camera className="w-3 h-3 text-amber-400" />
+                            <span className="hidden sm:inline">تغيير الصورة</span>
                           </button>
                         </div>
                       ) : (
-                        <div className="w-full py-2.5 px-3 rounded-xl border border-dashed border-slate-300 bg-white/70 hover:bg-white flex items-center justify-between mb-3 transition-colors">
-                          <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
-                            <ImageIcon className="w-4 h-4 text-slate-400" />
-                            <span>لا توجد صورة لهذا المنتج</span>
+                        <div className="w-full aspect-4/3 sm:aspect-auto sm:py-2.5 px-2 rounded-lg sm:rounded-xl border border-dashed border-slate-300 bg-white/70 hover:bg-white flex flex-col sm:flex-row items-center justify-center sm:justify-between mb-2 sm:mb-3 transition-colors gap-1 text-center">
+                          <div className="flex items-center gap-1 text-slate-400 text-[10px] sm:text-xs font-bold">
+                            <ImageIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate">لا توجد صورة</span>
                           </div>
                           <button
                             onClick={() => handleOpenEditProduct(s)}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 text-slate-600 text-[11px] font-bold flex items-center gap-1 border border-slate-200 transition-colors cursor-pointer"
+                            className="px-2 py-0.5 rounded-md sm:rounded-lg bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 text-slate-600 text-[9px] sm:text-[11px] font-bold flex items-center gap-1 border border-slate-200 transition-colors cursor-pointer"
                           >
-                            <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                            <Camera className="w-3 h-3 text-emerald-600" />
                             <span>+ إضافة صورة</span>
                           </button>
                         </div>
                       )}
 
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`p-2.5 rounded-xl ${s.itemType === 'direct_sale' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-900 text-white'}`}>
-                            {s.itemType === 'direct_sale' ? <ShoppingBag className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                          <div className={`p-1.5 sm:p-2 rounded-lg shrink-0 ${s.itemType === 'direct_sale' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-900 text-white'}`}>
+                            {s.itemType === 'direct_sale' ? <ShoppingBag className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <ImageIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                           </div>
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <h4 className="text-base sm:text-lg font-black text-[#292A34] tracking-tight">{s.name}</h4>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <h4 className="text-xs sm:text-sm font-black text-[#292A34] tracking-tight truncate" title={s.name}>{s.name}</h4>
+                            </div>
+                            <div className="flex items-center gap-1 flex-wrap mt-0.5">
                               {s.storeId && (
-                                <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
+                                <span className={`text-[8px] sm:text-[9px] px-1 py-0.2 rounded font-bold ${
                                   s.storeId === 'store_labhour' 
                                     ? 'bg-blue-100 text-blue-800 border border-blue-200' 
                                     : 'bg-rose-100 text-rose-800 border border-rose-200'
@@ -2213,172 +2215,141 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                 </span>
                               )}
                               {s.customCategoryName && (
-                                <span className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded-md font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                                  <Tag className="w-2.5 h-2.5 text-amber-700" />
-                                  <span>{s.customCategoryName}</span>
+                                <span className="inline-flex items-center gap-0.5 text-[8px] sm:text-[9px] px-1 py-0.2 rounded font-bold bg-amber-100 text-amber-900 border border-amber-300 truncate max-w-[90px]">
+                                  <Tag className="w-2 h-2 text-amber-700 shrink-0" />
+                                  <span className="truncate">{s.customCategoryName}</span>
                                 </span>
                               )}
-                            </div>
-                            <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                              <span className="text-[10px] text-slate-500 font-medium">
-                                {s.itemType === 'direct_sale' ? 'سلعة بيع مباشر' : s.photoConfig ? `طباعة صور ارتباطية (${s.photoConfig.paperSize})` : 'خدمة مخصصة'}
+                              <span className="text-[8.5px] sm:text-[10px] text-slate-500 font-medium truncate">
+                                {s.itemType === 'direct_sale' ? 'بيع مباشر' : s.photoConfig ? `طباعة (${s.photoConfig.paperSize})` : 'خدمة مخصصة'}
                               </span>
-                              {/* Consumable Components Preview (خام وسلع) */}
-                              {s.photoConfig?.components && s.photoConfig.components.length > 0 && (
-                                <div className="flex items-center gap-1 flex-wrap">
-                                  {s.photoConfig.components.map((comp, cIdx) => (
-                                    <span 
-                                      key={cIdx} 
-                                      className={`text-[8.5px] px-1.5 py-0.2 rounded font-bold border ${
-                                        comp.kind === 'raw_material'
-                                          ? 'bg-blue-50 text-blue-800 border-blue-200'
-                                          : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                      }`}
-                                      title={`${comp.name} - ${comp.kind === 'raw_material' ? 'مادة خام مستهلكة' : 'سلعة تجارية مستهلكة'}`}
-                                    >
-                                      {comp.kind === 'raw_material' ? '🧪' : '🛍️'} {comp.name}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0.5 shrink-0">
                           <button
                             onClick={() => handleOpenEditProduct(s)}
-                            className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                            className="text-slate-400 hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 transition-colors cursor-pointer"
                             title="تعديل بيانات وصورة المنتج/الخدمة"
                           >
-                            <Edit3 className="w-4 h-4" />
+                            <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           {onDeleteService && (
                             <button
                               onClick={() => handleAttemptDeleteService(s)}
-                              className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                              className="text-slate-400 hover:text-rose-600 p-1 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
                               title="حذف المنتج أو الخدمة"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
                       </div>
 
-                      <p className="text-xs text-slate-600 line-clamp-2 mt-2">{s.description}</p>
+                      {s.description && (
+                        <p className="text-[10px] sm:text-xs text-slate-500 line-clamp-1 mt-1">{s.description}</p>
+                      )}
                     </div>
 
                     {/* Financial Breakdown per item */}
-                    <div className="bg-white p-3 rounded-xl border border-slate-200 grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-white p-1.5 sm:p-2.5 rounded-xl border border-slate-200 grid grid-cols-3 gap-1 text-center shadow-2xs">
                       <div>
-                        <span className="text-[10px] text-slate-500 font-bold block">
-                          {s.photoConfig ? 'تكلفة النسخة/الصورة' : 'سعر التكلفة/الشراء'}
+                        <span className="text-[8px] sm:text-[10px] text-slate-500 font-bold block truncate">
+                          {s.photoConfig ? 'التكلفة' : 'الشراء'}
                         </span>
-                        <span className="text-xs font-mono font-bold text-slate-700">{formatCurrency(rawCost)}</span>
+                        <span className="text-[9.5px] sm:text-xs font-mono font-bold text-slate-700 block truncate">{formatCurrency(rawCost)}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-500 font-bold block">سعر البيع للعميل</span>
-                        <span className="text-xs font-mono font-bold text-[#292A34]">{formatCurrency(s.price)}</span>
+                        <span className="text-[8px] sm:text-[10px] text-slate-500 font-bold block truncate">البيع</span>
+                        <span className="text-[9.5px] sm:text-xs font-mono font-bold text-[#292A34] block truncate">{formatCurrency(s.price)}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-emerald-700 font-bold block">صافي الربح</span>
-                        <span className="text-xs font-mono font-black text-emerald-600">+{formatCurrency(profit)}</span>
+                        <span className="text-[8px] sm:text-[10px] text-emerald-700 font-bold block truncate">الربح</span>
+                        <span className="text-[9.5px] sm:text-xs font-mono font-black text-emerald-600 block truncate">+{formatCurrency(profit)}</span>
                       </div>
                     </div>
 
                     {/* Linked Photo Product Breakdown (Paper + Ink + Frame) */}
                     {associativeBreakdown && (
-                      <div className="bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/90 rounded-xl p-2.5 space-y-2 text-xs">
-                        <div className="flex items-center justify-between text-amber-900 font-bold">
-                          <div className="flex items-center gap-1.5">
-                            <Link2 className="w-3.5 h-3.5 text-amber-600" />
-                            <span className="text-[11px]">تحليل تكلفة الوحدة للمنتج الارتباطي:</span>
+                      <div className="bg-gradient-to-r from-amber-50 to-orange-50/80 border border-amber-200/90 rounded-lg sm:rounded-xl p-1.5 sm:p-2 space-y-1 text-[9px] sm:text-xs">
+                        <div className="flex items-center justify-between text-amber-900 font-bold text-[9px] sm:text-[10px]">
+                          <div className="flex items-center gap-1 min-w-0">
+                            <Link2 className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span className="truncate">تكلفة الوحدة:</span>
                           </div>
-                          <span className="text-[10px] bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md font-mono font-bold">
-                            {linkedConfig?.paperSize} ({pPerSheet} صور/ورقة)
+                          <span className="font-mono text-[#E31C2B] font-black shrink-0">
+                            {formatCurrency(associativeBreakdown.totalUnitCost)}
                           </span>
                         </div>
 
                         {/* Breakdown matrix: Per Photo Consumables */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center text-[10px] pt-1 border-t border-amber-200/70">
-                          <div className="bg-white p-1.5 rounded-lg border border-amber-200 shadow-2xs">
-                            <span className="text-slate-500 block">ورق الصورة:</span>
-                            <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(associativeBreakdown.paperUnitCost)}</strong>
+                        <div className="grid grid-cols-2 gap-1 text-center text-[8.5px] sm:text-[9.5px]">
+                          <div className="bg-white p-1 rounded border border-amber-200 shadow-2xs">
+                            <span className="text-slate-500 block truncate">ورق:</span>
+                            <strong className="font-mono text-slate-700 font-bold block truncate">{formatCurrency(associativeBreakdown.paperUnitCost)}</strong>
                           </div>
-                          <div className="bg-white p-1.5 rounded-lg border border-amber-300 shadow-2xs">
-                            <span className="text-amber-800 font-bold block">حبر الصورة:</span>
-                            <strong className="font-mono text-amber-700 font-black text-xs block">{formatCurrency(associativeBreakdown.inkUnitCost)}</strong>
+                          <div className="bg-white p-1 rounded border border-amber-300 shadow-2xs">
+                            <span className="text-amber-800 font-bold block truncate">حبر:</span>
+                            <strong className="font-mono text-amber-700 font-black block truncate">{formatCurrency(associativeBreakdown.inkUnitCost)}</strong>
                           </div>
                           {(associativeBreakdown.frameUnitCost > 0 || associativeBreakdown.otherConsumablesCost > 0) && (
-                            <div className="bg-white p-1.5 rounded-lg border border-purple-200 shadow-2xs">
-                              <span className="text-purple-700 font-bold block">كادر / سلع:</span>
-                              <strong className="font-mono text-purple-700 font-black text-xs block">
+                            <div className="bg-white p-1 rounded border border-purple-200 shadow-2xs col-span-2">
+                              <span className="text-purple-700 font-bold block truncate">كادر / سلع:</span>
+                              <strong className="font-mono text-purple-700 font-black block truncate">
                                 {formatCurrency(associativeBreakdown.frameUnitCost + associativeBreakdown.otherConsumablesCost)}
                               </strong>
                             </div>
                           )}
-                          <div className="bg-amber-100/70 p-1.5 rounded-lg border border-amber-300 shadow-2xs">
-                            <span className="text-amber-950 font-bold block">تكلفة الصورة:</span>
-                            <strong className="font-mono text-[#E31C2B] font-black text-xs block">{formatCurrency(associativeBreakdown.totalUnitCost)}</strong>
-                          </div>
                         </div>
 
-                        {/* Summary Pill for Packages */}
-                        <div className="text-[9px] text-amber-900 flex items-center justify-between pt-0.5 px-0.5 border-t border-amber-200/50">
-                          <span>
-                            حساب الوحدة: ({formatCurrency(associativeBreakdown.paperUnitCost)} ورق + {formatCurrency(associativeBreakdown.inkUnitCost)} حبر) = <strong>{formatCurrency(associativeBreakdown.totalUnitCost)} للصورة</strong>
-                          </span>
-                          {pPerSheet > 1 && (
-                            <span className="font-bold text-slate-600 bg-white px-1.5 py-0.5 rounded border border-amber-200 font-mono">
-                              باقة {pPerSheet} صور: {formatCurrency(associativeBreakdown.packageTotalCost)}
-                            </span>
-                          )}
-                        </div>
+                        {pPerSheet > 1 && (
+                          <div className="text-[8.5px] sm:text-[9px] text-amber-900 flex items-center justify-between pt-0.5 border-t border-amber-200/50">
+                            <span>باقة {pPerSheet} صور:</span>
+                            <strong className="font-mono">{formatCurrency(associativeBreakdown.packageTotalCost)}</strong>
+                          </div>
+                        )}
                       </div>
                     )}
 
                     {/* Stock and Profit Margin Bar */}
-                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-200 gap-2 flex-wrap">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                          %{margin} هامش ربح
+                    <div className="pt-1.5 border-t border-slate-200 space-y-1.5">
+                      <div className="flex items-center justify-between text-[8.5px] sm:text-[10px] gap-1 flex-wrap">
+                        <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                          %{margin} ربح
                         </span>
                         {s.itemType === 'direct_sale' && typeof s.currentStock === 'number' && (
-                          <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                          <span className="font-mono font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
                             المخزون: <strong className={s.currentStock > 3 ? 'text-emerald-700' : 'text-rose-600'}>{s.currentStock}</strong> قطعة
                           </span>
                         )}
                       </div>
-                      {s.itemType === 'direct_sale' && typeof s.currentStock === 'number' && (
-                        <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
-                          المخزون: <strong className={s.currentStock > 3 ? 'text-emerald-700' : 'text-rose-600'}>{s.currentStock}</strong> قطعة
-                        </span>
-                      )}
-                    </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => handleOpenEditProduct(s)}
-                        className="px-2 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors border border-slate-200"
-                        title="تعديل صورة أو سعر السلعة"
-                      >
-                        <Camera className="w-3 h-3 text-slate-500" />
-                        <span>الصورة / السعر</span>
-                      </button>
-
-                      {s.itemType === 'direct_sale' && (
+                      <div className="flex items-center gap-1">
                         <button
-                          onClick={() => {
-                            setRestockProduct(s);
-                            setRestockProductQty('10');
-                            setRestockProductBuyCost(String(s.buyCost || 0));
-                          }}
-                          className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                          onClick={() => handleOpenEditProduct(s)}
+                          className="flex-1 px-1.5 py-1 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors border border-slate-200"
+                          title="تعديل صورة أو سعر السلعة"
                         >
-                          <PackagePlus className="w-3 h-3" />
-                          <span>تزويد</span>
+                          <Camera className="w-3 h-3 text-slate-500" />
+                          <span>الصورة / السعر</span>
                         </button>
-                      )}
+
+                        {s.itemType === 'direct_sale' && (
+                          <button
+                            onClick={() => {
+                              setRestockProduct(s);
+                              setRestockProductQty('10');
+                              setRestockProductBuyCost(String(s.buyCost || 0));
+                            }}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors shrink-0"
+                            title="تزويد رصيد السلعة بالمخزن"
+                          >
+                            <PackagePlus className="w-3 h-3" />
+                            <span>تزويد</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -2929,8 +2900,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                   <label className="text-[10px] text-slate-500 font-bold whitespace-nowrap">الكمية:</label>
                                   <input
                                     type="number"
-                                    min="0.01"
-                                    step="0.1"
+                                    min="0"
+                                    step="any"
                                     value={comp.quantity}
                                     onChange={(e) => handleUpdateComponent(comp.id, { quantity: Number(e.target.value) || 1 })}
                                     className="w-20 bg-[#F0F0F0] border border-slate-300 rounded-lg px-2 py-1 text-center font-mono font-bold text-xs"
@@ -2941,7 +2912,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                 <div className="flex items-center gap-1 w-full">
                                   <input
                                     type="number"
-                                    min="1"
+                                    min="0"
+                                    step="any"
                                     value={comp.quantity}
                                     onChange={(e) => handleUpdateComponent(comp.id, { quantity: Number(e.target.value) || 1 })}
                                     className="w-12 bg-[#F0F0F0] border border-slate-300 rounded-lg px-1 py-1 text-center font-mono font-bold text-xs"
@@ -2951,6 +2923,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                   <input
                                     type="number"
                                     min="1"
+                                    step="any"
                                     value={comp.yieldCount}
                                     onChange={(e) => handleUpdateComponent(comp.id, { yieldCount: Number(e.target.value) || 1 })}
                                     className="w-14 bg-[#F0F0F0] border border-slate-300 rounded-lg px-1 py-1 text-center font-mono font-bold text-xs"
@@ -3447,8 +3420,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                     <label className="text-[10px] text-slate-500 font-bold whitespace-nowrap">الكمية:</label>
                                     <input
                                       type="number"
-                                      min="0.01"
-                                      step="0.1"
+                                      min="0"
+                                      step="any"
                                       value={comp.quantity}
                                       onChange={(e) => handleUpdateTemplateComponent(comp.id, { quantity: Number(e.target.value) || 1 })}
                                       className="w-20 bg-[#F0F0F0] border border-slate-300 rounded-lg px-2 py-1 text-center font-mono font-bold text-xs"
@@ -3459,7 +3432,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                   <div className="flex items-center gap-1 w-full">
                                     <input
                                       type="number"
-                                      min="1"
+                                      min="0"
+                                      step="any"
                                       value={comp.quantity}
                                       onChange={(e) => handleUpdateTemplateComponent(comp.id, { quantity: Number(e.target.value) || 1 })}
                                       className="w-12 bg-[#F0F0F0] border border-slate-300 rounded-lg px-1 py-1 text-center font-mono font-bold text-xs"
@@ -3469,6 +3443,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                     <input
                                       type="number"
                                       min="1"
+                                      step="any"
                                       value={comp.yieldCount}
                                       onChange={(e) => handleUpdateTemplateComponent(comp.id, { yieldCount: Number(e.target.value) || 1 })}
                                       className="w-14 bg-[#F0F0F0] border border-slate-300 rounded-lg px-1 py-1 text-center font-mono font-bold text-xs"
