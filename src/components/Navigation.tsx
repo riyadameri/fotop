@@ -199,7 +199,8 @@ export const Navigation: React.FC<NavigationProps> = ({
       label: 'إعدادات وهوية الاستوديو',
       shortLabel: 'الإعدادات والشعار',
       description: 'تغيير الشعار، معلومات الاستوديو والوصولات',
-      icon: Sliders
+      icon: Sliders,
+      managerOnly: true
     }
   ];
 

@@ -719,6 +719,22 @@ export const PosView: React.FC<PosViewProps> = ({
                       const cfg = service.photoConfig;
                       const pPerSheet = breakdown.photosPerSheet || cfg.photosPerSheet || 1;
 
+                      if (!isManager) {
+                        return (
+                          <div className="mb-2 p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 space-y-1 text-xs">
+                            <div className="flex items-center justify-between font-bold">
+                              <span className="flex items-center gap-1.5 text-[11px] text-slate-800">
+                                <Link2 className="w-3.5 h-3.5 text-slate-500" />
+                                <span>مواصفات الصورة ({cfg?.paperSize}):</span>
+                              </span>
+                              <span className="text-[10px] font-mono bg-slate-200 text-slate-800 px-2 py-0.5 rounded-md font-bold">
+                                {pPerSheet} صور/ورقة
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div className="mb-2 p-2 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 space-y-1.5 text-xs">
                           <div className="flex items-center justify-between font-bold">
@@ -1180,18 +1196,20 @@ export const PosView: React.FC<PosViewProps> = ({
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-slate-700 block mb-1">سعر الشراء / التكلفة (دج)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={editServiceBuyCost}
-                    onChange={(e) => setEditServiceBuyCost(e.target.value)}
-                    className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono focus:outline-none focus:border-blue-500"
-                  />
-                </div>
+              <div className={`grid ${isManager ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
+                {isManager && (
+                  <div>
+                    <label className="text-slate-700 block mb-1">سعر الشراء / التكلفة (دج)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={editServiceBuyCost}
+                      onChange={(e) => setEditServiceBuyCost(e.target.value)}
+                      className="w-full bg-[#F0F0F0] border border-slate-300 rounded-xl px-3 py-2 text-[#292A34] font-mono focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="text-slate-700 block mb-1">سعر البيع للزبون (دج) *</label>
@@ -1222,7 +1240,7 @@ export const PosView: React.FC<PosViewProps> = ({
                     <div className="flex items-center justify-between text-amber-900 font-bold">
                       <span className="text-[11px] flex items-center gap-1">
                         <Link2 className="w-3.5 h-3.5 text-amber-600" />
-                        <span>عناصر تكلفة الوحدة (ورق + حبر + كادر):</span>
+                        <span>{isManager ? 'عناصر تكلفة الوحدة (ورق + حبر + كادر):' : 'مواصفات الصورة والكادر المرتبط:'}</span>
                       </span>
                       <span className="text-[10px] font-mono bg-amber-200/80 px-2 py-0.5 rounded-full font-bold">
                         مقاس {cfg?.paperSize} ({pPerSheet} صور/ورقة)
@@ -1242,31 +1260,33 @@ export const PosView: React.FC<PosViewProps> = ({
                         <option value="">-- بدون كادر (طباعة صورة فقط) --</option>
                         {availableFrames.map(f => (
                           <option key={f.id} value={f.id}>
-                            {f.name} (تكلفة الكادر: {formatCurrency(f.unitCost)} - المخزون: {f.currentStock} قطعة)
+                            {f.name} {isManager ? `(تكلفة الكادر: ${formatCurrency(f.unitCost)} - المخزون: ${f.currentStock} قطعة)` : `(المخزون: ${f.currentStock} قطعة)`}
                           </option>
                         ))}
                       </select>
                     </div>
 
-                    {/* Breakdown Matrix */}
-                    <div className="grid grid-cols-4 gap-1.5 text-center text-[10px]">
-                      <div className="bg-white p-1.5 rounded-lg border border-amber-200">
-                        <span className="text-slate-500 block">ورق الصورة</span>
-                        <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(breakdown.paperUnitCost)}</strong>
+                    {/* Breakdown Matrix (Manager Only) */}
+                    {isManager && (
+                      <div className="grid grid-cols-4 gap-1.5 text-center text-[10px]">
+                        <div className="bg-white p-1.5 rounded-lg border border-amber-200">
+                          <span className="text-slate-500 block">ورق الصورة</span>
+                          <strong className="font-mono text-slate-700 font-bold text-xs block">{formatCurrency(breakdown.paperUnitCost)}</strong>
+                        </div>
+                        <div className="bg-white p-1.5 rounded-lg border border-amber-300">
+                          <span className="text-amber-800 font-bold block">حبر الصورة</span>
+                          <strong className="font-mono text-amber-800 font-black text-xs block">{formatCurrency(breakdown.inkUnitCost)}</strong>
+                        </div>
+                        <div className="bg-white p-1.5 rounded-lg border border-purple-200">
+                          <span className="text-purple-700 block">الكادر/الإطار</span>
+                          <strong className="font-mono text-purple-700 font-bold text-xs block">{formatCurrency(frameCost)}</strong>
+                        </div>
+                        <div className="bg-amber-100 p-1.5 rounded-lg border border-amber-300">
+                          <span className="text-amber-950 font-bold block">تكلفة الصورة الواحدة</span>
+                          <strong className="font-mono text-[#E31C2B] font-black text-xs block">{formatCurrency(totalItemUnitCost)}</strong>
+                        </div>
                       </div>
-                      <div className="bg-white p-1.5 rounded-lg border border-amber-300">
-                        <span className="text-amber-800 font-bold block">حبر الصورة</span>
-                        <strong className="font-mono text-amber-800 font-black text-xs block">{formatCurrency(breakdown.inkUnitCost)}</strong>
-                      </div>
-                      <div className="bg-white p-1.5 rounded-lg border border-purple-200">
-                        <span className="text-purple-700 block">الكادر/الإطار</span>
-                        <strong className="font-mono text-purple-700 font-bold text-xs block">{formatCurrency(frameCost)}</strong>
-                      </div>
-                      <div className="bg-amber-100 p-1.5 rounded-lg border border-amber-300">
-                        <span className="text-amber-950 font-bold block">تكلفة الصورة الواحدة</span>
-                        <strong className="font-mono text-[#E31C2B] font-black text-xs block">{formatCurrency(totalItemUnitCost)}</strong>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 );
               })()}

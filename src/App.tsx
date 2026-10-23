@@ -171,6 +171,16 @@ export function App() {
     if (!rawSegment) {
       const defaultDest = currentStaff.role === 'manager' ? '/dashboard' : '/pos';
       navigate(defaultDest, { replace: true });
+      return;
+    }
+
+    // 3. Manager-only tabs guard: workers cannot access settings, dashboard, accounting, or hr
+    if (currentStaff.role !== 'manager') {
+      const managerOnlyTabs = ['settings', 'dashboard', 'accounting', 'hr'];
+      if (managerOnlyTabs.includes(rawSegment)) {
+        navigate('/pos', { replace: true });
+        return;
+      }
     }
   }, [isAuthenticated, location.pathname, navigate, currentStaff.role]);
 
@@ -1306,10 +1316,13 @@ export function App() {
                   )}
 
                   {activeTab === 'specs' && (
-                    <SpecsView onGoToPOS={() => handleTabChange('pos')} />
+                    <SpecsView 
+                      onGoToPOS={() => handleTabChange('pos')}
+                      currentStaff={currentStaff}
+                    />
                   )}
 
-                  {activeTab === 'settings' && (
+                  {activeTab === 'settings' && currentStaff.role === 'manager' && (
                     <SettingsView
                       currentStaff={currentStaff}
                       allStaff={staffList || []}

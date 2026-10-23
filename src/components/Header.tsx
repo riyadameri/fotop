@@ -118,6 +118,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentStoreId = 'store_sidiamer',
   onSelectStore,
 }) => {
+  const isManager = currentStaff?.role === 'manager';
+
   // 6 Intelligent Alerts Engine
   const [alertActiveCategory, setAlertActiveCategory] = useState<string>('all');
   const systemAlerts = useMemo(() => {
@@ -861,8 +863,8 @@ export const Header: React.FC<HeaderProps> = ({
                         <span className="text-[10px] font-mono text-rose-400 font-bold">+ تالف</span>
                       </button>
 
-                      {/* Settings */}
-                      {onNavigateToSettings && (
+                      {/* Settings (Manager Only) */}
+                      {onNavigateToSettings && isManager && (
                         <button
                           onClick={() => {
                             setIsBurgerMenuOpen(false);
@@ -1427,34 +1429,36 @@ export const Header: React.FC<HeaderProps> = ({
             ))}
           </div>
 
-          {/* STUDIO PROFILE & LOGO CUSTOMIZER BUTTON */}
-          <div className="mt-2 pt-2 border-t border-slate-700 space-y-1">
-            {onNavigateToSettings && (
+          {/* STUDIO PROFILE & LOGO CUSTOMIZER BUTTON (MANAGER ONLY) */}
+          {isManager && (
+            <div className="mt-2 pt-2 border-t border-slate-700 space-y-1">
+              {onNavigateToSettings && (
+                <button
+                  onClick={() => {
+                    setShowProfileDropdown(false);
+                    soundManager.playClickSound();
+                    onNavigateToSettings();
+                  }}
+                  className="w-full text-right flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-bold text-white hover:text-white bg-[#E31C2B] hover:bg-[#c91422] transition-all cursor-pointer shadow-sm"
+                >
+                  <Sliders className="w-4 h-4 text-white" />
+                  <span>إعدادات النظام وتخصيص الشعار (Settings)</span>
+                </button>
+              )}
+
               <button
                 onClick={() => {
                   setShowProfileDropdown(false);
+                  setShowStudioProfileModal(true);
                   soundManager.playClickSound();
-                  onNavigateToSettings();
                 }}
-                className="w-full text-right flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-bold text-white hover:text-white bg-[#E31C2B] hover:bg-[#c91422] transition-all cursor-pointer shadow-sm"
+                className="w-full text-right flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-bold text-amber-300 hover:text-white bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/60 transition-all cursor-pointer shadow-xs"
               >
-                <Sliders className="w-4 h-4 text-white" />
-                <span>إعدادات النظام وتخصيص الشعار (Settings)</span>
+                <ImageIcon className="w-4 h-4 text-amber-400" />
+                <span>تعديل بروفايل وشعار وصورة الاستوديو السريع</span>
               </button>
-            )}
-
-            <button
-              onClick={() => {
-                setShowProfileDropdown(false);
-                setShowStudioProfileModal(true);
-                soundManager.playClickSound();
-              }}
-              className="w-full text-right flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-bold text-amber-300 hover:text-white bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/60 transition-all cursor-pointer shadow-xs"
-            >
-              <ImageIcon className="w-4 h-4 text-amber-400" />
-              <span>تعديل بروفايل وشعار وصورة الاستوديو السريع</span>
-            </button>
-          </div>
+            </div>
+          )}
 
           {onOpenSpecsModal && (
             <div className="mt-1.5 pt-1.5 border-t border-slate-700">
