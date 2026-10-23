@@ -31,6 +31,7 @@ import {
   Upload,
   Sparkles,
   Check,
+  CheckCheck,
   Sliders,
   Database,
   RefreshCw,
@@ -131,7 +132,65 @@ export const Header: React.FC<HeaderProps> = ({
     });
   }, [materials, services, shifts, allStaff, attendanceLogs, expenses, orders]);
 
+  // Read / Unread Notifications State (persisted in localStorage)
+  const [readAlertIds, setReadAlertIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('fotop_read_alerts');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const markAlertAsRead = (alertId: string) => {
+    setReadAlertIds(prev => {
+      if (prev.has(alertId)) return prev;
+      const next = new Set(prev);
+      next.add(alertId);
+      try {
+        localStorage.setItem('fotop_read_alerts', JSON.stringify(Array.from(next)));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+  };
+
+  const markAllAlertsAsRead = () => {
+    soundManager.playSuccessSound();
+    setReadAlertIds(prev => {
+      const next = new Set(prev);
+      systemAlerts.alerts.forEach(a => next.add(a.id));
+      try {
+        localStorage.setItem('fotop_read_alerts', JSON.stringify(Array.from(next)));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+  };
+
+  const toggleAlertReadStatus = (alertId: string) => {
+    setReadAlertIds(prev => {
+      const next = new Set(prev);
+      if (next.has(alertId)) {
+        next.delete(alertId);
+      } else {
+        next.add(alertId);
+      }
+      try {
+        localStorage.setItem('fotop_read_alerts', JSON.stringify(Array.from(next)));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+  };
+
   const totalAlertCount = systemAlerts.counts.total;
+  const unreadAlertCount = useMemo(() => {
+    return systemAlerts.alerts.filter(a => !readAlertIds.has(a.id)).length;
+  }, [systemAlerts.alerts, readAlertIds]);
   const lowStockMaterials = (materials || []).filter(m => m.currentStock <= m.minThreshold);
   const lowStockProducts = (services || []).filter(
     s => s.itemType === 'direct_sale' && typeof s.currentStock === 'number' && s.currentStock <= (s.minThreshold || 3)
@@ -211,14 +270,14 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotificationPopover, setShowNotificationPopover] = useState<boolean>(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // Sound notification when system alert triggers
-  const prevCountRef = useRef<number>(totalAlertCount);
+  // Sound notification when new unread system alert triggers
+  const prevCountRef = useRef<number>(unreadAlertCount);
   useEffect(() => {
-    if (totalAlertCount > 0 && totalAlertCount > prevCountRef.current) {
+    if (unreadAlertCount > 0 && unreadAlertCount > prevCountRef.current) {
       soundManager.playAlertSound();
     }
-    prevCountRef.current = totalAlertCount;
-  }, [totalAlertCount]);
+    prevCountRef.current = unreadAlertCount;
+  }, [unreadAlertCount]);
 
   // Close notifications popover on click outside
   useEffect(() => {
@@ -647,16 +706,16 @@ export const Header: React.FC<HeaderProps> = ({
                 whileTap={{ scale: 0.92 }}
                 onClick={handleOpenAlerts}
                 className={`relative h-9 px-2.5 rounded-xl border flex items-center gap-1.5 cursor-pointer transition-all shadow-xs ${
-                  totalAlertCount > 0
+                  unreadAlertCount > 0
                     ? 'bg-rose-950/80 border-rose-700 text-rose-200 hover:bg-rose-900 hover:text-white'
                     : 'bg-[#23242e] border-slate-700/80 text-slate-300 hover:bg-slate-700/80 hover:text-white'
                 }`}
-                title="تنبيهات النظام الذكية والرقابة (6 تصنيفات)"
+                title={`تنبيهات النظام الذكية والرقابة (${unreadAlertCount} غير مقروء من أصل ${totalAlertCount})`}
               >
-                <Bell className={`w-4 h-4 ${totalAlertCount > 0 ? 'text-[#ff5252] animate-bounce' : 'text-slate-400'}`} />
-                {totalAlertCount > 0 ? (
+                <Bell className={`w-4 h-4 ${unreadAlertCount > 0 ? 'text-[#ff5252] animate-bounce' : 'text-slate-400'}`} />
+                {unreadAlertCount > 0 ? (
                   <span className="font-mono font-black text-xs bg-[#E31C2B] text-white px-1.5 py-0.2 rounded-full min-w-5 text-center shadow-xs">
-                    {totalAlertCount}
+                    {unreadAlertCount}
                   </span>
                 ) : (
                   <span className="hidden xl:inline text-[11px] font-bold text-slate-400">0</span>
@@ -1017,7 +1076,7 @@ export const Header: React.FC<HeaderProps> = ({
             className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 sm:hidden"
             onClick={() => setShowNotificationPopover(false)}
           />
-          <div className="fixed sm:absolute inset-x-3 sm:inset-x-auto top-[78px] sm:top-full sm:left-4 sm:right-auto mt-1 sm:mt-2 w-auto sm:w-[460px] max-h-[85vh] overflow-y-auto bg-[#23242e] border border-slate-700 rounded-2xl shadow-2xl p-4 z-50 text-white animate-in fade-in zoom-in-95" dir="rtl">
+          <div className="fixed sm:absolute inset-x-3 sm:inset-x-auto top-[78px] sm:top-full sm:left-4 sm:right-auto mt-1 sm:mt-2 w-auto sm:w-[470px] max-h-[85vh] overflow-y-auto bg-[#23242e] border border-slate-700 rounded-2xl shadow-2xl p-4 z-50 text-white animate-in fade-in zoom-in-95" dir="rtl">
           
           {/* Popover Header */}
           <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-700">
@@ -1026,11 +1085,15 @@ export const Header: React.FC<HeaderProps> = ({
                 <BellRing className="w-5 h-5 text-[#E31C2B] animate-pulse" />
               </div>
               <div>
-                <h4 className="text-sm font-black text-white flex items-center gap-1.5">
+                <h4 className="text-sm font-black text-white flex items-center gap-1.5 flex-wrap">
                   <span>مركز التنبيهات والرقابة الذكية</span>
-                  {totalAlertCount > 0 && (
-                    <span className="text-[10px] bg-[#E31C2B] text-white px-2 py-0.5 rounded-full font-black">
-                      {totalAlertCount} تنبيهات
+                  {unreadAlertCount > 0 ? (
+                    <span className="text-[10px] bg-[#E31C2B] text-white px-2 py-0.5 rounded-full font-black animate-pulse shadow-xs">
+                      {unreadAlertCount} غير مقروء
+                    </span>
+                  ) : (
+                    <span className="text-[10px] bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">
+                      الكل مقروء ✓
                     </span>
                   )}
                 </h4>
@@ -1039,15 +1102,31 @@ export const Header: React.FC<HeaderProps> = ({
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setShowNotificationPopover(false)}
-              className="text-slate-400 hover:text-white p-1 rounded-lg text-xs cursor-pointer"
-            >
-              ✕
-            </button>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              {unreadAlertCount > 0 && (
+                <button
+                  type="button"
+                  onClick={markAllAlertsAsRead}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                  title="تعيين جميع التنبيهات كمقروءة"
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  <span>تعيين الكل كمقروء</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowNotificationPopover(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg text-xs cursor-pointer"
+                title="إغلاق"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
-          {/* 6 Category Filter Chips */}
+          {/* 6 Category Filter Chips + Unread chip */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-2 mb-3 no-scrollbar border-b border-slate-800 text-[11px]">
             <button
               onClick={() => setAlertActiveCategory('all')}
@@ -1056,6 +1135,15 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               الكل ({totalAlertCount})
+            </button>
+            <button
+              onClick={() => setAlertActiveCategory('unread')}
+              className={`px-2.5 py-1 rounded-lg font-bold shrink-0 transition-colors cursor-pointer flex items-center gap-1 ${
+                alertActiveCategory === 'unread' ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              <span>غير مقروءة</span>
+              <span className="font-mono">({unreadAlertCount})</span>
             </button>
             <button
               onClick={() => setAlertActiveCategory('low_stock')}
@@ -1110,6 +1198,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Alert Cards List */}
           {(() => {
             const displayAlerts = systemAlerts.alerts.filter(a => {
+              if (alertActiveCategory === 'unread') return !readAlertIds.has(a.id);
               if (alertActiveCategory === 'all') return true;
               return a.type === alertActiveCategory;
             });
@@ -1120,7 +1209,9 @@ export const Header: React.FC<HeaderProps> = ({
                   <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center">
                     <CheckCircle2 className="w-6 h-6" />
                   </div>
-                  <p className="text-sm font-bold text-emerald-400">لا توجد تنبيهات مسجلة في هذا القسم!</p>
+                  <p className="text-sm font-bold text-emerald-400">
+                    {alertActiveCategory === 'unread' ? 'رائع! لا توجد تنبيهات غير مقروءة' : 'لا توجد تنبيهات مسجلة في هذا القسم!'}
+                  </p>
                   <p className="text-xs text-slate-400">كافة العمليات والمؤشرات تسير بصورة طبيعية ومستقرة.</p>
                 </div>
               );
@@ -1129,38 +1220,65 @@ export const Header: React.FC<HeaderProps> = ({
             return (
               <div className="space-y-2.5 max-h-[55vh] overflow-y-auto pr-1 custom-scrollbar">
                 {displayAlerts.map(alert => {
+                  const isRead = readAlertIds.has(alert.id);
                   const isCritical = alert.severity === 'critical';
                   const isWarning = alert.severity === 'warning';
 
                   return (
                     <div 
                       key={alert.id}
-                      className={`p-3 rounded-xl border transition-all ${
-                        isCritical
-                          ? 'bg-rose-950/40 border-rose-700 hover:border-rose-500'
+                      onClick={() => {
+                        markAlertAsRead(alert.id);
+                        if (alert.actionTab) {
+                          setShowNotificationPopover(false);
+                          if (onNavigateTab) {
+                            onNavigateTab(alert.actionTab);
+                          } else if (alert.actionTab === 'inventory' && onNavigateToInventory) {
+                            onNavigateToInventory(true);
+                          }
+                        }
+                      }}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer relative group ${
+                        isRead
+                          ? 'bg-slate-800/40 border-slate-700/60 opacity-75 hover:opacity-100 hover:bg-slate-800/70 hover:border-slate-600'
+                          : isCritical
+                          ? 'bg-rose-950/50 border-rose-600 hover:border-rose-400 shadow-xs ring-1 ring-rose-500/30'
                           : isWarning
-                          ? 'bg-amber-950/40 border-amber-700/80 hover:border-amber-500'
-                          : 'bg-slate-800/60 border-slate-700 hover:border-slate-500'
+                          ? 'bg-amber-950/50 border-amber-600 hover:border-amber-400 shadow-xs ring-1 ring-amber-500/30'
+                          : 'bg-slate-800/80 border-slate-600 hover:border-slate-400'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2">
-                          <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
-                            isCritical ? 'bg-rose-500/20 text-rose-300' : isWarning ? 'bg-amber-500/20 text-amber-300' : 'bg-sky-500/20 text-sky-300'
-                          }`}>
-                            {alert.type === 'low_stock' && <PackagePlus className="w-4 h-4" />}
-                            {alert.type === 'cash_discrepancy' && <AlertOctagon className="w-4 h-4" />}
-                            {alert.type === 'absent_worker' && <UserX className="w-4 h-4" />}
-                            {alert.type === 'unusual_expense' && <Wallet className="w-4 h-4" />}
-                            {alert.type === 'incomplete_operation' && <ReceiptText className="w-4 h-4" />}
-                            {alert.type === 'revenue_drop' && <TrendingDown className="w-4 h-4" />}
+                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                          <div className="relative shrink-0">
+                            <div className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                              isRead
+                                ? 'bg-slate-700/50 text-slate-400'
+                                : isCritical
+                                ? 'bg-rose-500/25 text-rose-300'
+                                : isWarning
+                                ? 'bg-amber-500/25 text-amber-300'
+                                : 'bg-sky-500/25 text-sky-300'
+                            }`}>
+                              {alert.type === 'low_stock' && <PackagePlus className="w-4 h-4" />}
+                              {alert.type === 'cash_discrepancy' && <AlertOctagon className="w-4 h-4" />}
+                              {alert.type === 'absent_worker' && <UserX className="w-4 h-4" />}
+                              {alert.type === 'unusual_expense' && <Wallet className="w-4 h-4" />}
+                              {alert.type === 'incomplete_operation' && <ReceiptText className="w-4 h-4" />}
+                              {alert.type === 'revenue_drop' && <TrendingDown className="w-4 h-4" />}
+                            </div>
+                            {!isRead && (
+                              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-500 border-2 border-[#23242e] animate-ping" />
+                            )}
                           </div>
 
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h5 className="font-black text-xs text-white">{alert.title}</h5>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h5 className={`font-black text-xs ${isRead ? 'text-slate-300 font-semibold' : 'text-white'}`}>
+                                {alert.title}
+                              </h5>
                               <span className={`text-[9px] px-1.5 py-0.2 rounded font-black ${
-                                isCritical ? 'bg-rose-900 text-rose-200' : isWarning ? 'bg-amber-900 text-amber-200' : 'bg-slate-700 text-slate-300'
+                                isCritical ? 'bg-rose-900/80 text-rose-200 border border-rose-700/60' : isWarning ? 'bg-amber-900/80 text-amber-200 border border-amber-700/60' : 'bg-slate-700 text-slate-300'
                               }`}>
                                 {alert.type === 'low_stock' ? 'نقص مخزون' :
                                  alert.type === 'cash_discrepancy' ? 'فارق بالصندوق' :
@@ -1168,31 +1286,65 @@ export const Header: React.FC<HeaderProps> = ({
                                  alert.type === 'unusual_expense' ? 'مصروف غير معتاد' :
                                  alert.type === 'incomplete_operation' ? 'عملية معلقة' : 'مداخيل غير طبيعية'}
                               </span>
+
+                              {isRead ? (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-400/90 bg-emerald-950/40 border border-emerald-700/40 px-1.5 py-0.2 rounded">
+                                  <CheckCheck className="w-2.5 h-2.5" />
+                                  <span>مقروء</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-rose-300 bg-rose-950/60 border border-rose-600/40 px-1.5 py-0.2 rounded">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                  <span>جديد</span>
+                                </span>
+                              )}
                             </div>
-                            <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                            <p className={`text-[11px] mt-1 leading-relaxed ${isRead ? 'text-slate-400' : 'text-slate-200'}`}>
                               {alert.description}
                             </p>
                           </div>
                         </div>
 
-                        {/* Quick Action Button */}
-                        {alert.actionTab && (
+                        {/* Quick Action Button & Toggle Read Button */}
+                        <div className="flex items-center gap-1 shrink-0">
                           <button
-                            onClick={() => {
-                              setShowNotificationPopover(false);
-                              if (onNavigateTab) {
-                                onNavigateTab(alert.actionTab);
-                              } else if (alert.actionTab === 'inventory' && onNavigateToInventory) {
-                                onNavigateToInventory(true);
-                              }
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              soundManager.playClickSound();
+                              toggleAlertReadStatus(alert.id);
                             }}
-                            className="shrink-0 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border border-white/15"
-                            title={alert.actionLabel}
+                            className={`p-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${
+                              isRead
+                                ? 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border-slate-700'
+                                : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/30'
+                            }`}
+                            title={isRead ? 'إعادة التعيين كغير مقروء' : 'تعيين كمقروء'}
                           >
-                            <span>{alert.actionLabel || 'متابعة'}</span>
-                            <ArrowLeft className="w-3 h-3" />
+                            <CheckCheck className={`w-3.5 h-3.5 ${isRead ? 'text-slate-400' : 'text-emerald-400'}`} />
                           </button>
-                        )}
+
+                          {alert.actionTab && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                markAlertAsRead(alert.id);
+                                setShowNotificationPopover(false);
+                                if (onNavigateTab) {
+                                  onNavigateTab(alert.actionTab);
+                                } else if (alert.actionTab === 'inventory' && onNavigateToInventory) {
+                                  onNavigateToInventory(true);
+                                }
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer border border-white/15"
+                              title={alert.actionLabel || 'متابعة'}
+                            >
+                              <span>{alert.actionLabel || 'متابعة'}</span>
+                              <ArrowLeft className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1202,10 +1354,24 @@ export const Header: React.FC<HeaderProps> = ({
           })()}
 
           {/* Popover Footer Action */}
-          <div className="pt-3 mt-3 border-t border-slate-700 flex items-center justify-between gap-2">
-            <span className="text-[11px] text-slate-400">
-              إجمالي التنبيهات النشطة: <strong className="text-white font-mono">{totalAlertCount}</strong>
-            </span>
+          <div className="pt-3 mt-3 border-t border-slate-700 flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400">
+                غير مقروء: <strong className="text-rose-400 font-mono font-black">{unreadAlertCount}</strong> / {totalAlertCount}
+              </span>
+              {unreadAlertCount > 0 && (
+                <button
+                  type="button"
+                  onClick={markAllAlertsAsRead}
+                  className="px-2 py-0.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                  title="تعيين كافة التنبيهات كمقروءة"
+                >
+                  <CheckCheck className="w-3 h-3" />
+                  <span>تعيين الكل كمقروء</span>
+                </button>
+              )}
+            </div>
+            
             <button
               onClick={() => {
                 setShowNotificationPopover(false);
