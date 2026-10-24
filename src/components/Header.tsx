@@ -507,7 +507,13 @@ export const Header: React.FC<HeaderProps> = ({
 
     // Check manager or worker password
     if (selectedStaffToLogin.role === 'manager') {
-      if (inputPassword === 'fouad26911' || inputPassword === selectedStaffToLogin.password || inputPassword === 'admin') {
+      let expectedManagerPass = selectedStaffToLogin.password || 'fouad26911';
+      try {
+        const stored = localStorage.getItem('fotop_manager_password');
+        if (stored && stored.trim()) expectedManagerPass = stored.trim();
+      } catch {}
+
+      if (inputPassword === expectedManagerPass || inputPassword === 'admin') {
         onSwitchStaff(selectedStaffToLogin);
         setShowAuthModal(false);
         setAuthError('');

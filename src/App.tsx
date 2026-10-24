@@ -22,6 +22,7 @@ import { OrdersView } from './components/Orders/OrdersView';
 import { SpecsView } from './components/Specs/SpecsView';
 import { SettingsView } from './components/Settings/SettingsView';
 import { LoginScreen } from './components/Auth/LoginScreen';
+import { UpdatePasswordScreen } from './components/Auth/UpdatePasswordScreen';
 import { FotopLogo } from './components/common/FotopLogo';
 
 import { 
@@ -76,7 +77,15 @@ export function App() {
 
   const [materials, setMaterials] = useState<Material[]>(INITIAL_MATERIALS);
   const [services, setServices] = useState<ServiceItem[]>(INITIAL_SERVICES);
-  const [staffList, setStaffList] = useState<Staff[]>(INITIAL_STAFF);
+  const [staffList, setStaffList] = useState<Staff[]>(() => {
+    try {
+      const savedPass = localStorage.getItem('fotop_manager_password');
+      if (savedPass && savedPass.trim()) {
+        return INITIAL_STAFF.map(s => s.role === 'manager' ? { ...s, password: savedPass.trim() } : s);
+      }
+    } catch {}
+    return INITIAL_STAFF;
+  });
   
   // Auth state & persistence
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -88,16 +97,26 @@ export function App() {
   });
 
   const [currentStaff, setCurrentStaff] = useState<Staff>(() => {
+    const savedPass = (() => {
+      try {
+        return localStorage.getItem('fotop_manager_password');
+      } catch {
+        return null;
+      }
+    })();
     try {
       const savedStaffId = sessionStorage.getItem('fotop_auth_staff_id');
       if (savedStaffId) {
         const found = INITIAL_STAFF.find(s => s.id === savedStaffId);
-        if (found) return found;
+        if (found) {
+          return (found.role === 'manager' && savedPass) ? { ...found, password: savedPass } : found;
+        }
       }
     } catch {
       // ignore
     }
-    return INITIAL_STAFF[0];
+    const defaultManager = INITIAL_STAFF[0];
+    return (defaultManager.role === 'manager' && savedPass) ? { ...defaultManager, password: savedPass } : defaultManager;
   });
 
   // Automatically lock store to worker's assigned store if they are a worker
@@ -122,7 +141,10 @@ export function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const isLoginPage = location.pathname.toLowerCase() === '/login';
+  const rawPath = location.pathname.replace(/^\//, '').split('/')[0] || '';
+  const cleanPath = decodeURIComponent(rawPath).trim().toLowerCase();
+  const isLoginPage = cleanPath === 'login';
+  const isUpdatePasswordPage = cleanPath === 'update-password' || cleanPath === 'update password';
 
   // Helper to map pathname to TabType
   const getTabFromPath = (pathname: string): TabType => {
@@ -157,7 +179,13 @@ export function App() {
 
   // Synchronize route guards and redirects
   useEffect(() => {
-    const rawSegment = location.pathname.replace(/^\//, '').split('/')[0].toLowerCase();
+    const raw = location.pathname.replace(/^\//, '').split('/')[0] || '';
+    const rawSegment = decodeURIComponent(raw).trim().toLowerCase();
+
+    // 0. Directly allow /update-password without authentication!
+    if (rawSegment === 'update-password' || rawSegment === 'update password') {
+      return;
+    }
 
     // 1. If NOT authenticated, force redirect to /login unless already on /login
     if (!isAuthenticated) {
@@ -237,7 +265,11 @@ export function App() {
           }
           setMaterials(data.materials || []);
           setServices(data.services || []);
-          const staff = data.staff && data.staff.length > 0 ? data.staff : INITIAL_STAFF;
+          const rawStaff = data.staff && data.staff.length > 0 ? data.staff : INITIAL_STAFF;
+          const savedPass = localStorage.getItem('fotop_manager_password');
+          const staff = savedPass && savedPass.trim()
+            ? rawStaff.map(s => s.role === 'manager' ? { ...s, password: savedPass.trim() } : s)
+            : rawStaff;
           setStaffList(staff);
           const savedStaffId = sessionStorage.getItem('fotop_auth_staff_id');
           if (savedStaffId) {
@@ -1066,6 +1098,49 @@ export function App() {
     }
     navigate('/login', { replace: true });
   };
+
+  // Handler for updating manager password directly via /update-password
+  const handlePasswordUpdated = async (updatedManager: Staff, newPass: string) => {
+    // 1. Update in-memory staffList
+    setStaffList(prev => (prev || []).map(s => (s.id === updatedManager.id || s.role === 'manager') ? { ...s, password: newPass } : s));
+    
+    // 2. Update currentStaff if current active session is manager
+    if (currentStaff.role === 'manager' || currentStaff.id === updatedManager.id) {
+      setCurrentStaff(prev => ({ ...prev, password: newPass }));
+    }
+
+    // 3. Persist in localStorage
+    try {
+      localStorage.setItem('fotop_manager_password', newPass);
+    } catch (e) {
+      console.error(e);
+    }
+
+    // 4. Persist to backend server API
+    try {
+      await api.updateStaff({ ...updatedManager, password: newPass });
+    } catch (err) {
+      console.error('Error persisting manager password to API:', err);
+    }
+  };
+
+  // Direct access to /update-password route (No button in UI routes here; access is purely via URL)
+  if (isUpdatePasswordPage) {
+    return (
+      <UpdatePasswordScreen
+        staffList={staffList}
+        isAuthenticated={isAuthenticated}
+        onPasswordUpdated={handlePasswordUpdated}
+        onNavigateHome={() => {
+          if (isAuthenticated) {
+            navigate(currentStaff.role === 'manager' ? '/dashboard' : '/pos');
+          } else {
+            navigate('/login');
+          }
+        }}
+      />
+    );
+  }
 
   // If not authenticated OR explicitly visiting /login, show dedicated Login Screen
   if (!isAuthenticated || isLoginPage) {
